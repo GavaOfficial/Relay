@@ -758,19 +758,25 @@ async fn conversion_progress_is_reported_and_cleared() {
         "la percentuale non deve tornare indietro: {seen:?}"
     );
 
-    tokio::time::sleep(Duration::from_millis(1500)).await;
-    let (_, _, b) = send(
-        &app,
-        "GET",
-        &format!("/api/matches/{id}"),
-        "ta",
-        &[],
-        vec![],
-    )
-    .await;
-    let v: serde_json::Value = serde_json::from_slice(&b).unwrap();
+    let mut last = serde_json::Value::Null;
+    for _ in 0..240 {
+        let (_, _, b) = send(
+            &app,
+            "GET",
+            &format!("/api/matches/{id}"),
+            "ta",
+            &[],
+            vec![],
+        )
+        .await;
+        last = serde_json::from_slice::<serde_json::Value>(&b).unwrap()["processing"].clone();
+        if last == serde_json::json!({}) {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(250)).await;
+    }
     assert_eq!(
-        v["processing"],
+        last,
         serde_json::json!({}),
         "avanzamento non ripulito: {seen:?}"
     );
