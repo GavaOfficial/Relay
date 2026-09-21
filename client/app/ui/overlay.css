@@ -1,0 +1,16 @@
+html, body { margin: 0; padding: 0; background: transparent !important; overflow: hidden; }
+[hidden] { display: none !important; }
+#pill {
+  position: fixed; top: 4px; right: 4px;
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 3px 11px 3px 9px; border-radius: 999px;
+  background: rgba(10, 12, 16, .72);
+  border: 1px solid rgba(255, 255, 255, .18);
+  color: #fff; font: 600 14px/20px system-ui, "Segoe UI", sans-serif;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, .8);
+  user-select: none; pointer-events: none;
+}
+.dot { width: 10px; height: 10px; border-radius: 50%; background: #ff4d5e; box-shadow: 0 0 0 1px rgba(0, 0, 0, .5); animation: pulse 1.6s ease-in-out infinite; }
+.t { font-variant-numeric: tabular-nums; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .dot { animation: none; } }

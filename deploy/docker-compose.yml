@@ -1,0 +1,25 @@
+# Opzionale: solo se vuoi far girare il server Rust in Docker sul VPS.
+# Uso:  docker compose -f deploy/docker-compose.yml --env-file deploy/relay.env up -d --build
+# Le variabili sono quelle di deploy/relay.env.example (vedi docs/GAVAAUTH.md).
+services:
+  server:
+    build:
+      context: ..
+      dockerfile: api/server/Dockerfile
+    restart: unless-stopped
+    environment:
+      GAVAAUTH_ISSUER: ${GAVAAUTH_ISSUER:-}
+      GAVAAUTH_AUDIENCE: ${GAVAAUTH_AUDIENCE:-gavaauth-clients}
+      GAVAAUTH_JWKS_URL: ${GAVAAUTH_JWKS_URL:-}
+      RELAY_SESSION_SECRET: ${RELAY_SESSION_SECRET:-}
+      RELAY_SESSION_TTL_HOURS: ${RELAY_SESSION_TTL_HOURS:-24}
+      # solo sviluppo
+      RELAY_DEV_TOKENS: ${RELAY_DEV_TOKENS:-}
+    ports:
+      # solo localhost: lo raggiunge nginx, non internet
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - relay-data:/data
+
+volumes:
+  relay-data:

@@ -1,0 +1,9 @@
+[workspace]
+resolver = "2"
+members = ["common", "api/server", "client/agent", "client/app"]
+
+[workspace.package]
+edition = "2021"
+version = "0.3.5"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/GavaOfficial/Relay"

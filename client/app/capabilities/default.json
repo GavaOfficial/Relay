@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Permessi delle finestre dell'app (principale e indicatore sul gioco)",
+  "windows": ["main", "overlay"],
+  "permissions": ["core:default", "deep-link:default"]
+}

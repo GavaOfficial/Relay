@@ -1,0 +1,23 @@
+# /etc/systemd/system/relay-server.service
+# Dopo la copia: systemctl daemon-reload && systemctl enable --now relay-server
+[Unit]
+Description=Relay - server (upload, playlist, WebSocket)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=relay
+Group=relay
+EnvironmentFile=/etc/relay/relay.env
+ExecStart=/opt/relay/relay-server
+Restart=on-failure
+RestartSec=3
+StateDirectory=relay
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/relay
+
+[Install]
+WantedBy=multi-user.target

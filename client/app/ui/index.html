@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Relay</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="conn" role="status"></div>
+<header class="top">
+  <div class="hd" id="hd-main">
+    <span class="logo" aria-hidden="true"></span>
+    <strong class="brand">Relay</strong>
+    <span id="who" class="who"></span>
+    <button id="gear" class="iconbtn" data-act="gear" aria-label="Impostazioni" title="Impostazioni">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+    </button>
+  </div>
+  <div class="hd" id="hd-set" hidden>
+    <button class="iconbtn" data-act="back" data-k="back" aria-label="Indietro" title="Indietro">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <strong class="brand">Impostazioni</strong>
+    <span id="savemsg" class="savemsg" role="status" aria-live="polite"></span>
+  </div>
+</header>
+<div id="banner"></div>
+<main>
+  <section id="v-loading" class="view muted">Caricamento…</section>
+  <section id="v-login" class="view" hidden></section>
+  <section id="v-home" class="view" hidden></section>
+  <section id="v-match" class="view match" hidden>
+    <div id="m-title"></div>
+    <div id="m-head"></div>
+    <div id="m-window"></div>
+    <div id="m-players"></div>
+    <div id="m-invite"></div>
+    <div id="m-actions" class="dock"></div>
+  </section>
+  <section id="v-settings" class="view" hidden></section>
+</main>
+<script src="app.js"></script>
+</body>
+</html>

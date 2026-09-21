@@ -1,0 +1,25 @@
+# /etc/systemd/system/relay-web.service
+# Costruire prima:  cd /opt/relay/web && npm ci && npm run build
+[Unit]
+Description=Relay - sito (Next.js)
+After=network-online.target relay-server.service
+Wants=network-online.target
+
+[Service]
+User=relay
+Group=relay
+WorkingDirectory=/opt/relay/web
+EnvironmentFile=/etc/relay/relay.env
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=HOSTNAME=127.0.0.1
+ExecStart=/usr/bin/npm start
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
