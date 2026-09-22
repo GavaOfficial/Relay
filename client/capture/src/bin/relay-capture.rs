@@ -20,6 +20,7 @@ use libobs_window_helper::{get_all_windows, WindowSearchMode};
 use libobs_wrapper::{
     context::ObsContext,
     data::object::ObsObjectTrait,
+    data::video::ObsVideoInfoBuilder,
     data::{output::ObsOutputTrait, ObsData, ObsDataSetters},
     encoders::{ObsAudioEncoderType, ObsContextEncoders, ObsVideoEncoderType},
     run_with_obs,
@@ -198,6 +199,16 @@ fn sleep_until(unix_secs: f64) {
 fn run_record(cfg: RecordConfig) -> Result<()> {
     std::fs::create_dir_all(&cfg.dir).context("creazione della cartella di lavoro")?;
     let mut context = ObsContext::new(StartupInfo::default()).context("avvio di OBS")?;
+    // di base OBS incide a 30 fps qualunque cosa si chieda alla sorgente: senza questo la
+    // registrazione restava sempre a 30 fps anche impostando 60
+    context
+        .reset_video(
+            ObsVideoInfoBuilder::new()
+                .fps_num(cfg.fps)
+                .fps_den(1)
+                .build(),
+        )
+        .context("impostazione dei fotogrammi al secondo")?;
     let mut scene = context
         .scene("relay", Some(0))
         .context("creazione della scena")?;
