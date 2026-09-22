@@ -1,34 +1,69 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { isLive } from "@/lib/live";
+import { formatBytes, stageLabel, statusOf } from "@/lib/matchFormat";
 import type { MatchDetail } from "@/lib/types";
 import Avatar from "./Avatar";
 import SyncPlayer from "./SyncPlayer";
 import When from "./When";
 
 const POLL_MS = 3000;
-
-function statusOf(m: MatchDetail, nowMs: number): { label: string; cls: string } {
-  if (m.status === "ended") return { label: "Terminata", cls: "" };
-  if (m.stopped_at_ms) return { label: "Caricamento", cls: "" };
-  if (m.started_at_ms) return { label: isLive(m, nowMs) ? "In diretta" : "Registrata", cls: isLive(m, nowMs) ? "live" : "" };
-  return { label: "In attesa", cls: "idle" };
-}
-
-function stageLabel(stage: "queue" | "video" | "web", pct: number): string {
-  if (stage === "queue") return "In coda";
-  if (stage === "web") return `Versione leggera ${pct}%`;
-  return `Preparo il video ${pct}%`;
-}
+type GameResult = { app_id?: number; name: string; cover_url?: string };
 
 export default function MatchView({ initial, canRename = false, nowMs }: { initial: MatchDetail; canRename?: boolean; nowMs: number }) {
+  const router = useRouter();
   const [m, setM] = useState(initial);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const [renameErr, setRenameErr] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [quality, setQuality] = useState<Record<string, "orig" | "web">>({});
+  const [deletingMatch, setDeletingMatch] = useState(false);
+  const [deleteErr, setDeleteErr] = useState<string | null>(null);
+  const [gameEditing, setGameEditing] = useState(false);
+  const [gameQuery, setGameQuery] = useState("");
+  const [gameResults, setGameResults] = useState<GameResult[]>([]);
+  const [gameBusy, setGameBusy] = useState(false);
+  const [gameErr, setGameErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!gameEditing || gameQuery.trim().length < 2) {
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        const r = await fetch(`/api/games/search?q=${encodeURIComponent(gameQuery.trim())}`);
+        if (r.ok) setGameResults((await r.json()) as GameResult[]);
+      } catch {
+        setGameResults([]);
+      }
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [gameEditing, gameQuery]);
+
+  const chooseGame = async (game: GameResult) => {
+    setGameBusy(true);
+    setGameErr(null);
+    try {
+      const r = await fetch(`/api/matches/${m.id}/game`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(game),
+      });
+      if (!r.ok) throw new Error(String(r.status));
+      const info = (await r.json()) as MatchDetail;
+      setM((prev) => ({ ...prev, game_app_id: info.game_app_id, game_name: info.game_name, game_cover_url: info.game_cover_url }));
+      setGameEditing(false);
+      setGameQuery("");
+    } catch {
+      setGameErr("Non sono riuscito a salvare il gioco. Riprova.");
+    } finally {
+      setGameBusy(false);
+    }
+  };
 
   useEffect(() => {
     let stop = false;
@@ -73,14 +108,130 @@ export default function MatchView({ initial, canRename = false, nowMs }: { initi
     }
   };
 
+  const qualityOf = (p: string): "orig" | "web" =>
+    quality[p] ?? ((m.web_videos ?? []).includes(p) ? "web" : "orig");
+
+  const [sizes, setSizes] = useState<Record<string, number | null>>({});
+  const fetchSize = (p: string, q: "orig" | "web") => {
+    const key = `${p}:${q}`;
+    if (key in sizes) return;
+    void fetch(`/api/matches/${m.id}/players/${encodeURIComponent(p)}/video.mp4${q === "web" ? "?q=web" : ""}`, { method: "HEAD" })
+      .then((r) => {
+        const len = r.headers.get("content-length");
+        setSizes((prev) => ({ ...prev, [key]: len ? Number(len) : null }));
+      })
+      .catch(() => setSizes((prev) => ({ ...prev, [key]: null })));
+  };
+  const dlDialogRef = useRef<HTMLDialogElement>(null);
+  const openDownloads = () => {
+    for (const p of m.videos ?? []) fetchSize(p, qualityOf(p));
+    dlDialogRef.current?.showModal();
+  };
+  const downloadAll = () => {
+    for (const p of m.videos ?? []) {
+      const q = qualityOf(p);
+      const a = document.createElement("a");
+      a.href = `/api/matches/${m.id}/players/${encodeURIComponent(p)}/video.mp4?download=1${q === "web" ? "&q=web" : ""}`;
+      a.download = "";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+  };
+
+  const deleteMatch = async () => {
+    if (!window.confirm("Eliminare l'intera partita e tutte le sue registrazioni? Non si può annullare.")) return;
+    setDeletingMatch(true);
+    setDeleteErr(null);
+    try {
+      const r = await fetch(`/api/matches/${m.id}`, { method: "DELETE" });
+      if (!r.ok) throw new Error(String(r.status));
+      router.push("/");
+    } catch {
+      setDeleteErr("Non sono riuscito a eliminare la partita. Riprova.");
+      setDeletingMatch(false);
+    }
+  };
+
+  const shareDialogRef = useRef<HTMLDialogElement>(null);
+  const [shareBusy, setShareBusy] = useState(false);
+  const [shareErr, setShareErr] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [origin, setOrigin] = useState("");
+  const shareUrl = m.share_token ? `${origin}/s/${m.share_token}` : "";
+
+  const openShare = () => {
+    setShareErr(null);
+    setOrigin(window.location.origin);
+    shareDialogRef.current?.showModal();
+  };
+  const enableShare = async () => {
+    setShareBusy(true);
+    setShareErr(null);
+    try {
+      const r = await fetch(`/api/matches/${m.id}/share`, { method: "POST" });
+      if (!r.ok) throw new Error(String(r.status));
+      const info = (await r.json()) as MatchDetail;
+      setM((prev) => ({ ...prev, share_token: info.share_token }));
+    } catch {
+      setShareErr("Non sono riuscito ad attivare la condivisione. Riprova.");
+    } finally {
+      setShareBusy(false);
+    }
+  };
+  const disableShare = async () => {
+    setShareBusy(true);
+    setShareErr(null);
+    try {
+      const r = await fetch(`/api/matches/${m.id}/share`, { method: "DELETE" });
+      if (!r.ok) throw new Error(String(r.status));
+      setM((prev) => ({ ...prev, share_token: undefined }));
+    } catch {
+      setShareErr("Non sono riuscito a disattivare la condivisione. Riprova.");
+    } finally {
+      setShareBusy(false);
+    }
+  };
+  const copyShare = async () => {
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      setShareErr("Non sono riuscito a copiare il link.");
+    }
+  };
+
   return (
-    <>
+    <div className="matchpage">
       <Link href="/" className="back">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <path d="m15 18-6-6 6-6" />
         </svg>
         Partite
       </Link>
+
+      {m.game_name && (
+        <div className="gamehero">
+          {m.game_cover_url && <img src={m.game_cover_url} alt={`Copertina di ${m.game_name}`} />}
+          <div><span>Gioco</span><strong>{m.game_name}</strong></div>
+          {canRename && <button type="button" className="ghost small gameeditbtn" onClick={() => { setGameResults([]); setGameEditing((value) => !value); }}>Cambia</button>}
+        </div>
+      )}
+      {canRename && !m.game_name && <button type="button" className="ghost gameaddbtn" onClick={() => { setGameResults([]); setGameEditing((value) => !value); }}>Aggiungi gioco e copertina</button>}
+      {canRename && gameEditing && (
+        <div className="gamepicker">
+          <input autoFocus type="search" value={gameQuery} placeholder="Cerca un gioco..." onChange={(e) => setGameQuery(e.target.value)} />
+          {gameResults.map((game) => (
+            <button type="button" key={`${game.app_id ?? "game"}-${game.name}`} disabled={gameBusy} onClick={() => void chooseGame(game)}>
+              {game.cover_url && <img src={game.cover_url} alt="" />}
+              <span>{game.name}</span>
+            </button>
+          ))}
+          {gameQuery.trim().length >= 2 && !gameResults.length && <p className="muted">Nessun risultato.</p>}
+          {gameErr && <p className="error">{gameErr}</p>}
+        </div>
+      )}
 
       <div className="matchhead">
         <div>
@@ -128,38 +279,186 @@ export default function MatchView({ initial, canRename = false, nowMs }: { initi
                   </svg>
                 </button>
               )}
+              {canRename && m.status === "ended" && (
+                <button
+                  type="button"
+                  className="iconbtn danger"
+                  title="Elimina la partita"
+                  aria-label="Elimina la partita"
+                  disabled={deletingMatch}
+                  onClick={() => void deleteMatch()}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6h16ZM10 11v6M14 11v6" />
+                  </svg>
+                </button>
+              )}
             </div>
           )}
           {renameErr && <p className="error">{renameErr}</p>}
+          {deleteErr && <p className="error">{deleteErr}</p>}
           <div className="meta">
             <When seconds={m.created_at} />
             <span className={`pill ${st.cls}`}>{st.label}</span>
           </div>
         </div>
 
-        {(m.videos ?? []).length > 0 && (
-          <details className="dlmenu">
-            <summary>
+        <div className="matchhead-actions">
+          {canRename && m.status === "ended" && (m.videos ?? []).length > 0 && (
+            <button type="button" className="dlbtn" onClick={openShare}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="18" cy="5" r="3" />
+                <circle cx="6" cy="12" r="3" />
+                <circle cx="18" cy="19" r="3" />
+                <path d="m8.6 10.5 6.8-3.9M8.6 13.5l6.8 3.9" />
+              </svg>
+              Condividi
+            </button>
+          )}
+          {(m.videos ?? []).length > 0 && (
+            <button type="button" className="dlbtn" onClick={openDownloads}>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M12 4v11m0 0-4-4m4 4 4-4M5 20h14" />
               </svg>
               Scarica
-            </summary>
-            <div className="dlpop">
-              {(m.videos ?? []).map((p) => (
-                <a
-                  key={p}
-                  href={`/api/matches/${m.id}/players/${encodeURIComponent(p)}/video.mp4?download=1`}
-                  download
-                  title={`Scarica il video di ${label(p)}`}
-                >
-                  {label(p)}
-                </a>
-              ))}
-            </div>
-          </details>
-        )}
+            </button>
+          )}
+        </div>
       </div>
+
+      <dialog
+        ref={shareDialogRef}
+        className="dldialog sharedialog"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) shareDialogRef.current?.close();
+        }}
+      >
+        <div className="dldialog-head">
+          <div>
+            <h2>Condividi</h2>
+            <p className="muted">{title}</p>
+          </div>
+          <button type="button" className="iconbtn" aria-label="Chiudi" onClick={() => shareDialogRef.current?.close()}>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div className="sharebody">
+          {m.share_token ? (
+            <>
+              <p className="muted">
+                Chiunque abbia questo link può vedere la partita, senza accedere e senza comparire nel sito.
+              </p>
+              <div className="sharelink">
+                <input type="text" readOnly value={shareUrl} onFocus={(e) => e.currentTarget.select()} />
+                <button type="button" className="ghost small" onClick={() => void copyShare()}>
+                  {copied ? "Copiato!" : "Copia"}
+                </button>
+              </div>
+              {shareErr && <p className="error">{shareErr}</p>}
+              <button type="button" className="ghost" disabled={shareBusy} onClick={() => void disableShare()}>
+                Disattiva la condivisione
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="muted">
+                Crea un link privato per far vedere questa partita anche a chi non ha un account: non comparirà nel
+                sito, ma chiunque abbia il link potrà aprirlo.
+              </p>
+              {shareErr && <p className="error">{shareErr}</p>}
+              <button type="button" className="primary" disabled={shareBusy} onClick={() => void enableShare()}>
+                Crea il link
+              </button>
+            </>
+          )}
+        </div>
+      </dialog>
+
+      <dialog
+        ref={dlDialogRef}
+        className="dldialog"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) dlDialogRef.current?.close();
+        }}
+      >
+        <div className="dldialog-head">
+          <div>
+            <h2>Scarica i video</h2>
+            <p className="muted">{title}</p>
+          </div>
+          <button type="button" className="iconbtn" aria-label="Chiudi" onClick={() => dlDialogRef.current?.close()}>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="dllist">
+          {(m.videos ?? []).map((p) => {
+            const hasWeb = (m.web_videos ?? []).includes(p);
+            const q = qualityOf(p);
+            const size = sizes[`${p}:${q}`];
+            return (
+              <div key={p} className="dlrow">
+                <Avatar name={label(p)} size={34} />
+                <div className="dlinfo">
+                  <span className="dlname">{label(p)}</span>
+                  <span className="dlsize">{size ? formatBytes(size) : " "}</span>
+                </div>
+                {hasWeb && (
+                  <div className="segmented" role="radiogroup" aria-label={`Qualità per ${label(p)}`}>
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={q === "web"}
+                      className={q === "web" ? "on" : ""}
+                      onClick={() => {
+                        setQuality((prev) => ({ ...prev, [p]: "web" }));
+                        fetchSize(p, "web");
+                      }}
+                    >
+                      HD 720p
+                    </button>
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={q === "orig"}
+                      className={q === "orig" ? "on" : ""}
+                      onClick={() => {
+                        setQuality((prev) => ({ ...prev, [p]: "orig" }));
+                        fetchSize(p, "orig");
+                      }}
+                    >
+                      Originale
+                    </button>
+                  </div>
+                )}
+                <a
+                  className="dlgo"
+                  href={`/api/matches/${m.id}/players/${encodeURIComponent(p)}/video.mp4?download=1${q === "web" ? "&q=web" : ""}`}
+                  download
+                  title={`Scarica il video di ${label(p)} (${q === "web" ? "720p" : "originale"})`}
+                  aria-label={`Scarica il video di ${label(p)} in ${q === "web" ? "720p" : "qualità originale"}`}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M12 4v11m0 0-4-4m4 4 4-4M5 20h14" />
+                  </svg>
+                </a>
+              </div>
+            );
+          })}
+        </div>
+
+        {(m.videos ?? []).length > 1 && (
+          <div className="dldialog-foot">
+            <button type="button" className="ghost small" onClick={downloadAll}>
+              Scarica tutti
+            </button>
+          </div>
+        )}
+      </dialog>
 
       {live && m.players.length > 0 && (
         <div className="players" aria-label="Giocatori">
@@ -219,6 +518,6 @@ export default function MatchView({ initial, canRename = false, nowMs }: { initi
           <p className="muted">Le visuali compariranno qui appena l&apos;host avvia la registrazione dall&apos;app.</p>
         </div>
       )}
-    </>
+    </div>
   );
 }

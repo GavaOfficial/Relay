@@ -58,6 +58,7 @@ pub async fn healthz() -> &'static str {
 fn redact(mut m: MatchInfo, user: &str) -> MatchInfo {
     if m.coordinator != user {
         m.invite_code = None;
+        m.share_token = None;
     }
     m
 }
@@ -96,6 +97,10 @@ pub async fn create_match(
         stopped_at_ms: None,
         names: Default::default(),
         invite_code: Some(Uuid::new_v4().simple().to_string()),
+        share_token: None,
+        game_app_id: None,
+        game_name: None,
+        game_cover_url: None,
         created_at: SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .map(|d| d.as_secs())
@@ -317,6 +322,254 @@ pub async fn rename_match(
     Ok(Json(redact(m.clone(), &user)))
 }
 
+pub async fn enable_share(
+    State(st): St,
+    AuthUser(user): AuthUser,
+    Path(id): Path<Uuid>,
+) -> Result<Json<MatchInfo>, AppError> {
+    let mut all = st.matches.write().await;
+    let m = all.get_mut(&id).ok_or(AppError::NotFound)?;
+    if m.coordinator != user {
+        return Err(AppError::Forbidden);
+    }
+    if m.status != MatchStatus::Ended {
+        return Err(AppError::Conflict("la partita non e' ancora terminata"));
+    }
+    m.share_token = Some(Uuid::new_v4().simple().to_string());
+    st.persist(m).await?;
+    Ok(Json(redact(m.clone(), &user)))
+}
+
+pub async fn disable_share(
+    State(st): St,
+    AuthUser(user): AuthUser,
+    Path(id): Path<Uuid>,
+) -> Result<Json<MatchInfo>, AppError> {
+    let mut all = st.matches.write().await;
+    let m = all.get_mut(&id).ok_or(AppError::NotFound)?;
+    if m.coordinator != user {
+        return Err(AppError::Forbidden);
+    }
+    m.share_token = None;
+    st.persist(m).await?;
+    Ok(Json(redact(m.clone(), &user)))
+}
+
+#[derive(serde::Deserialize)]
+pub struct GameInput {
+    pub app_id: Option<u32>,
+    pub name: String,
+    pub cover_url: Option<String>,
+}
+
+pub async fn set_game(
+    State(st): St,
+    AuthUser(user): AuthUser,
+    Path(id): Path<Uuid>,
+    Json(input): Json<GameInput>,
+) -> Result<Json<MatchInfo>, AppError> {
+    if input.app_id == Some(0) {
+        return Err(AppError::BadRequest("app Steam non valida"));
+    }
+    let name = clean_name(&input.name).ok_or(AppError::BadRequest("nome gioco non valido"))?;
+    let mut all = st.matches.write().await;
+    let m = all.get_mut(&id).ok_or(AppError::NotFound)?;
+    if m.coordinator != user {
+        return Err(AppError::Forbidden);
+    }
+    if input
+        .cover_url
+        .as_deref()
+        .is_some_and(|url| !url.starts_with("https://"))
+    {
+        return Err(AppError::BadRequest("copertina non valida"));
+    }
+    m.game_app_id = input.app_id;
+    m.game_name = Some(name);
+    m.game_cover_url = input.cover_url;
+    st.persist(m).await?;
+    Ok(Json(m.clone()))
+}
+
+#[derive(serde::Deserialize)]
+pub struct GameSearchQuery {
+    pub q: String,
+}
+
+#[derive(serde::Deserialize)]
+struct CatalogGame {
+    #[serde(rename = "steamAppID")]
+    steam_app_id: Option<String>,
+    #[serde(rename = "external")]
+    name: String,
+    thumb: Option<String>,
+}
+
+#[derive(serde::Serialize)]
+pub struct GameSearchItem {
+    app_id: Option<u32>,
+    name: String,
+    cover_url: Option<String>,
+}
+
+pub async fn search_games(
+    AuthUser(_user): AuthUser,
+    axum::extract::Query(query): axum::extract::Query<GameSearchQuery>,
+) -> Result<Json<Vec<GameSearchItem>>, AppError> {
+    let q = query.q.trim();
+    if q.chars().count() < 2 {
+        return Ok(Json(Vec::new()));
+    }
+    let games = reqwest::Client::new()
+        .get("https://www.cheapshark.com/api/1.0/games")
+        .query(&[("title", q), ("limit", "30")])
+        .send()
+        .await
+        .map_err(|_| AppError::Internal("catalogo giochi non disponibile".into()))?
+        .error_for_status()
+        .map_err(|_| AppError::Internal("catalogo giochi non disponibile".into()))?
+        .json::<Vec<CatalogGame>>()
+        .await
+        .map_err(|_| AppError::Internal("risposta del catalogo non valida".into()))?;
+    Ok(Json(
+        games
+            .into_iter()
+            .map(|game| GameSearchItem {
+                app_id: game.steam_app_id.and_then(|id| id.parse().ok()),
+                name: game.name,
+                cover_url: game.thumb.map(|url| url.replace("http://", "https://")),
+            })
+            .collect(),
+    ))
+}
+
+async fn get_shared(st: &AppState, token: &str) -> Result<MatchInfo, AppError> {
+    st.matches
+        .read()
+        .await
+        .values()
+        .find(|m| m.share_token.as_deref() == Some(token))
+        .cloned()
+        .ok_or(AppError::NotFound)
+}
+
+pub async fn share_match(
+    State(st): St,
+    Path(token): Path<String>,
+) -> Result<Json<MatchView>, AppError> {
+    let info = get_shared(&st, &token).await?;
+    let id = info.id;
+    let mut videos = Vec::new();
+    let mut web_videos = Vec::new();
+    let mut vod_videos = Vec::new();
+    for p in &info.players {
+        let dir = st.player_dir(id, p);
+        if crate::finalize::has_video(&dir).await {
+            videos.push(p.clone());
+            if crate::finalize::has_web(&dir).await {
+                web_videos.push(p.clone());
+                if crate::finalize::has_vod(&dir).await {
+                    vod_videos.push(p.clone());
+                }
+            }
+        }
+    }
+    let mut info = info;
+    info.invite_code = None;
+    info.share_token = None;
+    Ok(Json(MatchView {
+        info,
+        connected: Vec::new(),
+        health: Vec::new(),
+        videos,
+        web_videos,
+        vod_videos,
+        processing: st.processing_of(id),
+    }))
+}
+
+pub async fn share_thumb(
+    State(st): St,
+    Path(token): Path<String>,
+) -> Result<impl IntoResponse, AppError> {
+    let info = get_shared(&st, &token).await?;
+    for p in &info.players {
+        if let Ok(bytes) =
+            tokio::fs::read(st.player_dir(info.id, p).join(crate::finalize::THUMB_FILE)).await
+        {
+            return Ok((
+                [
+                    (header::CONTENT_TYPE, "image/jpeg"),
+                    (header::CACHE_CONTROL, "private, max-age=3600"),
+                ],
+                bytes,
+            ));
+        }
+    }
+    Err(AppError::NotFound)
+}
+
+pub async fn share_video(
+    State(st): St,
+    Path((token, pid)): Path<(String, String)>,
+    axum::extract::Query(q): axum::extract::Query<VideoQuery>,
+    headers: HeaderMap,
+) -> Result<axum::response::Response, AppError> {
+    let info = get_shared(&st, &token).await?;
+    if !info.players.contains(&pid) {
+        return Err(AppError::NotFound);
+    }
+    let dir = st.player_dir(info.id, &pid);
+    let download = matches!(q.download.as_deref(), Some("1") | Some("true"));
+    let want_web = q.q.as_deref() == Some("web") && crate::finalize::has_web(&dir).await;
+    let path = dir.join(if want_web {
+        crate::finalize::WEB_FILE
+    } else {
+        crate::finalize::VIDEO_FILE
+    });
+    let name = download.then(|| {
+        format!(
+            "relay-{}-{}{}.mp4",
+            info.id.simple().to_string().get(..8).unwrap_or("partita"),
+            pid,
+            if want_web { "-720p" } else { "" }
+        )
+    });
+    serve_file(&path, &headers, if want_web { "-w" } else { "" }, name).await
+}
+
+pub async fn share_vod(
+    State(st): St,
+    Path((token, pid, file)): Path<(String, String, String)>,
+    headers: HeaderMap,
+) -> Result<axum::response::Response, AppError> {
+    if file != crate::finalize::VOD_INDEX && file != crate::finalize::VOD_MEDIA {
+        return Err(AppError::NotFound);
+    }
+    let info = get_shared(&st, &token).await?;
+    if !info.players.contains(&pid) {
+        return Err(AppError::NotFound);
+    }
+    let path = st
+        .player_dir(info.id, &pid)
+        .join(crate::finalize::VOD_DIR)
+        .join(&file);
+    if file == crate::finalize::VOD_MEDIA {
+        return serve_file(&path, &headers, "-v", None).await;
+    }
+    let body = tokio::fs::read(&path)
+        .await
+        .map_err(|_| AppError::NotFound)?;
+    Ok((
+        [
+            (header::CONTENT_TYPE, "application/vnd.apple.mpegurl"),
+            (header::CACHE_CONTROL, "private, max-age=3600"),
+        ],
+        body,
+    )
+        .into_response())
+}
+
 pub async fn get_thumb(
     State(st): St,
     AuthUser(user): AuthUser,
@@ -462,8 +715,7 @@ pub async fn get_video(
     let dir = st.player_dir(id, &pid);
 
     let download = matches!(q.download.as_deref(), Some("1") | Some("true"));
-    let want_web =
-        !download && q.q.as_deref() == Some("web") && crate::finalize::has_web(&dir).await;
+    let want_web = q.q.as_deref() == Some("web") && crate::finalize::has_web(&dir).await;
     let path = dir.join(if want_web {
         crate::finalize::WEB_FILE
     } else {
@@ -471,12 +723,45 @@ pub async fn get_video(
     });
     let name = download.then(|| {
         format!(
-            "relay-{}-{}.mp4",
+            "relay-{}-{}{}.mp4",
             id.simple().to_string().get(..8).unwrap_or("partita"),
-            pid
+            pid,
+            if want_web { "-720p" } else { "" }
         )
     });
     serve_file(&path, &headers, if want_web { "-w" } else { "" }, name).await
+}
+
+pub async fn delete_match(
+    State(st): St,
+    AuthUser(user): AuthUser,
+    Path(id): Path<Uuid>,
+) -> Result<StatusCode, AppError> {
+    {
+        let all = st.matches.read().await;
+        let m = all.get(&id).ok_or(AppError::NotFound)?;
+        if m.coordinator != user {
+            return Err(AppError::Forbidden);
+        }
+        if m.status != MatchStatus::Ended {
+            return Err(AppError::Conflict("la partita non e' ancora terminata"));
+        }
+    }
+    if !st.processing_of(id).is_empty() {
+        return Err(AppError::Conflict("il video e' ancora in elaborazione"));
+    }
+    let Ok(_not_finalizing) = st.finalize_lock.try_lock() else {
+        return Err(AppError::Conflict(
+            "il server sta ancora elaborando dei video: riprova tra poco",
+        ));
+    };
+    if let Err(e) = tokio::fs::remove_dir_all(st.match_dir(id)).await {
+        if e.kind() != std::io::ErrorKind::NotFound {
+            return Err(e.into());
+        }
+    }
+    st.matches.write().await.remove(&id);
+    Ok(StatusCode::NO_CONTENT)
 }
 
 async fn serve_file(

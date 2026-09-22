@@ -577,16 +577,27 @@ async fn large_videos_get_a_light_version_and_are_cacheable() {
         vec![],
     )
     .await;
-    assert_eq!(s, StatusCode::OK, "il link del sito usa ?download=1");
+    assert_eq!(s, StatusCode::OK, "il link del sito usa ?download=1&q=web");
     assert_eq!(
         dl.len(),
-        orig.len(),
-        "scaricando si ottiene sempre l'originale"
+        web.len(),
+        "scaricando con q=web si deve ottenere la versione leggera"
     );
     assert!(h2["content-disposition"]
         .to_str()
         .unwrap()
         .starts_with("attachment"));
+    assert!(
+        h2["content-disposition"].to_str().unwrap().contains("720p"),
+        "il nome del file scaricato deve indicare la qualita' 720p"
+    );
+    let (s, _, dl_orig) = send(&app, "GET", &format!("{url}?download=1"), "ta", &[], vec![]).await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(
+        dl_orig.len(),
+        orig.len(),
+        "senza q=web si scarica l'originale"
+    );
     let out = StdCommand::new(&ff)
         .args(["-hide_banner", "-i"])
         .arg(pdir.join("web.mp4"))
@@ -871,4 +882,178 @@ async fn light_version_is_also_served_as_one_file_read_in_pieces() {
     assert_ne!(s, StatusCode::INTERNAL_SERVER_ERROR);
     let (s, _, _) = send(&app, "GET", &format!("{base}/altro.txt"), "ta", &[], vec![]).await;
     assert_eq!(s, StatusCode::NOT_FOUND, "solo i due file previsti");
+}
+
+#[tokio::test]
+async fn the_host_can_delete_the_whole_match_but_nobody_else_can() {
+    let Some(ff) = ffmpeg() else {
+        eprintln!("ffmpeg non trovato: test saltato");
+        return;
+    };
+    let work = tempfile::tempdir().unwrap();
+    let segs = make_segments(&ff, work.path(), "1280x960", 8, 0);
+
+    let dir = tempfile::tempdir().unwrap();
+    let tokens: HashMap<String, String> = [
+        ("ta".to_string(), "alice".to_string()),
+        ("tb".to_string(), "bob".to_string()),
+    ]
+    .into();
+    let st = AppState::with_ffmpeg(
+        dir.path().to_path_buf(),
+        Authenticator::dev(tokens),
+        Some(ff),
+    )
+    .await
+    .unwrap();
+    let app = app(st.clone());
+    let id = create(&app).await;
+
+    let url = format!("/api/matches/{id}");
+    let (s, _, _) = send(&app, "DELETE", &url, "ta", &[], vec![]).await;
+    assert_eq!(
+        s,
+        StatusCode::CONFLICT,
+        "non si puo' eliminare una partita non ancora terminata"
+    );
+
+    upload_and_end(&app, &id, &segs).await;
+    let mdir = dir.path().join("matches").join(&id);
+    let pdir = mdir.join("players").join("alice");
+    assert!(wait_for_video(&pdir).await);
+    for _ in 0..120 {
+        if pdir.join("web.mp4").exists() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(250)).await;
+    }
+    assert!(pdir.join("web.mp4").exists(), "versione leggera non creata");
+
+    let (s, _, _) = send(&app, "DELETE", &url, "tb", &[], vec![]).await;
+    assert_eq!(
+        s,
+        StatusCode::FORBIDDEN,
+        "solo l'host puo' eliminare la partita"
+    );
+    assert!(mdir.exists());
+
+    let (s, _, _) = send(&app, "DELETE", &url, "ta", &[], vec![]).await;
+    assert_eq!(s, StatusCode::NO_CONTENT);
+    assert!(!mdir.exists(), "la cartella della partita deve sparire");
+
+    let (s, _, _) = send(
+        &app,
+        "GET",
+        &format!("/api/matches/{id}"),
+        "ta",
+        &[],
+        vec![],
+    )
+    .await;
+    assert_eq!(
+        s,
+        StatusCode::NOT_FOUND,
+        "la partita non deve piu' esistere"
+    );
+
+    let (s, _, _) = send(&app, "DELETE", &url, "ta", &[], vec![]).await;
+    assert_eq!(s, StatusCode::NOT_FOUND, "non si puo' eliminare due volte");
+}
+
+#[tokio::test]
+async fn a_share_link_serves_the_real_video_and_thumbnail() {
+    let Some(ff) = ffmpeg() else {
+        eprintln!("ffmpeg non trovato: test saltato");
+        return;
+    };
+    let work = tempfile::tempdir().unwrap();
+    let segs = make_segments(&ff, work.path(), "320x180", 8, 0);
+
+    let (app, dir, _st) = setup(ff.clone()).await;
+    let id = create(&app).await;
+    upload_and_end(&app, &id, &segs).await;
+    let pdir = dir
+        .path()
+        .join("matches")
+        .join(&id)
+        .join("players")
+        .join("alice");
+    assert!(wait_for_video(&pdir).await);
+    for _ in 0..80 {
+        if pdir.join("thumb.jpg").exists() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(250)).await;
+    }
+
+    let (s, _, b) = send(
+        &app,
+        "POST",
+        &format!("/api/matches/{id}/share"),
+        "ta",
+        &[],
+        vec![],
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    let token = serde_json::from_slice::<serde_json::Value>(&b).unwrap()["share_token"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let (s, _, original) = send(
+        &app,
+        "GET",
+        &format!("/api/matches/{id}/players/alice/video.mp4"),
+        "ta",
+        &[],
+        vec![],
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+
+    let (s, h, shared) = send(
+        &app,
+        "GET",
+        &format!("/api/share/{token}/players/alice/video.mp4"),
+        "chiave-a-caso-ignorata",
+        &[],
+        vec![],
+    )
+    .await;
+    assert_eq!(
+        s,
+        StatusCode::OK,
+        "il video si scarica senza autenticazione"
+    );
+    assert_eq!(h["content-type"], "video/mp4");
+    assert_eq!(shared, original, "stesso video di quello autenticato");
+
+    let (s, h, jpg) = send(
+        &app,
+        "GET",
+        &format!("/api/share/{token}/thumb.jpg"),
+        "chiave-a-caso-ignorata",
+        &[],
+        vec![],
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(h["content-type"], "image/jpeg");
+    assert_eq!(&jpg[..3], &[0xFF, 0xD8, 0xFF]);
+
+    let (s, _, _) = send(
+        &app,
+        "GET",
+        &format!("/api/share/{token}/players/bob/video.mp4"),
+        "chiave-a-caso-ignorata",
+        &[],
+        vec![],
+    )
+    .await;
+    assert_eq!(
+        s,
+        StatusCode::NOT_FOUND,
+        "un giocatore che non e' nella partita non deve avere un video"
+    );
 }

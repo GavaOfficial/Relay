@@ -22,6 +22,7 @@ const ui = {
   copied: false, forceArmed: false, open: new Set(),
   set: null, setDirty: false, saveMsg: '', saveTimer: null,
   windows: null, winBusy: false, winErr: null,
+  steam: null, steamChecked: false, game: null, gameQuery: '', gameResults: [], gameBusy: false,
   speed: { running: false, progress: 0, mbps: 0, result: null, error: null },
   advOpen: false, rev: 0,
 };
@@ -405,7 +406,8 @@ function renderWindowPicker(m) {
   const plays = m.role === 'player' || m.role === 'host_player';
   const show = plays && m.phase === 'lobby' && !!ui.set;
   if (show && ui.windows == null && !ui.winBusy) refreshWindows();
-  region('m-window', JSON.stringify([show, ui.windows, ui.set && ui.set.window, ui.winBusy, ui.winErr, ui.set && [ui.set.audio_game, ui.set.audio_mic, ui.set.audio_mic_gain]]), () => {
+  if (show && !ui.steamChecked) refreshSteam();
+  region('m-window', JSON.stringify([show, ui.windows, ui.set && ui.set.window, ui.winBusy, ui.winErr, ui.steam, ui.game, ui.gameQuery, ui.gameResults, ui.gameBusy, ui.set && [ui.set.audio_game, ui.set.audio_mic, ui.set.audio_mic_gain]]), () => {
     if (!show) return [];
     const w = ui.set.window;
     const list = ui.windows || [];
@@ -426,6 +428,14 @@ function renderWindowPicker(m) {
         h('button', { class: 'iconbtn', 'data-act': 'refresh-windows', disabled: ui.winBusy, 'aria-label': 'Aggiorna elenco', title: 'Aggiorna elenco' }, ico('refresh', 16))),
       ui.winErr && h('p', { class: 'err', style: 'margin:6px 2px 0', text: ui.winErr }),
       monitor && h('p', { class: 'hint warn', text: 'Registra tutto lo schermo, notifiche comprese: chiudi ciò che non vuoi mostrare.' }),
+      h('div', { class: 'label', text: 'Gioco mostrato nel replay' }),
+      h('input', { type: 'text', class: 'grow', 'data-f': 'game-query', 'data-k': 'game-query', value: ui.gameQuery, placeholder: 'Cerca qualsiasi gioco...', 'aria-label': 'Cerca nel catalogo dei giochi' }),
+      h('select', { class: 'grow', 'data-f': 'steam-game', 'data-k': 'steam-game', 'aria-label': 'Gioco associato al replay' },
+        h('option', { value: 'none', selected: !ui.game, text: 'Nessun gioco' }),
+        ui.steam && h('option', { value: 'detected', selected: ui.game && ui.game.app_id === ui.steam.app_id && ui.game.name === ui.steam.name, text: ui.steam.name + ' (in esecuzione su Steam)' }),
+        ui.gameResults.map((game, i) => h('option', { value: 'result-' + i, selected: ui.game && ui.game.name === game.name && ui.game.app_id === game.app_id, text: game.name }))),
+      ui.gameBusy && h('p', { class: 'hint', text: 'Cerco nel catalogo...' }),
+      h('p', { class: 'hint', text: 'Questa scelta serve solo per titolo e copertina: non cambia la finestra registrata.' }),
       h('div', { class: 'label', text: 'Audio' }),
       h('div', { class: 'audiosw' },
         h('label', { class: 'switch' }, h('input', { type: 'checkbox', 'data-f': 'audio_game', 'data-k': 'audio_game', checked: !!ui.set.audio_game }), h('span', { class: 'track' }), h('span', { text: 'Audio del gioco' })),
@@ -465,6 +475,20 @@ async function refreshWindows() {
   if (snap && snap.match) renderMatch();
   try { ui.windows = await invoke('list_windows'); } catch (e) { ui.winErr = errMsg(e); ui.windows = ui.windows || []; }
   ui.winBusy = false;
+  if (snap && snap.match) renderMatch();
+}
+async function refreshSteam() {
+  ui.steamChecked = true;
+  try { ui.steam = await invoke('detect_steam_game'); } catch (_) { ui.steam = null; }
+  if (snap && snap.match) renderMatch();
+}
+async function searchGames() {
+  const query = ui.gameQuery.trim();
+  if (query.length < 2) { ui.gameResults = []; ui.gameBusy = false; if (snap && snap.match) renderMatch(); return; }
+  ui.gameBusy = true;
+  if (snap && snap.match) renderMatch();
+  try { ui.gameResults = await invoke('search_steam_games', { query }); } catch (e) { ui.notice = errMsg(e); ui.gameResults = []; }
+  ui.gameBusy = false;
   if (snap && snap.match) renderMatch();
 }
 function scheduleSave() {
@@ -576,6 +600,17 @@ function onField(e, final) {
   if (f === 'newName') { ui.newName = t.value; return; }
   if (f === 'renameDraft') { ui.renameDraft = t.value; return; }
   if (f === 'joinLink') { ui.joinLink = t.value; return; }
+  if (f === 'game-query') {
+    ui.gameQuery = t.value;
+    clearTimeout(ui.gameSearchTimer);
+    ui.gameSearchTimer = setTimeout(searchGames, 350);
+    return;
+  }
+  if (f === 'steam-game') {
+    ui.game = t.value === 'detected' ? ui.steam : t.value.startsWith('result-') ? ui.gameResults[+t.value.slice(7)] : null;
+    if (snap && snap.match) renderMatch();
+    return;
+  }
   const s = ui.set;
   if (!s) return;
   if (f === 'window') {
@@ -691,7 +726,7 @@ const ACTIONS = {
     if (snap && snap.match) renderMatch();
   },
   copy: () => copyInvite(),
-  start: () => run('start', () => invoke('host_start', { force: false })),
+  start: () => run('start', () => invoke('host_start', { force: false, game: ui.game })),
   force: () => {
     if (!ui.forceArmed) {
       ui.forceArmed = true; renderMatch();
@@ -701,7 +736,7 @@ const ACTIONS = {
       return;
     }
     ui.forceArmed = false;
-    return run('start', () => invoke('host_start', { force: true }));
+    return run('start', () => invoke('host_start', { force: true, game: ui.game }));
   },
   stop: () => run('stop', () => invoke('host_stop')),
   leave: () => run('leave', () => invoke('leave_match')),

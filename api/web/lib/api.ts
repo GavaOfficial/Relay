@@ -55,3 +55,13 @@ export async function currentIdentity(): Promise<{ user: string; name: string | 
 export async function currentUser(): Promise<string | null> {
   return (await currentIdentity())?.user ?? null;
 }
+
+export async function apiGetShare<T>(path: string): Promise<T | null> {
+  try {
+    const r = await fetch(`${API_ORIGIN}${path}`, { cache: "no-store" });
+    if (!r.ok) return null;
+    return (await r.json()) as T;
+  } catch {
+    return null;
+  }
+}

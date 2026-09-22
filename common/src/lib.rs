@@ -35,6 +35,18 @@ pub struct MatchInfo {
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub invite_code: Option<String>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub share_token: Option<String>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub game_app_id: Option<u32>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub game_name: Option<String>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub game_cover_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

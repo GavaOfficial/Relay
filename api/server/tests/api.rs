@@ -593,3 +593,106 @@ async fn the_list_says_which_matches_have_something_to_watch() {
     .await;
     assert_eq!(s, StatusCode::NOT_FOUND);
 }
+
+#[tokio::test]
+async fn a_share_link_lets_anyone_see_the_match_without_leaking_the_invite_code() {
+    let (app, _dir) = setup().await;
+
+    let (s, b) = send(
+        &app,
+        "POST",
+        "/api/matches",
+        Some("ta"),
+        json_header(),
+        br#"{"players":["alice","bob"]}"#.to_vec(),
+    )
+    .await;
+    assert_eq!(s, StatusCode::CREATED);
+    let id = serde_json::from_slice::<serde_json::Value>(&b).unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let share_url = format!("/api/matches/{id}/share");
+
+    let (s, _) = send(&app, "POST", &share_url, Some("ta"), None, vec![]).await;
+    assert_eq!(
+        s,
+        StatusCode::CONFLICT,
+        "non si puo' condividere una partita non ancora terminata"
+    );
+
+    let (s, _) = send(&app, "POST", &share_url, Some("tb"), None, vec![]).await;
+    assert_eq!(
+        s,
+        StatusCode::FORBIDDEN,
+        "solo l'host puo' attivare la condivisione"
+    );
+
+    let (s, _) = send(
+        &app,
+        "POST",
+        &format!("/api/matches/{id}/end"),
+        Some("ta"),
+        None,
+        vec![],
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+
+    let (s, b) = send(&app, "POST", &share_url, Some("ta"), None, vec![]).await;
+    assert_eq!(s, StatusCode::OK);
+    let token = serde_json::from_slice::<serde_json::Value>(&b).unwrap()["share_token"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(!token.is_empty());
+
+    let (s, b) = send(
+        &app,
+        "GET",
+        &format!("/api/share/{token}"),
+        None,
+        None,
+        vec![],
+    )
+    .await;
+    assert_eq!(
+        s,
+        StatusCode::OK,
+        "il link di condivisione funziona senza accesso"
+    );
+    let v: serde_json::Value = serde_json::from_slice(&b).unwrap();
+    assert_eq!(v["id"], id);
+    assert!(
+        v.get("invite_code").is_none(),
+        "il codice d'invito non deve trapelare"
+    );
+    assert!(
+        v.get("share_token").is_none(),
+        "il token non deve ripresentarsi nel corpo"
+    );
+
+    let (s, _) = send(&app, "GET", "/api/share/non-esiste", None, None, vec![]).await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+
+    let (s, _) = send(&app, "DELETE", &share_url, Some("tb"), None, vec![]).await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+
+    let (s, _) = send(&app, "DELETE", &share_url, Some("ta"), None, vec![]).await;
+    assert_eq!(s, StatusCode::OK);
+
+    let (s, _) = send(
+        &app,
+        "GET",
+        &format!("/api/share/{token}"),
+        None,
+        None,
+        vec![],
+    )
+    .await;
+    assert_eq!(
+        s,
+        StatusCode::NOT_FOUND,
+        "il link deve smettere di funzionare"
+    );
+}

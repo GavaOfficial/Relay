@@ -56,6 +56,19 @@ async fn list_windows(core: St<'_>) -> Res<Vec<WindowInfo>> {
 }
 
 #[tauri::command]
+fn detect_steam_game() -> Option<Value> {
+    relay_agent::steam::detect_current_game()
+        .map(|(app_id, name)| serde_json::json!({ "app_id": app_id, "name": name, "cover_url": format!("https://cdn.cloudflare.steamstatic.com/steam/apps/{app_id}/library_600x900_2x.jpg") }))
+}
+
+#[tauri::command]
+async fn search_steam_games(query: String) -> Res<Vec<relay_agent::steam::SteamGame>> {
+    relay_agent::steam::search_catalog(&query)
+        .await
+        .map_err(|e| format!("Catalogo Steam non disponibile: {e}"))
+}
+
+#[tauri::command]
 async fn run_speedtest(app: AppHandle, core: St<'_>) -> Res<SpeedResult> {
     core.run_speedtest(move |progress, mbps| {
         let _ = app.emit(
@@ -168,8 +181,12 @@ async fn list_matches(core: St<'_>) -> Res<Vec<RecentMatch>> {
 }
 
 #[tauri::command]
-async fn host_start(core: St<'_>, force: bool) -> Res<()> {
-    core.host_start(force).await
+async fn host_start(
+    core: St<'_>,
+    force: bool,
+    game: Option<relay_agent::steam::SteamGame>,
+) -> Res<()> {
+    core.host_start(force, game).await
 }
 
 #[tauri::command]
@@ -244,6 +261,8 @@ fn main() {
             get_settings,
             save_settings,
             list_windows,
+            detect_steam_game,
+            search_steam_games,
             run_speedtest,
             create_match,
             rename_match,

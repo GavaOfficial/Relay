@@ -881,8 +881,24 @@ impl Core {
         }
     }
 
-    pub async fn host_start(&self, force: bool) -> Res<()> {
+    pub async fn host_start(
+        &self,
+        force: bool,
+        game: Option<relay_agent::steam::SteamGame>,
+    ) -> Res<()> {
         let id = self.current_id()?;
+        if let Some(game) = game {
+            let result: Res<MatchInfo> = self
+                .json(
+                    Method::POST,
+                    &format!("/api/matches/{id}/game"),
+                    Some(json!({ "app_id": game.app_id, "name": game.name, "cover_url": game.cover_url })),
+                )
+                .await;
+            if let Err(e) = result {
+                tracing::warn!("non sono riuscito a salvare il gioco Steam: {e}");
+            }
+        }
         let q = if force { "?force=true" } else { "" };
         let _: MatchInfo = self
             .json(Method::POST, &format!("/api/matches/{id}/start{q}"), None)

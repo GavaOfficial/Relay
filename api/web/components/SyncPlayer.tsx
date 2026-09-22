@@ -17,6 +17,8 @@ type Props = {
   web?: string[];
 
   vod?: string[];
+
+  apiBase?: string;
 };
 
 const TICK_MS = 250;
@@ -25,8 +27,8 @@ const NO_SIGNAL_MS = 20_000;
 
 function PlayIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z" />
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" aria-hidden="true">
+      <path d="M8.5 5.7v12.6a1 1 0 0 0 1.5.87l10.9-6.3a1 1 0 0 0 0-1.74L10 4.83a1 1 0 0 0-1.5.87z" />
     </svg>
   );
 }
@@ -34,7 +36,7 @@ function PlayIcon() {
 function SpeakerIcon({ on }: { on: boolean }) {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M11 5 6 9H3v6h3l5 4z" fill="currentColor" stroke="none" />
+      <path d="M11 5 6 9H3v6h3l5 4z" fill="currentColor" strokeWidth="1.4" />
       {on ? (
         <>
           <path d="M15.5 8.5a5 5 0 0 1 0 7" />
@@ -50,8 +52,33 @@ function SpeakerIcon({ on }: { on: boolean }) {
 function PauseIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <rect x="6" y="5" width="4" height="14" rx="1.2" />
-      <rect x="14" y="5" width="4" height="14" rx="1.2" />
+      <rect x="6" y="5" width="4" height="14" rx="1.6" />
+      <rect x="14" y="5" width="4" height="14" rx="1.6" />
+    </svg>
+  );
+}
+
+function GearIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M5 13l5 5L19 7" />
+    </svg>
+  );
+}
+
+function FullscreenExitIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M9 3v3a2 2 0 0 1-2 2H4M15 3v3a2 2 0 0 0 2 2h3M9 21v-3a2 2 0 0 0-2-2H4M15 21v-3a2 2 0 0 1 2-2h3" />
     </svg>
   );
 }
@@ -66,13 +93,15 @@ function finished(v: HTMLVideoElement): boolean {
   return v.ended || (e !== null && v.currentTime >= e - 0.25);
 }
 
-export default function SyncPlayer({ matchId, players, live, names, mp4 = [], web = [], vod = [] }: Props) {
+export default function SyncPlayer({ matchId, players, live, names, mp4 = [], web = [], vod = [], apiBase }: Props) {
+  const base = apiBase ?? `/api/matches/${encodeURIComponent(matchId)}`;
   const playersKey = players.join(",");
   const mp4Key = mp4.join(",");
   const webKey = web.join(",");
   const vodKey = vod.join(",");
 
   const [original, setOriginal] = useState(false);
+  const [qualityMenuOpen, setQualityMenuOpen] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const videos = useRef<Record<string, HTMLVideoElement | null>>({});
@@ -97,6 +126,9 @@ export default function SyncPlayer({ matchId, players, live, names, mp4 = [], we
   const [volume, setVolume] = useState(1);
   const listening = focused ?? audioFrom;
 
+  const [chromeVisible, setChromeVisible] = useState(true);
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     liveRef.current = live;
   }, [live]);
@@ -111,12 +143,12 @@ export default function SyncPlayer({ matchId, players, live, names, mp4 = [], we
     for (const p of playersKey.split(",")) {
       const v = videos.current[p];
       if (!v) continue;
-      const base = `/api/matches/${encodeURIComponent(matchId)}/players/${encodeURIComponent(p)}`;
+      const playerBase = `${base}/players/${encodeURIComponent(p)}`;
       if (mp4Key.split(",").includes(p)) {
         const light = !original && webKey.split(",").includes(p);
-        const file = `${base}/video.mp4${light ? "?q=web" : ""}`;
+        const file = `${playerBase}/video.mp4${light ? "?q=web" : ""}`;
         if (light && vodKey.split(",").includes(p)) {
-          const vodUrl = `${base}/vod/index.m3u8`;
+          const vodUrl = `${playerBase}/vod/index.m3u8`;
           if (Hls.isSupported()) {
             const hls = new Hls({ maxBufferLength: 30, maxMaxBufferLength: 60, backBufferLength: 30, maxBufferSize: 60 * 1000 * 1000 });
             created.push(hls);
@@ -143,7 +175,7 @@ export default function SyncPlayer({ matchId, players, live, names, mp4 = [], we
         v.src = file;
         continue;
       }
-      const url = `${base}/playlist.m3u8`;
+      const url = `${playerBase}/playlist.m3u8`;
       if (Hls.isSupported()) {
         const hls = new Hls({ backBufferLength: 90 });
         created.push(hls);
@@ -169,7 +201,7 @@ export default function SyncPlayer({ matchId, players, live, names, mp4 = [], we
       timers.forEach(clearTimeout);
       created.forEach((h) => h.destroy());
     };
-  }, [matchId, playersKey, mp4Key, webKey, vodKey, original]);
+  }, [matchId, base, playersKey, mp4Key, webKey, vodKey, original]);
 
   const seekAll = useCallback((t: number) => {
     const alive = aliveRef.current;
@@ -263,9 +295,47 @@ export default function SyncPlayer({ matchId, players, live, names, mp4 = [], we
     }
   }, [listening, volume, playersKey, mp4Key, ready]);
 
+  const focusedRef = useRef<string | null>(null);
+  useEffect(() => {
+    focusedRef.current = focused;
+  }, [focused]);
+
+  const bumpChrome = useCallback(() => {
+    setChromeVisible(true);
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+    if (focusedRef.current && wantPlay.current) {
+      hideTimer.current = setTimeout(() => setChromeVisible(false), 4000);
+    }
+  }, []);
+
+  const holdChrome = useCallback(() => {
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+    setChromeVisible(true);
+  }, []);
+
+  useEffect(() => () => {
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+  }, []);
+
   const togglePlay = useCallback(() => {
     wantPlay.current = !wantPlay.current;
     setPlaying(wantPlay.current);
+    bumpChrome();
+  }, [bumpChrome]);
+
+  const lastVolume = useRef(1);
+  const toggleMute = useCallback(() => {
+    setVolume((v) => {
+      if (v > 0) {
+        lastVolume.current = v;
+        return 0;
+      }
+      return lastVolume.current || 1;
+    });
+  }, [setVolume]);
+
+  const exitFullscreen = useCallback(() => {
+    if (document.fullscreenElement) void document.exitFullscreen();
   }, []);
 
   const goLive = useCallback(() => {
@@ -279,6 +349,8 @@ export default function SyncPlayer({ matchId, players, live, names, mp4 = [], we
       return;
     }
     setFocused(p);
+    focusedRef.current = p;
+    bumpChrome();
     const c = containerRef.current;
     if (c && typeof c.requestFullscreen === "function") {
       c.requestFullscreen().catch(() => setFocused(null));
@@ -291,11 +363,26 @@ export default function SyncPlayer({ matchId, players, live, names, mp4 = [], we
   };
   useEffect(() => {
     const onChange = () => {
-      if (!document.fullscreenElement) setFocused(null);
+      if (!document.fullscreenElement) {
+        setFocused(null);
+        setChromeVisible(true);
+      }
     };
     document.addEventListener("fullscreenchange", onChange);
     return () => document.removeEventListener("fullscreenchange", onChange);
   }, []);
+
+  useEffect(() => {
+    if (!qualityMenuOpen) return;
+    const close = () => setQualityMenuOpen(false);
+    const onEsc = (e: KeyboardEvent) => e.key === "Escape" && close();
+    window.addEventListener("click", close);
+    window.addEventListener("keydown", onEsc);
+    return () => {
+      window.removeEventListener("click", close);
+      window.removeEventListener("keydown", onEsc);
+    };
+  }, [qualityMenuOpen]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -318,7 +405,12 @@ export default function SyncPlayer({ matchId, players, live, names, mp4 = [], we
   const silentList = noSignal ? noSignal.split(",") : [];
 
   return (
-    <div ref={containerRef} className={`player${focused ? " focused" : ""}`}>
+    <div
+      ref={containerRef}
+      className={`player${focused ? " focused" : ""}${!chromeVisible ? " chrome-hidden" : ""}`}
+      onMouseMove={bumpChrome}
+      onTouchStart={bumpChrome}
+    >
       <div className="tiles">
         {players.map((p) => (
           <figure
@@ -356,18 +448,16 @@ export default function SyncPlayer({ matchId, players, live, names, mp4 = [], we
         {ready && buffering && <div className="overlay center">Buffering…</div>}
       </div>
 
-      <div className="controls">
-        <button type="button" onClick={togglePlay} aria-label={playing ? "Pausa" : "Play"} className="icon">
-          {playing ? <PauseIcon /> : <PlayIcon />}
-        </button>
-        <span className="time">{formatTime(current)}</span>
+      <div className="controls" onMouseEnter={holdChrome} onMouseLeave={bumpChrome}>
         <input
           type="range"
+          className="seek"
           min={0}
           max={Math.max(end, 0.1)}
           step={0.1}
           value={Math.min(current, Math.max(end, 0.1))}
           aria-label="Posizione"
+          style={{ ["--fill" as string]: `${end > 0 ? Math.min(100, (Math.min(current, end) / end) * 100) : 0}%` }}
           onChange={(e) => {
             dragging.current = true;
             setCurrent(Number(e.target.value));
@@ -377,34 +467,85 @@ export default function SyncPlayer({ matchId, players, live, names, mp4 = [], we
             seekAll(Number((e.target as HTMLInputElement).value));
           }}
         />
-        <span className="time">{formatTime(end)}</span>
-        {web.length > 0 && (
-          <button
-            type="button"
-            className={`qbtn${original ? " on" : ""}`}
-            aria-pressed={original}
-            title={original ? "Stai guardando la qualità originale" : "Stai guardando la versione leggera (720p): parte prima e pesa meno"}
-            onClick={() => setOriginal((v) => !v)}
-          >
-            {original ? "Originale" : "720p"}
-          </button>
-        )}
-        <input
-          type="range"
-          className="vol"
-          min={0}
-          max={1}
-          step={0.05}
-          value={volume}
-          aria-label="Volume"
-          title="Volume"
-          onChange={(e) => setVolume(Number(e.target.value))}
-        />
-        {live && (
-          <button type="button" onClick={goLive} className={`livebtn${behind < 15 ? " on" : ""}`}>
-            Diretta{behind >= 15 ? ` (−${formatTime(behind)})` : ""}
-          </button>
-        )}
+        <div className="controls-row">
+          <div className="controls-left">
+            <button type="button" onClick={togglePlay} aria-label={playing ? "Pausa" : "Play"} className="cbtn">
+              {playing ? <PauseIcon /> : <PlayIcon />}
+            </button>
+            <button type="button" onClick={toggleMute} aria-label={volume > 0 ? "Silenzia" : "Riattiva audio"} className="cbtn">
+              <SpeakerIcon on={volume > 0} />
+            </button>
+            <input
+              type="range"
+              className="vol"
+              min={0}
+              max={1}
+              step={0.05}
+              value={volume}
+              aria-label="Volume"
+              title="Volume"
+              style={{ ["--fill" as string]: `${volume * 100}%` }}
+              onChange={(e) => setVolume(Number(e.target.value))}
+            />
+            <span className="time">{formatTime(current)} / {formatTime(end)}</span>
+          </div>
+          <div className="controls-right">
+            {live && (
+              <button type="button" onClick={goLive} className={`livebtn${behind < 15 ? " on" : ""}`}>
+                Diretta{behind >= 15 ? ` (−${formatTime(behind)})` : ""}
+              </button>
+            )}
+            {web.length > 0 && (
+              <div className="qualitywrap">
+                {qualityMenuOpen && (
+                  <div className="qualitymenu" onClick={(e) => e.stopPropagation()}>
+                    <div className="qualitymenu-title">Qualità</div>
+                    <button
+                      type="button"
+                      className={`qualityrow${!original ? " on" : ""}`}
+                      onClick={() => {
+                        setOriginal(false);
+                        setQualityMenuOpen(false);
+                      }}
+                    >
+                      <span className="qualitycheck">{!original && <CheckIcon />}</span>
+                      HD 720p
+                    </button>
+                    <button
+                      type="button"
+                      className={`qualityrow${original ? " on" : ""}`}
+                      onClick={() => {
+                        setOriginal(true);
+                        setQualityMenuOpen(false);
+                      }}
+                    >
+                      <span className="qualitycheck">{original && <CheckIcon />}</span>
+                      Originale
+                    </button>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  className="cbtn"
+                  aria-label="Qualità del video"
+                  aria-expanded={qualityMenuOpen}
+                  title={original ? "Stai guardando la qualità originale" : "Stai guardando la versione leggera (720p)"}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setQualityMenuOpen((v) => !v);
+                  }}
+                >
+                  <GearIcon />
+                </button>
+              </div>
+            )}
+            {focused && (
+              <button type="button" onClick={exitFullscreen} aria-label="Esci da schermo intero" className="cbtn">
+                <FullscreenExitIcon />
+              </button>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

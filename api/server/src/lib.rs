@@ -20,6 +20,7 @@ pub fn app(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/api/healthz", get(routes::healthz))
         .route("/api/me", get(routes::me))
+        .route("/api/games/search", get(routes::search_games))
         .route("/api/session", post(routes::create_session))
         .route("/api/speedtest", post(routes::speedtest))
         .route("/api/app/latest", get(routes::app_latest))
@@ -32,9 +33,17 @@ pub fn app(state: Arc<AppState>) -> Router {
             "/api/matches",
             get(routes::list_matches).post(routes::create_match),
         )
-        .route("/api/matches/{id}", get(routes::show_match))
+        .route(
+            "/api/matches/{id}",
+            get(routes::show_match).delete(routes::delete_match),
+        )
         .route("/api/matches/{id}/end", post(routes::end_match))
         .route("/api/matches/{id}/rename", post(routes::rename_match))
+        .route("/api/matches/{id}/game", post(routes::set_game))
+        .route(
+            "/api/matches/{id}/share",
+            post(routes::enable_share).delete(routes::disable_share),
+        )
         .route("/api/matches/{id}/thumb.jpg", get(routes::get_thumb))
         .route("/api/matches/{id}/join", post(routes::join_match))
         .route("/api/matches/{id}/start", post(routes::start_match))
@@ -59,6 +68,16 @@ pub fn app(state: Arc<AppState>) -> Router {
         .route(
             "/api/matches/{id}/players/{pid}/segments/{file}",
             get(routes::get_segment).put(routes::put_segment),
+        )
+        .route("/api/share/{token}", get(routes::share_match))
+        .route("/api/share/{token}/thumb.jpg", get(routes::share_thumb))
+        .route(
+            "/api/share/{token}/players/{pid}/video.mp4",
+            get(routes::share_video),
+        )
+        .route(
+            "/api/share/{token}/players/{pid}/vod/{file}",
+            get(routes::share_vod),
         )
         .layer(DefaultBodyLimit::max(64 * 1024 * 1024))
         .layer(TraceLayer::new_for_http())

@@ -10,6 +10,10 @@ export type MatchInfo = {
   names: Record<string, string>;
 
   invite_code?: string;
+  share_token?: string;
+  game_app_id?: number;
+  game_name?: string;
+  game_cover_url?: string;
   finished: string[];
   status: MatchStatus;
   created_at: number;

@@ -11,6 +11,7 @@ pub mod priority;
 pub mod session;
 pub mod settings;
 pub mod speedtest;
+pub mod steam;
 pub mod throttle;
 pub mod tokenstore;
 pub mod uploader;
