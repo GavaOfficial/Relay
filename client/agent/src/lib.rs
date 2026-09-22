@@ -4,6 +4,7 @@ pub mod clock;
 pub mod credentials;
 pub mod hls;
 pub mod login;
+pub mod obs_capture;
 pub mod pkce;
 pub mod presets;
 pub mod priority;

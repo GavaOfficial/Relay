@@ -7,6 +7,7 @@ use std::{
 
 use anyhow::{anyhow, bail, Result};
 use futures_util::{SinkExt, StreamExt};
+use relay_capture::ipc::EncoderChoice;
 use relay_common::{AgentState, ClientMsg, PlayerHealth, PlayerStatus, ServerMsg, SEGMENT_SECONDS};
 use serde::Serialize;
 use tokio::{
@@ -22,6 +23,7 @@ use crate::{
     audio::{AudioChoice, AudioEngine},
     capture::{detect_encoder, list_monitors, Capture, CaptureConfig, Encoder, WindowSel},
     clock::{local_now_ms, local_now_secs, Clock},
+    obs_capture::{ObsCapture, ObsCaptureConfig},
     priority,
     uploader::{pending_count, read_all_durations, UploadConfig, Uploader},
     windows,
@@ -30,6 +32,8 @@ use crate::{
 #[derive(Clone)]
 pub struct SessionParams {
     pub ffmpeg: PathBuf,
+    pub capture_exe: Option<PathBuf>,
+    pub capture_cwd: Option<PathBuf>,
     pub server: String,
     pub token: String,
     pub match_id: String,
@@ -535,6 +539,34 @@ fn desired_source(sel: &WindowSel, outputs: &[(u32, u32, u32)]) -> WindowSel {
         .unwrap_or_else(|| sel.clone())
 }
 
+enum ActiveCapture {
+    Ffmpeg(Capture),
+    Obs(ObsCapture),
+}
+
+impl ActiveCapture {
+    async fn wait(&mut self) -> Result<std::process::ExitStatus> {
+        match self {
+            Self::Ffmpeg(c) => c.wait().await,
+            Self::Obs(c) => c.wait().await,
+        }
+    }
+
+    async fn stop(&mut self) -> Result<()> {
+        match self {
+            Self::Ffmpeg(c) => c.stop().await,
+            Self::Obs(c) => c.stop().await,
+        }
+    }
+
+    fn kill(&mut self) {
+        match self {
+            Self::Ffmpeg(c) => c.kill(),
+            Self::Obs(c) => c.kill(),
+        }
+    }
+}
+
 async fn local_state(dir: &std::path::Path) -> (std::collections::BTreeSet<u64>, u32) {
     let durations = read_all_durations(dir).await;
     let full = |n: &u64| {
@@ -711,7 +743,8 @@ async fn record_flow(
         .collect();
 
     let audio_choice = *shared.audio.lock().unwrap();
-    let engine: Option<AudioEngine> = if audio_choice.any() {
+    let use_obs = p.capture_exe.is_some() && p.capture_cwd.is_some();
+    let engine = if !use_obs && audio_choice.any() {
         let w = window.clone();
         let pid = tokio::task::spawn_blocking(move || windows::find_pid(&w))
             .await
@@ -722,7 +755,11 @@ async fn record_flow(
     } else {
         None
     };
-    let has_audio = engine.as_ref().is_some_and(|e| e.has_audio());
+    let has_audio = if use_obs {
+        audio_choice.any()
+    } else {
+        engine.as_ref().is_some_and(|e| e.has_audio())
+    };
     let mut last_report = engine.as_ref().map(|e| e.report()).unwrap_or_default();
     if engine.is_some() {
         let r = last_report.clone();
@@ -732,17 +769,44 @@ async fn record_flow(
         });
     }
 
-    let make_cfg = |source: WindowSel, generation: u32, start_segment: u64| {
+    let fallback_monitor = match desired_source(&window, &outputs) {
+        WindowSel::Monitor(index) => Some(index),
+        _ => None,
+    };
+    let spawn_capture = |source: WindowSel, generation: u32, start_segment: u64| {
         let start = origin + (start_segment * SEGMENT_SECONDS as u64) as f64;
-        CaptureConfig {
+        if let (Some(exe), Some(cwd)) = (&p.capture_exe, &p.capture_cwd) {
+            let encoder = match encoder {
+                Encoder::Nvenc => EncoderChoice::Nvenc,
+                Encoder::Amf => EncoderChoice::Amf,
+                Encoder::Qsv => EncoderChoice::Qsv,
+                Encoder::X264 => EncoderChoice::X264,
+            };
+            return ObsCapture::spawn(&ObsCaptureConfig {
+                exe: exe.clone(),
+                cwd: cwd.clone(),
+                window: source,
+                fallback_monitor,
+                fps: p.fps,
+                bitrate_kbps: p.bitrate_kbps,
+                dir: dir.clone(),
+                encoder,
+                origin_unix_secs: Some(start),
+                start_segment,
+                generation,
+                audio: audio_choice,
+            })
+            .map(ActiveCapture::Obs);
+        }
+        let window = match source {
+            WindowSel::Monitor(o) => WindowSel::Monitor(
+                windows::display_index(o, &windows::display_rects(), &outputs).unwrap_or(o),
+            ),
+            other => other,
+        };
+        Capture::spawn(&CaptureConfig {
             ffmpeg: p.ffmpeg.clone(),
-
-            window: match source {
-                WindowSel::Monitor(o) => WindowSel::Monitor(
-                    windows::display_index(o, &windows::display_rects(), &outputs).unwrap_or(o),
-                ),
-                other => other,
-            },
+            window,
             fps: p.fps,
             bitrate_kbps: p.bitrate_kbps,
             dir: dir.clone(),
@@ -755,10 +819,13 @@ async fn record_flow(
                 .as_ref()
                 .filter(|_| has_audio)
                 .and_then(|e| e.attach(start).ok()),
-        }
+        })
+        .map(ActiveCapture::Ffmpeg)
     };
     let sel = window.clone();
-    let mut current = {
+    let mut current = if use_obs {
+        sel.clone()
+    } else {
         let (s, o) = (sel.clone(), outputs.clone());
         tokio::task::spawn_blocking(move || desired_source(&s, &o))
             .await
@@ -796,7 +863,7 @@ async fn record_flow(
     } else {
         (0u32, 0u64, Vec::new(), 0u32)
     };
-    let mut cap = Capture::spawn(&make_cfg(current.clone(), generation, first_segment))?;
+    let mut cap = spawn_capture(current.clone(), generation, first_segment)?;
     shared.set_phase(Phase::Recording);
     let (done_tx, done_rx) = watch::channel(false);
     let upload_task = tokio::spawn({
@@ -883,7 +950,7 @@ async fn record_flow(
                     last_switch = Instant::now();
                 }
 
-                if stop_local.is_some() || matches!(sel, WindowSel::Monitor(_)) { continue; }
+                if use_obs || stop_local.is_some() || matches!(sel, WindowSel::Monitor(_)) { continue; }
                 let (s, o) = (sel.clone(), outputs.clone());
                 let want = tokio::task::spawn_blocking(move || desired_source(&s, &o)).await.unwrap_or_else(|_| current.clone());
                 if want == current { candidate = None; continue; }
@@ -894,7 +961,7 @@ async fn record_flow(
                     cap.kill();
                     generation += 1;
                     let k = next_segment(&dir).await;
-                    cap = Capture::spawn(&make_cfg(want.clone(), generation, k))?;
+                    cap = spawn_capture(want.clone(), generation, k)?;
                     current = want;
                     candidate = None;
                     last_switch = Instant::now();
@@ -914,10 +981,14 @@ async fn record_flow(
                     }
                     tokio::time::sleep(Duration::from_secs((1u64 << recent.min(4)).min(15))).await;
                     let (s, o) = (sel.clone(), outputs.clone());
-                    current = tokio::task::spawn_blocking(move || desired_source(&s, &o)).await.unwrap_or_else(|_| sel.clone());
+                    current = if use_obs {
+                        sel.clone()
+                    } else {
+                        tokio::task::spawn_blocking(move || desired_source(&s, &o)).await.unwrap_or_else(|_| sel.clone())
+                    };
                     generation += 1;
                     let k = next_segment(&dir).await;
-                    cap = Capture::spawn(&make_cfg(current.clone(), generation, k))?;
+                    cap = spawn_capture(current.clone(), generation, k)?;
                     last_switch = Instant::now();
                     continue;
                 }

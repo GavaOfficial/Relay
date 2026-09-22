@@ -187,6 +187,18 @@ fn sleep_until(unix_secs: f64) {
 
 fn run_record(cfg: RecordConfig) -> Result<()> {
     std::fs::create_dir_all(&cfg.dir).context("creazione della cartella di lavoro")?;
+    let monitors = MonitorCaptureSourceBuilder::get_monitors().unwrap_or_default();
+    let monitor_index = match &cfg.source {
+        Source::Monitor { index } => *index,
+        Source::Window { .. } => cfg.fallback_monitor.unwrap_or(0),
+    } as usize;
+    let monitor = monitors.get(monitor_index).or_else(|| monitors.first());
+    let (base_width, base_height) = monitor
+        .map(|m| (m.0.width, m.0.height))
+        .unwrap_or((1920, 1080));
+    let output_height = cfg.output_height.min(base_height).max(2) & !1;
+    let output_width =
+        (((base_width as u64 * output_height as u64 / base_height as u64) as u32).max(2)) & !1;
     let mut context = ObsContext::new(StartupInfo::default()).context("avvio di OBS")?;
 
     context
@@ -194,6 +206,10 @@ fn run_record(cfg: RecordConfig) -> Result<()> {
             ObsVideoInfoBuilder::new()
                 .fps_num(cfg.fps)
                 .fps_den(1)
+                .base_width(base_width)
+                .base_height(base_height)
+                .output_width(output_width)
+                .output_height(output_height)
                 .build(),
         )
         .context("impostazione dei fotogrammi al secondo")?;
@@ -253,15 +269,15 @@ fn run_record(cfg: RecordConfig) -> Result<()> {
         } else {
             build_base()?
         };
-        builder
+        let item = builder
             .add_to_scene(&mut scene)
             .context("aggiunta della sorgente di gioco alla scena")?;
+        item.fit_source_to_screen()?;
     } else {
         let idx = match &cfg.source {
             Source::Monitor { index } => *index,
             Source::Window { .. } => cfg.fallback_monitor.unwrap_or(0),
         };
-        let monitors = MonitorCaptureSourceBuilder::get_monitors().context("elenco dei monitor")?;
         let monitor = monitors
             .get(idx as usize)
             .or_else(|| monitors.first())

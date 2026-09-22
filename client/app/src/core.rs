@@ -649,10 +649,21 @@ impl Core {
                 "Sto preparando i componenti per registrare (ffmpeg): riprova tra poco.".into(),
             );
         }
+        if plays && !self.capture_ready() {
+            return Err(
+                "Sto preparando il motore OBS per registrare: attendi il controllo del PC o saltalo.".into(),
+            );
+        }
         let s = self.settings();
         let a = self.auth()?;
         Ok(SessionParams {
             ffmpeg: self.ffmpeg_path(),
+            capture_exe: Some(relay_capture::install::host_exe(
+                &relay_capture::install::runtime_dir(&self.data_dir()),
+            )),
+            capture_cwd: Some(relay_capture::install::spawn_dir(
+                &relay_capture::install::runtime_dir(&self.data_dir()),
+            )),
             server: s.server_url.clone(),
             token: a.token,
             match_id: match_id.to_string(),

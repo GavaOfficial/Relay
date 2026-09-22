@@ -250,6 +250,8 @@ async fn main() -> Result<()> {
             session::run(session::SessionParams {
                 audio,
                 ffmpeg: cli.ffmpeg,
+                capture_exe: None,
+                capture_cwd: None,
                 plays: true,
                 window: Some(c.window()?),
                 encoder: c.encoder()?,
