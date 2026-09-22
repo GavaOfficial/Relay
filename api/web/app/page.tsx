@@ -55,6 +55,12 @@ export default async function Home() {
                   </div>
                   <div className="mcard-body">
                     <span className="mcard-title">{m.name ?? (names.length ? names.join(", ") : "Partita")}</span>
+                    {m.game_name && (
+                      <span className="mcard-game">
+                        {m.game_cover_url && <img src={m.game_cover_url} alt="" loading="lazy" />}
+                        <span>{m.game_name}</span>
+                      </span>
+                    )}
                     <span className="mcard-meta">
                       <AvatarStack names={names} max={5} />
                       <When seconds={m.created_at} />

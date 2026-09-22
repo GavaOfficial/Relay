@@ -25,6 +25,7 @@ pub async fn search_catalog(query: &str) -> anyhow::Result<Vec<SteamGame>> {
     }
     let games = reqwest::Client::new()
         .get("https://www.cheapshark.com/api/1.0/games")
+        .header(reqwest::header::USER_AGENT, "Relay/0.3 (https://github.com/GavaOfficial/Relay)")
         .query(&[("title", query.as_str()), ("limit", "30")])
         .send()
         .await?
