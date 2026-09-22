@@ -207,7 +207,9 @@ function renderInstall() {
           h('div', { class: 'bar' }, h('i', { style: 'width:' + Math.round(g.percent) + '%' })))),
         compat && !compat.ok && h('p', { class: 'err', role: 'alert', text: compat.error || 'Questo PC non e’ compatibile con la registrazione.' }),
         c.state === 'error' && !compat && h('p', { class: 'err', role: 'alert', text: c.error }),
-        c.state === 'error' && h('button', { class: 'btn primary lg', 'data-act': 'retryCapture', text: 'Riprova' })),
+        c.state === 'error' && h('button', { class: 'btn primary lg', 'data-act': 'retryCapture', text: 'Riprova' }),
+        c.state === 'error' && h('button', { class: 'linkbtn', 'data-act': 'skipCapture', text: 'Salta il controllo (a tuo rischio)' }),
+        c.state === 'error' && h('p', { class: 'hint warn', text: 'Se lo salti, potresti non riuscire a registrare, o farlo con qualita’ scarsa.' })),
     ];
   });
 }
@@ -672,6 +674,7 @@ const ACTIONS = {
   openLogs: () => invoke('open_logs').catch((e) => { ui.notice = errMsg(e); renderBanner(); }),
   retryFfmpeg: () => invoke('retry_ffmpeg').catch((e) => { ui.notice = errMsg(e); renderBanner(); }),
   retryCapture: () => invoke('retry_capture').catch((e) => { ui.notice = errMsg(e); renderBanner(); }),
+  skipCapture: () => invoke('skip_capture').catch((e) => { ui.notice = errMsg(e); renderBanner(); }),
   gear: () => openSettings(),
   back: () => closeSettings(),
   dismiss: () => { if (ui.notice) ui.notice = null; else ui.dismissedErr = snap.error; renderBanner(); },

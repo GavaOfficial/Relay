@@ -122,6 +122,12 @@ async fn retry_capture(core: St<'_>) -> Res<()> {
 }
 
 #[tauri::command]
+fn skip_capture(core: St) -> Res<()> {
+    core.skip_capture_check();
+    Ok(())
+}
+
+#[tauri::command]
 async fn check_update(core: St<'_>) -> Res<Value> {
     Ok(core.check_update_now().await)
 }
@@ -252,6 +258,7 @@ fn main() {
             open_logs,
             retry_ffmpeg,
             retry_capture,
+            skip_capture,
             leave_match,
             list_matches,
             host_start,

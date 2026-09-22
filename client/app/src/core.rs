@@ -103,6 +103,7 @@ struct CaptureState {
     groups: Vec<Value>,
     error: Option<String>,
     compat: Option<crate::capture::Compat>,
+    skipped: bool,
 }
 
 #[derive(Default, Clone)]
@@ -366,14 +367,19 @@ impl Core {
     }
 
     pub fn capture_ready(&self) -> bool {
-        crate::capture::ready(&self.data_dir())
-            && self
-                .capture
-                .lock()
-                .unwrap()
-                .compat
-                .as_ref()
-                .is_some_and(|c| c.ok)
+        if !crate::capture::ready(&self.data_dir()) {
+            return false;
+        }
+        let c = self.capture.lock().unwrap();
+        c.skipped || c.compat.as_ref().is_some_and(|c| c.ok)
+    }
+
+    pub fn skip_capture_check(&self) {
+        let mut c = self.capture.lock().unwrap();
+        c.skipped = true;
+        c.installing = false;
+        c.error = None;
+        tracing::warn!("relay-capture: controllo di compatibilita' saltato dall'utente");
     }
 
     pub async fn ensure_capture(&self) {
@@ -432,7 +438,14 @@ impl Core {
                 Err(_) => {}
             }
             self.capture.lock().unwrap().stage = "check";
-            let compat = crate::capture::check_compat(&base).await;
+            tracing::info!("relay-capture: avvio il controllo di compatibilita'");
+            let compat = match tokio::time::timeout(Duration::from_secs(45), crate::capture::check_compat(&base)).await {
+                Ok(c) => c,
+                Err(_) => {
+                    return Err("il controllo del PC ha impiegato troppo tempo (oltre 45 s): riprova".into());
+                }
+            };
+            tracing::info!("relay-capture: controllo di compatibilita' finito: {compat:?}");
             let ok = compat.ok;
             let err = compat.error.clone();
             self.capture.lock().unwrap().compat = Some(compat);

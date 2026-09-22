@@ -110,6 +110,16 @@ pub async fn check_compat(base: &Path) -> Compat {
         let mut child = c
             .spawn()
             .map_err(|e| format!("non riesco ad avviare relay-capture.exe: {e}"))?;
+        let pid = child.id();
+        let _watchdog = std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_secs(40));
+            let _ = Command::new("taskkill")
+                .args(["/F", "/PID", &pid.to_string()])
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status();
+        });
         let stdout = child
             .stdout
             .take()
