@@ -188,10 +188,26 @@ fn sleep_until(unix_secs: f64) {
 fn run_record(cfg: RecordConfig) -> Result<()> {
     std::fs::create_dir_all(&cfg.dir).context("creazione della cartella di lavoro")?;
     let monitors = MonitorCaptureSourceBuilder::get_monitors().unwrap_or_default();
-    let monitor_index = match &cfg.source {
-        Source::Monitor { index } => *index,
-        Source::Window { .. } => cfg.fallback_monitor.unwrap_or(0),
-    } as usize;
+    let window = if let Source::Window { exe } = &cfg.source {
+        get_all_windows(WindowSearchMode::ExcludeMinimized)
+            .unwrap_or_default()
+            .into_iter()
+            .find(|w| exe_name(&w.full_exe).eq_ignore_ascii_case(exe))
+    } else {
+        None
+    };
+    let monitor_index = window
+        .as_ref()
+        .and_then(|w| w.monitor.as_ref())
+        .and_then(|id| {
+            monitors
+                .iter()
+                .position(|m| m.0.name.eq_ignore_ascii_case(id))
+        })
+        .unwrap_or_else(|| match &cfg.source {
+            Source::Monitor { index } => *index as usize,
+            Source::Window { .. } => cfg.fallback_monitor.unwrap_or(0) as usize,
+        });
     let monitor = monitors.get(monitor_index).or_else(|| monitors.first());
     let (base_width, base_height) = monitor
         .map(|m| (m.0.width, m.0.height))
@@ -217,18 +233,6 @@ fn run_record(cfg: RecordConfig) -> Result<()> {
         .scene("relay", Some(0))
         .context("creazione della scena")?;
 
-    let mut window: Option<WindowInfo> = None;
-    if let Source::Window { exe } = &cfg.source {
-        window = get_all_windows(WindowSearchMode::ExcludeMinimized)
-            .unwrap_or_default()
-            .into_iter()
-            .find(|w| exe_name(&w.full_exe).eq_ignore_ascii_case(exe))
-            .map(|w| WindowInfo {
-                exe: exe_name(&w.full_exe),
-                title: w.title.clone().unwrap_or_default(),
-            });
-    }
-
     let source_label = if window.is_some() { "game" } else { "monitor" };
     if window.is_none() && matches!(cfg.source, Source::Window { .. }) {
         emit(&Event::Warning(
@@ -238,17 +242,12 @@ fn run_record(cfg: RecordConfig) -> Result<()> {
 
     let want_game_audio = cfg.game_audio_exe.is_some();
     let mut game_audio_done = false;
-    if let Some(w) = &window {
-        let raw = get_all_windows(WindowSearchMode::ExcludeMinimized)
-            .unwrap_or_default()
-            .into_iter()
-            .find(|x| exe_name(&x.full_exe).eq_ignore_ascii_case(&w.exe))
-            .ok_or_else(|| anyhow!("finestra sparita durante l'avvio"))?;
+    if let Some(raw) = &window {
         let build_base = || -> Result<GameCaptureSourceBuilder> {
             Ok(context
                 .source_builder::<GameCaptureSourceBuilder, _>("Gioco")?
                 .set_capture_mode(ObsGameCaptureMode::CaptureSpecificWindow)
-                .set_window(&raw)
+                .set_window(raw)
                 .set_hook_rate(ObsHookRate::Fast)
                 .set_anti_cheat_hook(true))
         };

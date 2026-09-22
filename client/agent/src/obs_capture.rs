@@ -85,6 +85,9 @@ impl ObsCapture {
         let reader = tokio::spawn(async move {
             let mut lines = BufReader::new(stdout).lines();
             while let Ok(Some(line)) = lines.next_line().await {
+                if !line.trim_start().starts_with('{') {
+                    continue;
+                }
                 match ipc::decode::<Event>(&line) {
                     Ok(Event::Started {
                         encoder, source, ..

@@ -3948,7 +3948,7 @@ checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 
 [[package]]
 name = "relay-agent"
-version = "0.3.11"
+version = "0.3.12"
 dependencies = [
  "anyhow",
  "axum",
@@ -3977,7 +3977,7 @@ dependencies = [
 
 [[package]]
 name = "relay-app"
-version = "0.3.11"
+version = "0.3.12"
 dependencies = [
  "anyhow",
  "ed25519-dalek",
@@ -4001,7 +4001,7 @@ dependencies = [
 
 [[package]]
 name = "relay-capture"
-version = "0.3.11"
+version = "0.3.12"
 dependencies = [
  "anyhow",
  "axum",
@@ -4023,7 +4023,7 @@ dependencies = [
 
 [[package]]
 name = "relay-common"
-version = "0.3.11"
+version = "0.3.12"
 dependencies = [
  "serde",
  "serde_json",
@@ -4032,7 +4032,7 @@ dependencies = [
 
 [[package]]
 name = "relay-server"
-version = "0.3.11"
+version = "0.3.12"
 dependencies = [
  "axum",
  "futures-util",
