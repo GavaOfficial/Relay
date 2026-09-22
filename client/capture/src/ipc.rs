@@ -37,6 +37,8 @@ impl EncoderChoice {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RecordConfig {
     pub dir: PathBuf,
+    /// Istante T (unix secondi): il segmento 0 inizia esattamente li'.
+    pub origin_unix_secs: Option<f64>,
     pub playlist: String,
     pub source: Source,
     pub fallback_monitor: Option<u32>,
@@ -113,7 +115,10 @@ mod tests {
         let cfg = RecordConfig {
             dir: PathBuf::from("C:/Relay/work"),
             playlist: "out_2.m3u8".into(),
-            source: Source::Window { exe: "game.exe".into() },
+            source: Source::Window {
+                exe: "game.exe".into(),
+            },
+            origin_unix_secs: Some(1_700_000_000.5),
             fallback_monitor: Some(1),
             fps: 60,
             bitrate_kbps: 6000,
@@ -129,7 +134,11 @@ mod tests {
         assert_eq!(line.matches('\n').count(), 1);
         assert_eq!(decode::<Command>(&line).unwrap(), Command::Start(cfg));
 
-        let ev = Event::Started { encoder: "nvenc".into(), source: "game".into(), first_frame_unix_secs: 1.5 };
+        let ev = Event::Started {
+            encoder: "nvenc".into(),
+            source: "game".into(),
+            first_frame_unix_secs: 1.5,
+        };
         assert_eq!(decode::<Event>(&encode(&ev)).unwrap(), ev);
         assert!(decode::<Command>("non e' json").is_err());
     }

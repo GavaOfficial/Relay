@@ -173,6 +173,12 @@ pub fn host_exe(dir: &Path) -> PathBuf {
     dir.join(HOST_EXE)
 }
 
+/// Cartella da cui avviare `relay-capture.exe` (deve esistere ed essere passata come `current_dir`
+/// del processo): l'aggancio ai giochi cerca alcuni suoi file relativi a questa posizione.
+pub fn spawn_dir(dir: &Path) -> PathBuf {
+    dir.join("bin").join("64bit")
+}
+
 pub fn is_ready(dir: &Path) -> bool {
     let Ok(text) = fs::read_to_string(dir.join(MANIFEST)) else {
         return false;
@@ -599,6 +605,10 @@ pub fn install_from(
         progress(&snapshot(done.min(total), &group_done, &sel.dest));
     }
 
+    // il modulo di aggancio ai giochi cerca i suoi file due cartelle sopra la cartella di lavoro
+    // (come se fossimo dentro "bin/64bit" di un'installazione vera di OBS): questa cartella
+    // vuota serve solo da punto di partenza quando si avvia relay-capture.exe
+    fs::create_dir_all(dir.join("bin").join("64bit"))?;
     let manifest = Manifest {
         version: version.to_string(),
         files,

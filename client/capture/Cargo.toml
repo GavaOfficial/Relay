@@ -6,6 +6,16 @@ license.workspace = true
 repository.workspace = true
 description = "Cattura e codifica con libobs: installazione dei file di OBS e registrazione a segmenti"
 
+[[bin]]
+name = "relay-capture"
+path = "src/bin/relay-capture.rs"
+required-features = ["recorder"]
+
+[features]
+# libobs si collega solo se questa feature e' attiva: la libreria (install.rs, ipc.rs) si
+# compila anche su chi non ha ancora l'SDK di libobs (CI, altre piattaforme).
+recorder = ["dep:libobs", "dep:libobs-wrapper", "dep:libobs-simple", "dep:libobs-window-helper"]
+
 [dependencies]
 anyhow = "1"
 serde = { version = "1", features = ["derive"] }
@@ -13,7 +23,15 @@ serde_json = "1"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "blocking"] }
 flate2 = "1"
 tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 crc32fast = "1"
+libobs = { version = "=5.0.1", optional = true }
+libobs-wrapper = { version = "=9.0.4", optional = true }
+libobs-simple = { version = "=8.0.1", features = ["window-list"], optional = true }
+libobs-window-helper = { version = "=0.4.0", optional = true }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.60", features = ["Win32_System_Console"] }
 
 [dev-dependencies]
 zip = { version = "2", default-features = false, features = ["deflate"] }
