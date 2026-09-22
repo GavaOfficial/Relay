@@ -19,10 +19,12 @@ use libobs_simple::sources::windows::{
 use libobs_window_helper::{get_all_windows, WindowSearchMode};
 use libobs_wrapper::{
     context::ObsContext,
-    data::{output::ObsOutputTrait, ObsDataSetters},
+    data::object::ObsObjectTrait,
+    data::{output::ObsOutputTrait, ObsData, ObsDataSetters},
     encoders::{ObsAudioEncoderType, ObsContextEncoders, ObsVideoEncoderType},
-    scenes::SceneItemTrait,
-    sources::ObsSourceBuilder,
+    run_with_obs,
+    scenes::{SceneItemExtSceneTrait, SceneItemTrait},
+    sources::{ObsSourceBuilder, ObsSourceRef},
     utils::{AudioEncoderInfo, OutputInfo, StartupInfo, VideoEncoderInfo},
 };
 use relay_capture::ipc::{EncoderChoice, Event, MonitorInfo, RecordConfig, Source, WindowInfo};
@@ -154,6 +156,34 @@ fn pick_video_encoder(
     bail!("nessun encoder H.264 funzionante (provati nvenc, amf, qsv, x264)");
 }
 
+/// Una sorgente audio senza un builder dedicato in `libobs-simple` (microfono, audio del
+/// desktop): creata dal suo id grezzo, esattamente come farebbe l'interfaccia di OBS.
+fn raw_source(
+    context: &ObsContext,
+    id: &str,
+    name: &str,
+    settings: Option<ObsData>,
+) -> Result<ObsSourceRef> {
+    ObsSourceRef::new(
+        id.to_string(),
+        name.to_string(),
+        settings.map(Into::into),
+        None,
+        context.runtime().clone(),
+    )
+    .with_context(|| format!("creazione della sorgente {id}"))
+}
+
+/// Volume di una sorgente (1.0 = invariato). Non ha un metodo dedicato nel wrapper Rust: si
+/// chiama direttamente la funzione di libobs, come fanno anche i cursori del volume di OBS.
+fn set_volume(context: &ObsContext, source: &ObsSourceRef, gain: f32) -> Result<()> {
+    let ptr = source.as_ptr();
+    run_with_obs!(context.runtime(), (ptr), move || unsafe {
+        libobs::obs_source_set_volume(ptr.get_ptr(), gain);
+    })
+    .context("impostazione del volume")
+}
+
 fn sleep_until(unix_secs: f64) {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -191,19 +221,44 @@ fn run_record(cfg: RecordConfig) -> Result<()> {
         ));
     }
 
+    let want_game_audio = cfg.game_audio_exe.is_some();
+    let mut game_audio_done = false;
     if let Some(w) = &window {
         let raw = get_all_windows(WindowSearchMode::ExcludeMinimized)
             .unwrap_or_default()
             .into_iter()
             .find(|x| exe_name(&x.full_exe).eq_ignore_ascii_case(&w.exe))
             .ok_or_else(|| anyhow!("finestra sparita durante l'avvio"))?;
-        context
-            .source_builder::<GameCaptureSourceBuilder, _>("Gioco")?
-            .set_capture_mode(ObsGameCaptureMode::CaptureSpecificWindow)
-            .set_window(&raw)
-            .set_hook_rate(ObsHookRate::Fast)
-            .set_anti_cheat_hook(true)
-            .add_to_scene(&mut scene)?;
+        let build_base = || -> Result<GameCaptureSourceBuilder> {
+            Ok(context
+                .source_builder::<GameCaptureSourceBuilder, _>("Gioco")?
+                .set_capture_mode(ObsGameCaptureMode::CaptureSpecificWindow)
+                .set_window(&raw)
+                .set_hook_rate(ObsHookRate::Fast)
+                .set_anti_cheat_hook(true))
+        };
+        // l'audio del gioco e' una proprieta' della sorgente stessa (Windows crea un dispositivo
+        // WASAPI dedicato che segue automaticamente la finestra agganciata); il metodo consuma
+        // la sorgente anche quando fallisce, quindi in quel caso se ne ricrea una senza l'audio
+        let builder = if want_game_audio {
+            match build_base()?.set_capture_audio(true) {
+                Ok(b) => {
+                    game_audio_done = true;
+                    b
+                }
+                Err(e) => {
+                    emit(&Event::Warning(format!(
+                        "audio del gioco non disponibile su questo PC ({e})"
+                    )));
+                    build_base()?
+                }
+            }
+        } else {
+            build_base()?
+        };
+        builder
+            .add_to_scene(&mut scene)
+            .context("aggiunta della sorgente di gioco alla scena")?;
     } else {
         let idx = match &cfg.source {
             Source::Monitor { index } => *index,
@@ -219,7 +274,34 @@ fn run_record(cfg: RecordConfig) -> Result<()> {
             .set_monitor(monitor)
             .add_to_scene(&mut scene)?;
         item.fit_source_to_screen()?;
+        // niente Game Capture: non si puo' isolare l'audio di un solo programma, quindi si prende
+        // quello di tutto il desktop, per non restare senza audio del tutto
+        if want_game_audio {
+            emit(&Event::Warning(
+                "registro l'audio di tutto lo schermo: non riesco a isolare solo il gioco".into(),
+            ));
+            let desktop = raw_source(&context, "wasapi_output_capture", "Desktop", None)?;
+            scene
+                .add_source(desktop)
+                .context("aggiunta dell'audio del desktop")?;
+            game_audio_done = true;
+        }
     }
+    let _ = game_audio_done;
+
+    if cfg.mic {
+        let mut mic_settings = context.data()?;
+        mic_settings.set_string("device_id", "default")?;
+        let mic = raw_source(
+            &context,
+            "wasapi_input_capture",
+            "Microfono",
+            Some(mic_settings),
+        )?;
+        set_volume(&context, &mic, cfg.mic_gain)?;
+        scene.add_source(mic).context("aggiunta del microfono")?;
+    }
+
     scene.set_to_channel(0)?;
 
     let (video_ty, encoder_name) = pick_video_encoder(&context, cfg.encoder)?;
@@ -280,11 +362,15 @@ fn run_record(cfg: RecordConfig) -> Result<()> {
             .as_secs_f64(),
     });
 
-    let stdin = std::io::stdin();
-    for line in stdin.lock().lines() {
-        match line {
-            Ok(l) if l.trim() == "q" => break,
-            Ok(_) => continue,
+    // si ferma solo su "q": se chi lo ha avviato chiude per sbaglio la pipe senza scriverla
+    // (invece di errore), non si perde una registrazione in corso per un rigo vuoto di troppo
+    let mut stdin = std::io::stdin().lock();
+    loop {
+        let mut line = String::new();
+        match stdin.read_line(&mut line) {
+            Ok(0) => thread::sleep(Duration::from_millis(200)),
+            Ok(_) if line.trim() == "q" => break,
+            Ok(_) => {}
             Err(_) => break,
         }
     }
