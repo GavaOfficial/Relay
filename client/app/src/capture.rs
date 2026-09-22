@@ -101,7 +101,7 @@ pub async fn check_compat(base: &Path) -> Compat {
             .current_dir(&cwd)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
-            .stderr(Stdio::null());
+            .stderr(Stdio::piped());
         #[cfg(windows)]
         {
             use std::os::windows::process::CommandExt;
@@ -114,9 +114,14 @@ pub async fn check_compat(base: &Path) -> Compat {
             .stdout
             .take()
             .ok_or("relay-capture.exe senza uscita")?;
+        let mut stderr_pipe = child.stderr.take();
         let out = std::io::Read::bytes(stdout)
             .filter_map(|b| b.ok())
             .collect::<Vec<u8>>();
+        let mut err_out = Vec::new();
+        if let Some(e) = &mut stderr_pipe {
+            let _ = std::io::Read::read_to_end(e, &mut err_out);
+        }
         let status = child.wait().map_err(|e| e.to_string())?;
         if !status.success() {
             let text = String::from_utf8_lossy(&out);
@@ -127,9 +132,39 @@ pub async fn check_compat(base: &Path) -> Compat {
                     relay_capture::ipc::Event::Error(m) => Some(m),
                     _ => None,
                 });
-            return Err(
-                msg.unwrap_or_else(|| "relay-capture.exe si e' fermato con un errore".into())
-            );
+            let tail_out: String = text
+                .lines()
+                .rev()
+                .take(3)
+                .collect::<Vec<_>>()
+                .into_iter()
+                .rev()
+                .collect::<Vec<_>>()
+                .join(" | ");
+            let tail_err: String = String::from_utf8_lossy(&err_out)
+                .lines()
+                .rev()
+                .take(3)
+                .collect::<Vec<_>>()
+                .into_iter()
+                .rev()
+                .collect::<Vec<_>>()
+                .join(" | ");
+            return Err(msg.unwrap_or_else(|| {
+                format!(
+                    "relay-capture.exe si e' fermato ({status}); uscita: {}; errori: {}",
+                    if tail_out.is_empty() {
+                        "(vuota)"
+                    } else {
+                        &tail_out
+                    },
+                    if tail_err.is_empty() {
+                        "(vuota)"
+                    } else {
+                        &tail_err
+                    }
+                )
+            }));
         }
         Ok(String::from_utf8_lossy(&out).into_owned())
     })

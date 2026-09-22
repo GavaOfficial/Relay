@@ -1052,9 +1052,10 @@ impl Core {
             };
             json!({ "state": state, "progress": f.progress, "error": f.error })
         };
+        let capture_is_ready = self.capture_ready();
         let capture_v = {
             let c = self.capture.lock().unwrap();
-            let state = if self.capture_ready() {
+            let state = if capture_is_ready {
                 "ready"
             } else if c.installing {
                 "installing"

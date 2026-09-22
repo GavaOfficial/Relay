@@ -46,9 +46,12 @@ fn main() {
         std::process::exit(2);
     };
 
-    if let Err(e) = result {
-        emit(&Event::Error(format!("{e:#}")));
-        std::process::exit(1);
+    match result {
+        Ok(()) => std::process::exit(0),
+        Err(e) => {
+            emit(&Event::Error(format!("{e:#}")));
+            std::process::exit(1);
+        }
     }
 }
 
@@ -96,7 +99,7 @@ fn run_probe() -> Result<()> {
         monitors,
         windows,
     });
-    Ok(())
+    std::process::exit(0);
 }
 
 fn exe_name(full_path: &str) -> String {
@@ -367,7 +370,7 @@ fn run_record(cfg: RecordConfig) -> Result<()> {
     }
     output.stop().context("chiusura della registrazione")?;
     emit(&Event::Stopped);
-    Ok(())
+    std::process::exit(0);
 }
 
 #[cfg(test)]
