@@ -3982,6 +3982,7 @@ dependencies = [
  "ed25519-dalek",
  "hex",
  "relay-agent",
+ "relay-capture",
  "relay-common",
  "reqwest 0.12.28",
  "serde",

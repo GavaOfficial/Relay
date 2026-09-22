@@ -37,7 +37,7 @@ impl EncoderChoice {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RecordConfig {
     pub dir: PathBuf,
-    /// Istante T (unix secondi): il segmento 0 inizia esattamente li'.
+
     pub origin_unix_secs: Option<f64>,
     pub playlist: String,
     pub source: Source,

@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod capture;
 mod core;
 mod ffmpeg;
 mod overlay;
@@ -111,6 +112,12 @@ async fn apply_update(app: AppHandle, core: St<'_>) -> Res<()> {
 #[tauri::command]
 async fn retry_ffmpeg(core: St<'_>) -> Res<()> {
     core.ensure_ffmpeg().await;
+    Ok(())
+}
+
+#[tauri::command]
+async fn retry_capture(core: St<'_>) -> Res<()> {
+    core.ensure_capture().await;
     Ok(())
 }
 
@@ -244,6 +251,7 @@ fn main() {
             check_update,
             open_logs,
             retry_ffmpeg,
+            retry_capture,
             leave_match,
             list_matches,
             host_start,
@@ -316,6 +324,16 @@ fn main() {
                     loop {
                         core.ensure_ffmpeg().await;
                         let wait = if core.ffmpeg_ready() { 6 * 3600 } else { 30 };
+                        tokio::time::sleep(Duration::from_secs(wait)).await;
+                    }
+                });
+            }
+            {
+                let core = core.clone();
+                tauri::async_runtime::spawn(async move {
+                    loop {
+                        core.ensure_capture().await;
+                        let wait = if core.capture_ready() { 6 * 3600 } else { 30 };
                         tokio::time::sleep(Duration::from_secs(wait)).await;
                     }
                 });

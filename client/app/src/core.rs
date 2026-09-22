@@ -82,6 +82,7 @@ pub struct Core {
     update: Mutex<UpdateState>,
 
     ffmpeg: Mutex<FfmpegState>,
+    capture: Mutex<CaptureState>,
     http: reqwest::Client,
 }
 
@@ -91,6 +92,17 @@ struct FfmpegState {
 
     progress: f32,
     error: Option<String>,
+}
+
+#[derive(Default, Clone)]
+struct CaptureState {
+    installing: bool,
+
+    stage: &'static str,
+    percent: f32,
+    groups: Vec<Value>,
+    error: Option<String>,
+    compat: Option<crate::capture::Compat>,
 }
 
 #[derive(Default, Clone)]
@@ -206,6 +218,10 @@ impl Core {
             pending_invite: Mutex::new(None),
             update: Mutex::new(UpdateState::default()),
             ffmpeg: Mutex::new(FfmpegState::default()),
+            capture: Mutex::new(CaptureState {
+                stage: "obs",
+                ..Default::default()
+            }),
             http: reqwest::Client::builder()
                 .timeout(Duration::from_secs(30))
                 .build()
@@ -346,6 +362,91 @@ impl Core {
         f.error = result.err();
         if let Some(e) = &f.error {
             tracing::warn!("ffmpeg: {e}");
+        }
+    }
+
+    pub fn capture_ready(&self) -> bool {
+        crate::capture::ready(&self.data_dir())
+            && self
+                .capture
+                .lock()
+                .unwrap()
+                .compat
+                .as_ref()
+                .is_some_and(|c| c.ok)
+    }
+
+    pub async fn ensure_capture(&self) {
+        {
+            let mut c = self.capture.lock().unwrap();
+            if c.installing {
+                return;
+            }
+            c.installing = true;
+            c.error = None;
+        }
+        let base = self.data_dir();
+        let server = self.settings().server_url;
+        let result: Result<(), String> = async {
+            if !crate::capture::obs_ready(&base) {
+                self.capture.lock().unwrap().stage = "obs";
+                let cancel = relay_capture::install::Canceller::new();
+                let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+                let base2 = base.clone();
+                let handle = tokio::task::spawn_blocking(move || {
+                    crate::capture::install_obs(&base2, &cancel, &mut |p| {
+                        let _ = tx.send(p.clone());
+                    })
+                });
+                while let Some(p) = rx.recv().await {
+                    let mut c = self.capture.lock().unwrap();
+                    c.percent = p.percent;
+                    c.groups = p
+                        .groups
+                        .iter()
+                        .map(|g| json!({ "id": g.id, "label": g.label, "percent": g.percent, "done": g.done }))
+                        .collect();
+                }
+                handle.await.map_err(|e| e.to_string())??;
+            }
+            let installed = crate::capture::exe_installed_version(&base);
+            match crate::capture::fetch_latest(&self.http, &server).await {
+                Ok(Some(rel)) => {
+                    let newer = installed.as_deref().is_none_or(|v| crate::updater::is_newer(v, &rel.version));
+                    if newer {
+                        {
+                            let mut c = self.capture.lock().unwrap();
+                            c.stage = "exe";
+                            c.percent = 0.0;
+                        }
+                        let total = rel.size.max(1);
+                        let progress = |done: u64, _| {
+                            self.capture.lock().unwrap().percent = (done as f64 / total as f64) as f32;
+                        };
+                        crate::capture::install_exe(&self.http, &server, &rel, &base, &progress).await?;
+                    }
+                }
+                Ok(None) if installed.is_none() => return Err("il server non ha ancora relay-capture da scaricare".into()),
+                Ok(None) => {}
+                Err(e) if installed.is_none() => return Err(e),
+                Err(_) => {}
+            }
+            self.capture.lock().unwrap().stage = "check";
+            let compat = crate::capture::check_compat(&base).await;
+            let ok = compat.ok;
+            let err = compat.error.clone();
+            self.capture.lock().unwrap().compat = Some(compat);
+            if !ok {
+                return Err(err.unwrap_or_else(|| "questo PC non e' compatibile".into()));
+            }
+            Ok(())
+        }
+        .await;
+        let mut c = self.capture.lock().unwrap();
+        c.installing = false;
+        c.error = result.err();
+        if let Some(e) = &c.error {
+            tracing::warn!("relay-capture: {e}");
         }
     }
 
@@ -951,6 +1052,26 @@ impl Core {
             };
             json!({ "state": state, "progress": f.progress, "error": f.error })
         };
+        let capture_v = {
+            let c = self.capture.lock().unwrap();
+            let state = if self.capture_ready() {
+                "ready"
+            } else if c.installing {
+                "installing"
+            } else if c.error.is_some() {
+                "error"
+            } else {
+                "missing"
+            };
+            json!({
+                "state": state,
+                "stage": c.stage,
+                "percent": c.percent,
+                "groups": c.groups,
+                "error": c.error,
+                "compat": c.compat,
+            })
+        };
         let update_v = {
             let u = self.update.lock().unwrap();
             u.release.as_ref().map(
@@ -968,6 +1089,7 @@ impl Core {
             "version": crate::updater::current_version(),
             "update": update_v,
             "ffmpeg": ffmpeg_v,
+            "capture": capture_v,
             "match": match_v,
             "invite_request": self.pending_invite.lock().unwrap().as_deref().and_then(|l| parse_invite(l).ok()).map(|(id, _)| json!({ "id": id })),
         })

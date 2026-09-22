@@ -113,6 +113,7 @@ async function boot() {
 function currentView() {
   if (!snap) return 'loading';
   if (ui.view === 'settings') return 'settings';
+  if (snap.capture && snap.capture.state !== 'ready') return 'install';
   if (!snap.auth || !snap.auth.logged_in) return 'login';
   return snap.match ? 'match' : 'home';
 }
@@ -123,12 +124,13 @@ function render(s) {
   const m = s.match;
   if (m && m.can_start) ui.forceArmed = false;
   const view = currentView();
-  for (const v of ['loading', 'login', 'home', 'match', 'settings']) $('v-' + v).hidden = v !== view;
+  for (const v of ['loading', 'login', 'install', 'home', 'match', 'settings']) $('v-' + v).hidden = v !== view;
   $('hd-main').hidden = view === 'settings';
   $('hd-set').hidden = view !== 'settings';
   $('who').textContent = s.auth && s.auth.logged_in ? s.auth.name || '' : '';
   renderConn();
   renderBanner();
+  if (view === 'install') renderInstall();
   if (view === 'login') renderLogin();
   if (view === 'home') {
     if (ui.prevView !== 'home') loadRecents();
@@ -176,6 +178,38 @@ function renderLogin() {
       h('button', { class: 'btn primary lg', 'data-act': 'login', disabled: ui.busy === 'login', text: ui.busy === 'login' ? 'Apro il browser…' : 'Accedi con GavaAuth' }),
       ui.loginErr && h('p', { class: 'err', role: 'alert', text: ui.loginErr })),
   ]);
+}
+
+function installStageLabel(c) {
+  if (c.state === 'error') return 'Non riesco a preparare la registrazione';
+  if (c.stage === 'exe') return 'Scarico il programma di registrazione';
+  if (c.stage === 'check') return 'Controllo che questo PC riesca a registrare';
+  return 'Scarico i componenti per registrare';
+}
+
+function encoderLabel(id) {
+  return { nvenc: 'scheda NVIDIA', amf: 'scheda AMD', qsv: 'grafica Intel', x264: 'processore' }[id] || id;
+}
+
+function renderInstall() {
+  region('v-install', JSON.stringify(snap.capture), () => {
+    const c = snap.capture;
+    const groups = c.stage === 'obs' ? c.groups || [] : [];
+    const compat = c.compat;
+    return [
+      h('div', { class: 'hero-login' },
+        h('div', { class: 'bigdot', 'aria-hidden': 'true' }),
+        h('h1', { text: 'Relay' }),
+        h('p', { text: installStageLabel(c) }),
+        c.stage !== 'obs' && c.state !== 'error' && h('div', { class: 'bar' }, h('i', { style: 'width:' + Math.round((c.percent || 0) * 100) + '%' })),
+        groups.map((g) => h('div', { class: 'instgroup' },
+          h('div', { class: 'row' }, h('span', { class: 'small', text: g.label }), h('span', { class: 'small muted', text: Math.round(g.percent) + '%' })),
+          h('div', { class: 'bar' }, h('i', { style: 'width:' + Math.round(g.percent) + '%' })))),
+        compat && !compat.ok && h('p', { class: 'err', role: 'alert', text: compat.error || 'Questo PC non e’ compatibile con la registrazione.' }),
+        c.state === 'error' && !compat && h('p', { class: 'err', role: 'alert', text: c.error }),
+        c.state === 'error' && h('button', { class: 'btn primary lg', 'data-act': 'retryCapture', text: 'Riprova' })),
+    ];
+  });
 }
 
 async function loadRecents() {
@@ -637,6 +671,7 @@ const ACTIONS = {
   },
   openLogs: () => invoke('open_logs').catch((e) => { ui.notice = errMsg(e); renderBanner(); }),
   retryFfmpeg: () => invoke('retry_ffmpeg').catch((e) => { ui.notice = errMsg(e); renderBanner(); }),
+  retryCapture: () => invoke('retry_capture').catch((e) => { ui.notice = errMsg(e); renderBanner(); }),
   gear: () => openSettings(),
   back: () => closeSettings(),
   dismiss: () => { if (ui.notice) ui.notice = null; else ui.dismissedErr = snap.error; renderBanner(); },

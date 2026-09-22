@@ -1,11 +1,3 @@
-//! Motore di cattura: usa `libobs` (Game Capture, con ripiego sul monitor) per registrare a
-//! segmenti da 4 secondi. Sostituisce ffmpeg per la cattura video sul PC di chi gioca; il
-//! server continua a usare ffmpeg per unire e convertire i video a fine partita.
-//!
-//! Uso: `relay-capture --probe` (elenca encoder/monitor/finestre disponibili, poi esce) oppure
-//! `relay-capture --config <file.json>` (registra secondo `ipc::RecordConfig`, finche' non
-//! riceve `q\n` su stdin o viene terminato).
-
 use std::{
     io::BufRead,
     thread,
@@ -36,7 +28,6 @@ fn emit(ev: &Event) {
 }
 
 fn main() {
-    // niente finestra della console: l'app la lancia in background
     #[cfg(windows)]
     unsafe {
         windows_sys::Win32::System::Console::FreeConsole();
@@ -116,7 +107,6 @@ fn exe_name(full_path: &str) -> String {
         .to_string()
 }
 
-/// Ordine di preferenza degli encoder video: GPU dedicata prima, processore per ultimo.
 fn pick_video_encoder(
     context: &ObsContext,
     choice: EncoderChoice,
@@ -157,8 +147,6 @@ fn pick_video_encoder(
     bail!("nessun encoder H.264 funzionante (provati nvenc, amf, qsv, x264)");
 }
 
-/// Una sorgente audio senza un builder dedicato in `libobs-simple` (microfono, audio del
-/// desktop): creata dal suo id grezzo, esattamente come farebbe l'interfaccia di OBS.
 fn raw_source(
     context: &ObsContext,
     id: &str,
@@ -175,8 +163,6 @@ fn raw_source(
     .with_context(|| format!("creazione della sorgente {id}"))
 }
 
-/// Volume di una sorgente (1.0 = invariato). Non ha un metodo dedicato nel wrapper Rust: si
-/// chiama direttamente la funzione di libobs, come fanno anche i cursori del volume di OBS.
 fn set_volume(context: &ObsContext, source: &ObsSourceRef, gain: f32) -> Result<()> {
     let ptr = source.as_ptr();
     run_with_obs!(context.runtime(), (ptr), move || unsafe {
@@ -199,8 +185,7 @@ fn sleep_until(unix_secs: f64) {
 fn run_record(cfg: RecordConfig) -> Result<()> {
     std::fs::create_dir_all(&cfg.dir).context("creazione della cartella di lavoro")?;
     let mut context = ObsContext::new(StartupInfo::default()).context("avvio di OBS")?;
-    // di base OBS incide a 30 fps qualunque cosa si chieda alla sorgente: senza questo la
-    // registrazione restava sempre a 30 fps anche impostando 60
+
     context
         .reset_video(
             ObsVideoInfoBuilder::new()
@@ -248,9 +233,7 @@ fn run_record(cfg: RecordConfig) -> Result<()> {
                 .set_hook_rate(ObsHookRate::Fast)
                 .set_anti_cheat_hook(true))
         };
-        // l'audio del gioco e' una proprieta' della sorgente stessa (Windows crea un dispositivo
-        // WASAPI dedicato che segue automaticamente la finestra agganciata); il metodo consuma
-        // la sorgente anche quando fallisce, quindi in quel caso se ne ricrea una senza l'audio
+
         let builder = if want_game_audio {
             match build_base()?.set_capture_audio(true) {
                 Ok(b) => {
@@ -285,8 +268,7 @@ fn run_record(cfg: RecordConfig) -> Result<()> {
             .set_monitor(monitor)
             .add_to_scene(&mut scene)?;
         item.fit_source_to_screen()?;
-        // niente Game Capture: non si puo' isolare l'audio di un solo programma, quindi si prende
-        // quello di tutto il desktop, per non restare senza audio del tutto
+
         if want_game_audio {
             emit(&Event::Warning(
                 "registro l'audio di tutto lo schermo: non riesco a isolare solo il gioco".into(),
@@ -373,8 +355,6 @@ fn run_record(cfg: RecordConfig) -> Result<()> {
             .as_secs_f64(),
     });
 
-    // si ferma solo su "q": se chi lo ha avviato chiude per sbaglio la pipe senza scriverla
-    // (invece di errore), non si perde una registrazione in corso per un rigo vuoto di troppo
     let mut stdin = std::io::stdin().lock();
     loop {
         let mut line = String::new();

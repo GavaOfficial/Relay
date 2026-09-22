@@ -26,6 +26,8 @@ pub fn app(state: Arc<AppState>) -> Router {
         .route("/api/app/download", get(routes::app_download))
         .route("/api/app/ffmpeg/latest", get(routes::ffmpeg_latest))
         .route("/api/app/ffmpeg/download", get(routes::ffmpeg_download))
+        .route("/api/app/capture/latest", get(routes::capture_latest))
+        .route("/api/app/capture/download", get(routes::capture_download))
         .route(
             "/api/matches",
             get(routes::list_matches).post(routes::create_match),

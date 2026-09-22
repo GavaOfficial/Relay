@@ -297,3 +297,5 @@ details.adv > summary:hover { color: var(--text); }
 #m-head { padding: 2px 0 0; }
 .view.match .headline { font-size: 21px; margin-top: 2px; }
 #m-title .titlebar { padding: 0; }
+.instgroup { width: 260px; margin-top: 12px; text-align: left; }
+.instgroup .bar { margin: 4px 0 0; }

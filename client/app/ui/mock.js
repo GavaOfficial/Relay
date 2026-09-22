@@ -33,7 +33,31 @@
   const ME = { id: 'u-ada', name: 'Ada' };
   const st = {
     auth: { logged_in: false, name: null, user: null }, connection: 'connected', error: null, match: null,
+    capture: { state: 'ready', stage: 'check', percent: 1, groups: [], error: null, compat: { ok: true, best_encoder: 'nvenc' } },
   };
+  if (new URLSearchParams(location.search).get('install')) {
+    st.capture = { state: 'installing', stage: 'obs', percent: 0, groups: [
+      { id: 'engine', label: 'Motore di cattura', percent: 0, done: false },
+      { id: 'encoders', label: 'Codifica video e audio', percent: 0, done: false },
+      { id: 'games', label: 'Aggancio ai giochi', percent: 0, done: false },
+    ], error: null, compat: null };
+    let step = 0;
+    const tick = setInterval(() => {
+      step += 5;
+      st.capture.percent = Math.min(100, step) / 100;
+      st.capture.groups.forEach((g, i) => { g.percent = Math.max(0, Math.min(100, step - i * 20)); g.done = g.percent >= 100; });
+      if (step >= 90 && st.capture.stage === 'obs') st.capture.stage = 'exe';
+      if (step >= 130) {
+        st.capture.stage = 'check';
+        st.capture.percent = 1;
+      }
+      if (step >= 160) {
+        clearInterval(tick);
+        st.capture = { state: 'ready', stage: 'check', percent: 1, groups: [], error: null, compat: { ok: true, best_encoder: 'nvenc' } };
+      }
+      push();
+    }, 400);
+  }
   let settings = {
     server_url: 'https://relay.gavatech.org', auth_url: 'https://auth.gavatech.org', site_url: '',
     window: null, preset: 'high', fps: 60, bitrate_kbps: 6000, limit_kbps: null,

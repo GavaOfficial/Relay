@@ -769,6 +769,29 @@ pub async fn ffmpeg_download(State(st): St) -> Result<axum::response::Response, 
     .await
 }
 
+pub async fn capture_latest(State(st): St) -> Result<impl IntoResponse, AppError> {
+    let r = read_manifest(&st, "capture.json")
+        .await
+        .ok_or(AppError::NotFound)?;
+    Ok((
+        [(header::CACHE_CONTROL, "no-cache")],
+        Json(release_json(&r, "/api/app/capture/download")),
+    ))
+}
+
+pub async fn capture_download(State(st): St) -> Result<axum::response::Response, AppError> {
+    let r = read_manifest(&st, "capture.json")
+        .await
+        .ok_or(AppError::NotFound)?;
+    download_response(
+        &st,
+        "capture.json",
+        "application/vnd.microsoft.portable-executable",
+        format!("relay-capture-{}.exe", r.version),
+    )
+    .await
+}
+
 pub async fn get_playlist(
     State(st): St,
     AuthUser(user): AuthUser,

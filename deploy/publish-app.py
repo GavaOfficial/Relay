@@ -134,6 +134,8 @@ def main() -> int:
     ap.add_argument("--no-app", action="store_true", help="non pubblicare l'app")
     ap.add_argument("--ffmpeg", default=None, help="ffmpeg.exe da pubblicare (viene impacchettato in uno zip)")
     ap.add_argument("--ffmpeg-version", default=None)
+    ap.add_argument("--capture", default=None, help="relay-capture.exe (build --features recorder) da pubblicare")
+    ap.add_argument("--capture-version", default=None)
     ap.add_argument("--local", default=None, help="cartella dati locale (per prove) invece della VPS")
     a = ap.parse_args()
 
@@ -145,6 +147,9 @@ def main() -> int:
             with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
                 z.write(a.ffmpeg, "ffmpeg.exe")
             publish(target, "relay-ffmpeg", "ffmpeg", "zip", "ffmpeg.json", v, buf.getvalue(), "")
+        if a.capture:
+            v = a.capture_version or workspace_version()
+            publish(target, "relay-capture", "relay-capture", "exe", "capture.json", v, open(a.capture, "rb").read(), "")
         if not a.no_app:
             version = a.version or workspace_version()
             if not re.fullmatch(r"[0-9]+(\.[0-9]+){1,3}", version):
