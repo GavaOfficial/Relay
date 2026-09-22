@@ -4,6 +4,6 @@ members = ["common", "api/server", "client/agent", "client/app", "client/capture
 
 [workspace.package]
 edition = "2021"
-version = "0.3.5"
+version = "0.3.6"
 license = "GPL-3.0-or-later"
 repository = "https://github.com/GavaOfficial/Relay"
