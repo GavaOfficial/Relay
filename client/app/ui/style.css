@@ -66,6 +66,8 @@ p { margin: 0 0 8px; }
 .hd { display: flex; align-items: center; gap: 9px; min-height: 32px; }
 .logo { width: 12px; height: 12px; border-radius: 50%; background: var(--rec); box-shadow: 0 0 0 4px color-mix(in srgb, var(--rec) 22%, transparent); flex: none; }
 .brand { font-weight: 650; letter-spacing: .01em; }
+.top .brand { view-transition-name: app-title; }
+#gear, #hd-set > .iconbtn { view-transition-name: header-action; }
 .who { margin-left: auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 12.5px; }
 .savemsg { margin-left: auto; color: var(--faint); font-size: 12px; }
 #conn > div { padding: 3px 12px; font-size: 11.5px; text-align: center; font-weight: 600; }
@@ -80,8 +82,35 @@ p { margin: 0 0 8px; }
 
 main { flex: 1; display: flex; flex-direction: column; padding: 0 16px 16px; min-height: 0; }
 .view { animation: in .22s var(--ease) both; }
+#v-home .hero-home, #v-match #m-window { view-transition-name: primary-panel; }
+#v-home .hero-home > .btn.primary, #v-match #m-actions > .btn:first-of-type { view-transition-name: primary-action; }
 .view.match { flex: 1; display: flex; flex-direction: column; }
 @keyframes in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+
+::view-transition-group(root),
+::view-transition-group(app-title),
+::view-transition-group(header-action),
+::view-transition-group(primary-panel),
+::view-transition-group(primary-action) {
+  animation-duration: .42s;
+  animation-timing-function: var(--ease);
+}
+::view-transition-old(root), ::view-transition-new(root) {
+  animation-duration: .34s;
+  animation-timing-function: var(--ease);
+}
+html[data-transition="settings"]::view-transition-old(root) { animation-name: page-out-left; }
+html[data-transition="settings"]::view-transition-new(root) { animation-name: page-in-right; }
+html[data-transition="back"]::view-transition-old(root) { animation-name: page-out-right; }
+html[data-transition="back"]::view-transition-new(root) { animation-name: page-in-left; }
+html[data-transition="forward"]::view-transition-old(root) { animation-name: page-out-soft; }
+html[data-transition="forward"]::view-transition-new(root) { animation-name: page-in-soft; }
+@keyframes page-out-left { to { opacity: 0; transform: translateX(-28px) scale(.985); } }
+@keyframes page-in-right { from { opacity: 0; transform: translateX(34px) scale(.985); } }
+@keyframes page-out-right { to { opacity: 0; transform: translateX(28px) scale(.985); } }
+@keyframes page-in-left { from { opacity: 0; transform: translateX(-34px) scale(.985); } }
+@keyframes page-out-soft { to { opacity: 0; transform: translateY(-12px) scale(.985); } }
+@keyframes page-in-soft { from { opacity: 0; transform: translateY(16px) scale(.985); } }
 
 button, input, select { font: inherit; color: inherit; }
 button { cursor: pointer; }

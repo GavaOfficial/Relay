@@ -111,15 +111,45 @@ async function boot() {
   try { ui.set = await invoke('get_settings'); render(snap); } catch (_) {}
 }
 
-function currentView() {
-  if (!snap) return 'loading';
+function viewFor(state) {
+  if (!state) return 'loading';
   if (ui.view === 'settings') return 'settings';
-  if (snap.capture && snap.capture.state !== 'ready') return 'install';
-  if (!snap.auth || !snap.auth.logged_in) return 'login';
-  return snap.match ? 'match' : 'home';
+  if (state.capture && state.capture.state !== 'ready') return 'install';
+  if (!state.auth || !state.auth.logged_in) return 'login';
+  return state.match ? 'match' : 'home';
+}
+
+function currentView() { return viewFor(snap); }
+
+function visibleView() {
+  return ['loading', 'login', 'install', 'home', 'match', 'settings'].find((v) => !$('v-' + v).hidden) || 'loading';
+}
+
+function transition(update, direction = 'forward') {
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!document.startViewTransition || reduced || document.hidden) {
+    update();
+    return null;
+  }
+  document.documentElement.dataset.transition = direction;
+  const movement = document.startViewTransition(update);
+  movement.finished.finally(() => delete document.documentElement.dataset.transition);
+  return movement;
 }
 
 function render(s) {
+  const from = visibleView();
+  const to = viewFor(s);
+  const phaseChanged = from === 'match' && to === 'match' && snap && snap.match && s.match && snap.match.phase !== s.match.phase;
+  if ((from !== to || phaseChanged) && snap) {
+    const direction = to === 'settings' ? 'settings' : from === 'settings' ? 'back' : 'forward';
+    transition(() => renderNow(s), direction);
+    return;
+  }
+  renderNow(s);
+}
+
+function renderNow(s) {
   snap = s;
   if (!s) return;
   const m = s.match;
@@ -460,15 +490,12 @@ const setRev = () => { region('v-settings', String(++ui.rev), buildSettings); up
 function updateSaveMsg() { const e = $('savemsg'); if (e) e.textContent = ui.setDirty ? 'Salvataggio…' : ui.saveMsg; }
 
 async function openSettings() {
-  ui.view = 'settings';
   if (!ui.set) { try { ui.set = await invoke('get_settings'); } catch (e) { ui.notice = errMsg(e); } }
-  render(snap);
-  setRev();
+  transition(() => { ui.view = 'settings'; renderNow(snap); setRev(); }, 'settings');
 }
 async function closeSettings() {
   await flushSave();
-  ui.view = 'main';
-  render(snap);
+  transition(() => { ui.view = 'main'; renderNow(snap); }, 'back');
 }
 async function refreshWindows() {
   ui.winBusy = true; ui.winErr = null;
