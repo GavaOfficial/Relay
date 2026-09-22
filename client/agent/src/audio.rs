@@ -13,7 +13,7 @@ use crate::clock::local_now_secs;
 
 pub const RATE: u32 = 48_000;
 
-const MAX_BUFFER_FRAMES: usize = RATE as usize * 3 / 10;
+const MAX_BUFFER_FRAMES: usize = RATE as usize * 3;
 
 pub const DEFAULT_MIC_GAIN: f32 = 3.0;
 
@@ -314,14 +314,18 @@ fn capture_loop(
             ];
             q.push_back(f32::from_le_bytes(b));
         }
-        let max = MAX_BUFFER_FRAMES * 2;
-        if q.len() > max {
-            let drop = q.len() - max;
-            q.drain(..drop);
-        }
+        trim_ring(&mut q, MAX_BUFFER_FRAMES);
     }
     let _ = client.stop_stream();
     Ok(())
+}
+
+fn trim_ring(q: &mut std::collections::VecDeque<f32>, max_frames: usize) {
+    let max = max_frames * 2;
+    if q.len() > max {
+        let drop = q.len() - max;
+        q.drain(..drop);
+    }
 }
 
 #[cfg(not(windows))]
@@ -397,6 +401,26 @@ mod tests {
             (0.27..=0.33).contains(&peak),
             "picco {peak} invece di circa 0,3"
         );
+    }
+
+    #[test]
+    fn a_burst_of_buffered_audio_survives_the_ring_cap() {
+        let mut q: std::collections::VecDeque<f32> =
+            std::iter::repeat_n(0.2f32, (RATE as usize * 3 / 2) * 2).collect();
+        trim_ring(&mut q, MAX_BUFFER_FRAMES);
+        let secs = q.len() as f64 / 2.0 / RATE as f64;
+        assert!(
+            secs > 1.4,
+            "raffica di 1,5 s ridotta a {secs:.2} s: il margine e' troppo piccolo per assorbire un rallentamento della cattura"
+        );
+    }
+
+    #[test]
+    fn the_ring_cap_still_bounds_memory() {
+        let mut q: std::collections::VecDeque<f32> =
+            std::iter::repeat_n(0.2f32, (RATE as usize * 10) * 2).collect();
+        trim_ring(&mut q, MAX_BUFFER_FRAMES);
+        assert_eq!(q.len(), MAX_BUFFER_FRAMES * 2);
     }
 
     #[test]
