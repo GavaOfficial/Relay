@@ -189,22 +189,13 @@ fn run_record(cfg: RecordConfig) -> Result<()> {
     std::fs::create_dir_all(&cfg.dir).context("creazione della cartella di lavoro")?;
     let monitors = MonitorCaptureSourceBuilder::get_monitors().unwrap_or_default();
     let window = if let Source::Window { exe } = &cfg.source {
-        get_all_windows(WindowSearchMode::ExcludeMinimized)
+        get_all_windows(WindowSearchMode::IncludeMinimized)
             .unwrap_or_default()
             .into_iter()
             .find(|w| exe_name(&w.full_exe).eq_ignore_ascii_case(exe))
     } else {
         None
     };
-    if window.is_none()
-        && matches!(cfg.source, Source::Window { .. })
-        && cfg.fallback_monitor_name.is_none()
-    {
-        emit(&Event::Warning(
-            "finestra non trovata: riprovo senza registrare altri schermi".into(),
-        ));
-        bail!("finestra di gioco non trovata");
-    }
     let monitor_index = window
         .as_ref()
         .and_then(|w| w.monitor.as_ref())
@@ -249,16 +240,34 @@ fn run_record(cfg: RecordConfig) -> Result<()> {
         .scene("relay", Some(0))
         .context("creazione della scena")?;
 
-    let source_label = if window.is_some() { "game" } else { "monitor" };
+    let source_label = if matches!(cfg.source, Source::Window { .. }) {
+        "game"
+    } else {
+        "monitor"
+    };
 
     let want_game_audio = cfg.game_audio_exe.is_some();
     let mut game_audio_done = false;
-    if let Some(raw) = &window {
+    if matches!(cfg.source, Source::Window { .. }) {
+        if window.is_none() {
+            emit(&Event::Warning(
+                "finestra non elencata da OBS: uso la cattura fullscreen".into(),
+            ));
+        }
         let build_base = || -> Result<GameCaptureSourceBuilder> {
-            Ok(context
+            let builder = context
                 .source_builder::<GameCaptureSourceBuilder, _>("Gioco")?
-                .set_capture_mode(ObsGameCaptureMode::CaptureSpecificWindow)
-                .set_window(raw)
+                .set_capture_mode(if window.is_some() {
+                    ObsGameCaptureMode::CaptureSpecificWindow
+                } else {
+                    ObsGameCaptureMode::Any
+                });
+            let builder = if let Some(raw) = &window {
+                builder.set_window(raw)
+            } else {
+                builder
+            };
+            Ok(builder
                 .set_hook_rate(ObsHookRate::Fast)
                 .set_anti_cheat_hook(true))
         };
