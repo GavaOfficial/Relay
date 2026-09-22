@@ -42,6 +42,8 @@ pub struct RecordConfig {
     pub playlist: String,
     pub source: Source,
     pub fallback_monitor: Option<u32>,
+    #[serde(default)]
+    pub fallback_monitor_name: Option<String>,
     pub fps: u32,
     pub bitrate_kbps: u32,
     pub encoder: EncoderChoice,
@@ -120,6 +122,7 @@ mod tests {
             },
             origin_unix_secs: Some(1_700_000_000.5),
             fallback_monitor: Some(1),
+            fallback_monitor_name: Some(r"\\.\DISPLAY2".into()),
             fps: 60,
             bitrate_kbps: 6000,
             encoder: EncoderChoice::Nvenc,

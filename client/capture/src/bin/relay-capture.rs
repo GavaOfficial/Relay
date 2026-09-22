@@ -196,6 +196,15 @@ fn run_record(cfg: RecordConfig) -> Result<()> {
     } else {
         None
     };
+    if window.is_none()
+        && matches!(cfg.source, Source::Window { .. })
+        && cfg.fallback_monitor_name.is_none()
+    {
+        emit(&Event::Warning(
+            "finestra non trovata: riprovo senza registrare altri schermi".into(),
+        ));
+        bail!("finestra di gioco non trovata");
+    }
     let monitor_index = window
         .as_ref()
         .and_then(|w| w.monitor.as_ref())
@@ -203,6 +212,13 @@ fn run_record(cfg: RecordConfig) -> Result<()> {
             monitors
                 .iter()
                 .position(|m| m.0.name.eq_ignore_ascii_case(id))
+        })
+        .or_else(|| {
+            cfg.fallback_monitor_name.as_ref().and_then(|name| {
+                monitors
+                    .iter()
+                    .position(|m| m.0.name.eq_ignore_ascii_case(name))
+            })
         })
         .unwrap_or_else(|| match &cfg.source {
             Source::Monitor { index } => *index as usize,
@@ -234,11 +250,6 @@ fn run_record(cfg: RecordConfig) -> Result<()> {
         .context("creazione della scena")?;
 
     let source_label = if window.is_some() { "game" } else { "monitor" };
-    if window.is_none() && matches!(cfg.source, Source::Window { .. }) {
-        emit(&Event::Warning(
-            "finestra non trovata: registro lo schermo".into(),
-        ));
-    }
 
     let want_game_audio = cfg.game_audio_exe.is_some();
     let mut game_audio_done = false;
@@ -273,10 +284,7 @@ fn run_record(cfg: RecordConfig) -> Result<()> {
             .context("aggiunta della sorgente di gioco alla scena")?;
         item.fit_source_to_screen()?;
     } else {
-        let idx = match &cfg.source {
-            Source::Monitor { index } => *index,
-            Source::Window { .. } => cfg.fallback_monitor.unwrap_or(0),
-        };
+        let idx = monitor_index as u32;
         let monitor = monitors
             .get(idx as usize)
             .or_else(|| monitors.first())

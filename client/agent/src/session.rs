@@ -773,6 +773,7 @@ async fn record_flow(
         WindowSel::Monitor(index) => Some(index),
         _ => None,
     };
+    let fallback_monitor_name = windows::window_monitor_name(&window);
     let spawn_capture = |source: WindowSel, generation: u32, start_segment: u64| {
         let start = origin + (start_segment * SEGMENT_SECONDS as u64) as f64;
         if let (Some(exe), Some(cwd)) = (&p.capture_exe, &p.capture_cwd) {
@@ -787,6 +788,7 @@ async fn record_flow(
                 cwd: cwd.clone(),
                 window: source,
                 fallback_monitor,
+                fallback_monitor_name: fallback_monitor_name.clone(),
                 fps: p.fps,
                 bitrate_kbps: p.bitrate_kbps,
                 dir: dir.clone(),

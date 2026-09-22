@@ -51,6 +51,42 @@ pub fn window_exists(sel: &WindowSel) -> bool {
     find_window(sel).is_some()
 }
 
+#[cfg(windows)]
+pub fn window_monitor_name(sel: &WindowSel) -> Option<String> {
+    use windows_sys::Win32::Foundation::HWND;
+    use windows_sys::Win32::Graphics::Gdi::{
+        GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITORINFOEXW, MONITOR_DEFAULTTONEAREST,
+    };
+
+    let hwnd = list_raw().into_iter().find(|(w, _)| matches(sel, w))?.1 as HWND;
+    unsafe {
+        let monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+        if monitor.is_null() {
+            return None;
+        }
+        let mut info = MONITORINFOEXW::default();
+        info.monitorInfo.cbSize = std::mem::size_of::<MONITORINFOEXW>() as u32;
+        if GetMonitorInfoW(
+            monitor,
+            &mut info as *mut MONITORINFOEXW as *mut MONITORINFO,
+        ) == 0
+        {
+            return None;
+        }
+        let len = info
+            .szDevice
+            .iter()
+            .position(|c| *c == 0)
+            .unwrap_or(info.szDevice.len());
+        Some(String::from_utf16_lossy(&info.szDevice[..len]))
+    }
+}
+
+#[cfg(not(windows))]
+pub fn window_monitor_name(_sel: &WindowSel) -> Option<String> {
+    None
+}
+
 impl WindowInfo {
     pub fn label(&self) -> String {
         let t: String = self.title.chars().take(80).collect();
