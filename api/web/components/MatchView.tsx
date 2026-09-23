@@ -222,15 +222,6 @@ export default function MatchView({ initial, canRename = false, nowMs }: { initi
         </div>
       )}
       {canRename && !m.game_name && <button type="button" className="ghost gameaddbtn" onClick={() => { setGameResults([]); setGameEditing((value) => !value); }}>Aggiungi gioco e copertina</button>}
-      {m.fnf_song_name && (
-        <div className="fnfstats">
-          <div><span>Canzone</span><strong>{m.fnf_song_name}</strong></div>
-          {m.fnf_difficulty && <div><span>Difficolt&agrave;</span><strong>{m.fnf_difficulty}</strong></div>}
-          {m.fnf_score != null && <div><span>Punteggio</span><strong>{m.fnf_score.toLocaleString("it-IT")}</strong></div>}
-          {m.fnf_accuracy != null && <div><span>Accuracy</span><strong>{(m.fnf_accuracy * 100).toFixed(1)}%</strong></div>}
-          <div><span>Note mancate</span><strong>{m.fnf_misses?.length ?? 0}</strong></div>
-        </div>
-      )}
       {canRename && gameEditing && (
         <div className="gamepicker">
           <input autoFocus type="search" value={gameQuery} placeholder="Cerca un gioco..." onChange={(e) => setGameQuery(e.target.value)} />
@@ -484,6 +475,16 @@ export default function MatchView({ initial, canRename = false, nowMs }: { initi
               <span className="dot" aria-label={m.connected.includes(p) ? "connesso" : "non connesso"} />
             </span>
           ))}
+        </div>
+      )}
+
+      {m.fnf_song_name && (
+        <div className="fnfstats">
+          <div><span>Canzone</span><strong>{m.fnf_song_name}</strong></div>
+          {m.fnf_difficulty && <div><span>Difficolt&agrave;</span><strong>{m.fnf_difficulty}</strong></div>}
+          {m.fnf_score != null && <div><span>Punteggio</span><strong>{m.fnf_score.toLocaleString("it-IT")}</strong></div>}
+          {m.fnf_accuracy != null && <div><span>Accuracy</span><strong>{(m.fnf_accuracy * 100).toFixed(1)}%</strong></div>}
+          <div><span>Note mancate</span><strong>{m.fnf_misses?.length ?? 0}</strong></div>
         </div>
       )}
 

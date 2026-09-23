@@ -68,15 +68,6 @@ export default function ShareView({ initial, token, nowMs }: { initial: MatchDet
           <div><span>Gioco</span><strong>{m.game_name}</strong></div>
         </div>
       )}
-      {m.fnf_song_name && (
-        <div className="fnfstats">
-          <div><span>Canzone</span><strong>{m.fnf_song_name}</strong></div>
-          {m.fnf_difficulty && <div><span>Difficolt&agrave;</span><strong>{m.fnf_difficulty}</strong></div>}
-          {m.fnf_score != null && <div><span>Punteggio</span><strong>{m.fnf_score.toLocaleString("it-IT")}</strong></div>}
-          {m.fnf_accuracy != null && <div><span>Accuracy</span><strong>{(m.fnf_accuracy * 100).toFixed(1)}%</strong></div>}
-          <div><span>Note mancate</span><strong>{m.fnf_misses?.length ?? 0}</strong></div>
-        </div>
-      )}
       <div className="matchhead">
         <div>
           <h1>{title}</h1>
@@ -172,6 +163,16 @@ export default function ShareView({ initial, token, nowMs }: { initial: MatchDet
           })}
         </div>
       </dialog>
+
+      {m.fnf_song_name && (
+        <div className="fnfstats">
+          <div><span>Canzone</span><strong>{m.fnf_song_name}</strong></div>
+          {m.fnf_difficulty && <div><span>Difficolt&agrave;</span><strong>{m.fnf_difficulty}</strong></div>}
+          {m.fnf_score != null && <div><span>Punteggio</span><strong>{m.fnf_score.toLocaleString("it-IT")}</strong></div>}
+          {m.fnf_accuracy != null && <div><span>Accuracy</span><strong>{(m.fnf_accuracy * 100).toFixed(1)}%</strong></div>}
+          <div><span>Note mancate</span><strong>{m.fnf_misses?.length ?? 0}</strong></div>
+        </div>
+      )}
 
       {m.players.some((p) => m.processing?.[p]) && (
         <div className="procbox" role="status" aria-live="polite">

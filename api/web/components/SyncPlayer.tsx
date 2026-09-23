@@ -124,7 +124,7 @@ export default function SyncPlayer({ matchId, players, live, names, mp4 = [], we
   const [focused, setFocused] = useState<string | null>(null);
   const [noSignal, setNoSignal] = useState("");
 
-  const [audioFrom, setAudioFrom] = useState<string | null>(null);
+  const [audioFrom, setAudioFrom] = useState<string | null>(() => players[0] ?? null);
   const [volume, setVolume] = useState(1);
   const listening = focused ?? audioFrom;
 
@@ -428,7 +428,7 @@ export default function SyncPlayer({ matchId, players, live, names, mp4 = [], we
               ref={(el) => {
                 videos.current[p] = el;
               }}
-              muted
+              muted={p !== listening}
               playsInline
               preload="metadata"
             />
@@ -452,16 +452,6 @@ export default function SyncPlayer({ matchId, players, live, names, mp4 = [], we
         {!ready && <div className="overlay center">Carico i video…</div>}
         {ready && buffering && <div className="overlay center">Buffering…</div>}
       </div>
-
-      {fnfNow && (
-        <div className="fnfoverlay" aria-live="off">
-          <strong>{fnfNow.song_name ?? "FNF"}</strong>
-          {fnfNow.difficulty && <span>{fnfNow.difficulty}</span>}
-          {fnfNow.score != null && <span>Score {fnfNow.score.toLocaleString("it-IT")}</span>}
-          {fnfNow.accuracy != null && <span>{(fnfNow.accuracy * 100).toFixed(1)}%</span>}
-          <span>{missesNow} miss</span>
-        </div>
-      )}
 
       <div className="controls" onMouseEnter={holdChrome} onMouseLeave={bumpChrome}>
         {qualityMenuOpen && (
@@ -531,6 +521,15 @@ export default function SyncPlayer({ matchId, players, live, names, mp4 = [], we
             />
             <span className="time">{formatTime(current)} / {formatTime(end)}</span>
           </div>
+          {fnfNow && (
+            <div className="fnftrack" aria-live="off" title="Dati sincronizzati con questo istante del video">
+              <strong>{fnfNow.song_name ?? "FNF"}</strong>
+              {fnfNow.difficulty && <span>{fnfNow.difficulty}</span>}
+              {fnfNow.score != null && <span>Score {fnfNow.score.toLocaleString("it-IT")}</span>}
+              {fnfNow.accuracy != null && <span>{(fnfNow.accuracy * 100).toFixed(1)}%</span>}
+              <span>{missesNow} miss</span>
+            </div>
+          )}
           <div className="controls-right">
             {live && (
               <button type="button" onClick={goLive} className={`livebtn${behind < 15 ? " on" : ""}`}>

@@ -1619,31 +1619,37 @@ body:has(.homelist) {
   font-size: 0.82rem;
   color: var(--faint);
 }
-.fnfoverlay {
-  position: absolute;
-  z-index: 5;
-  top: 14px;
-  left: 14px;
+.fnftrack {
   display: flex;
   align-items: center;
   gap: 9px;
-  padding: 8px 11px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 10px;
-  background: rgba(8, 9, 12, 0.78);
-  color: white;
+  min-width: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text);
   font-size: 0.8rem;
   font-variant-numeric: tabular-nums;
-  backdrop-filter: blur(12px);
   pointer-events: none;
 }
-.fnfoverlay strong {
+.fnftrack strong {
   max-width: 220px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.fnftrack span {
+  color: var(--muted);
+  white-space: nowrap;
+}
 @media (max-width: 640px) {
+  .fnftrack {
+    order: 3;
+    width: 100%;
+    justify-content: center;
+    overflow: hidden;
+  }
   .procrow {
     grid-template-columns: 1fr auto;
   }
