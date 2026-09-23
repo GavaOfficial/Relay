@@ -1619,6 +1619,30 @@ body:has(.homelist) {
   font-size: 0.82rem;
   color: var(--faint);
 }
+.fnfoverlay {
+  position: absolute;
+  z-index: 5;
+  top: 14px;
+  left: 14px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 11px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 10px;
+  background: rgba(8, 9, 12, 0.78);
+  color: white;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  backdrop-filter: blur(12px);
+  pointer-events: none;
+}
+.fnfoverlay strong {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 @media (max-width: 640px) {
   .procrow {
     grid-template-columns: 1fr auto;

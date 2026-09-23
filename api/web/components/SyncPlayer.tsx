@@ -19,6 +19,8 @@ type Props = {
   vod?: string[];
 
   apiBase?: string;
+  fnfTimeline?: { at_ms: number; song_name?: string; difficulty?: string; score?: number; accuracy?: number }[];
+  fnfMisses?: { at_ms: number }[];
 };
 
 const TICK_MS = 250;
@@ -93,7 +95,7 @@ function finished(v: HTMLVideoElement): boolean {
   return v.ended || (e !== null && v.currentTime >= e - 0.25);
 }
 
-export default function SyncPlayer({ matchId, players, live, names, mp4 = [], web = [], vod = [], apiBase }: Props) {
+export default function SyncPlayer({ matchId, players, live, names, mp4 = [], web = [], vod = [], apiBase, fnfTimeline = [], fnfMisses = [] }: Props) {
   const base = apiBase ?? `/api/matches/${encodeURIComponent(matchId)}`;
   const playersKey = players.join(",");
   const mp4Key = mp4.join(",");
@@ -403,6 +405,9 @@ export default function SyncPlayer({ matchId, players, live, names, mp4 = [], we
 
   const behind = Math.max(0, end - current);
   const silentList = noSignal ? noSignal.split(",") : [];
+  const videoMs = current * 1000;
+  const fnfNow = [...fnfTimeline].reverse().find((sample) => sample.at_ms <= videoMs);
+  const missesNow = fnfMisses.filter((miss) => miss.at_ms <= videoMs).length;
 
   return (
     <div
@@ -447,6 +452,16 @@ export default function SyncPlayer({ matchId, players, live, names, mp4 = [], we
         {!ready && <div className="overlay center">Carico i video…</div>}
         {ready && buffering && <div className="overlay center">Buffering…</div>}
       </div>
+
+      {fnfNow && (
+        <div className="fnfoverlay" aria-live="off">
+          <strong>{fnfNow.song_name ?? "FNF"}</strong>
+          {fnfNow.difficulty && <span>{fnfNow.difficulty}</span>}
+          {fnfNow.score != null && <span>Score {fnfNow.score.toLocaleString("it-IT")}</span>}
+          {fnfNow.accuracy != null && <span>{(fnfNow.accuracy * 100).toFixed(1)}%</span>}
+          <span>{missesNow} miss</span>
+        </div>
+      )}
 
       <div className="controls" onMouseEnter={holdChrome} onMouseLeave={bumpChrome}>
         {qualityMenuOpen && (

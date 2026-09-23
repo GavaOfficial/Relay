@@ -1,23 +1,25 @@
-import funkin.game.PlayState;
-import haxe.Http;
-import haxe.Json;
+// Codice Relay: usa nomi prefissati per non interferire con quelli del mod.
+var relayLastMisses:Int = 0;
+var relayLastSong:String = null;
+var relaySinceLastSend:Float = 0;
 
-var lastMisses:Int = 0;
-var sinceLastSend:Float = 0;
-
-function send(missHappened:Bool) {
-	if (PlayState.instance == null) return;
-	var ps = PlayState.instance;
-	var songName = (PlayState.SONG != null && PlayState.SONG.meta != null) ? PlayState.SONG.meta.name : null;
+function relaySend(missHappened:Bool) {
+	if (funkin.game.PlayState.instance == null) return;
+	var ps = funkin.game.PlayState.instance;
+	var songName = (funkin.game.PlayState.SONG != null && funkin.game.PlayState.SONG.meta != null) ? funkin.game.PlayState.SONG.meta.name : null;
 	try {
-		var body = Json.stringify({
+		var body = haxe.Json.stringify({
 			song_name: songName,
-			difficulty: PlayState.difficulty,
+			difficulty: funkin.game.PlayState.difficulty,
 			score: ps.songScore,
 			accuracy: ps.accuracy,
-			miss: missHappened
+			miss: missHappened,
+			sent_at: Date.now().getTime()
 		});
-		var http = new Http("http://127.0.0.1:__PORT__/event");
+		var relayDir = Sys.getEnv("APPDATA") + "/Relay";
+		if (!sys.FileSystem.exists(relayDir)) sys.FileSystem.createDirectory(relayDir);
+		sys.io.File.saveContent(relayDir + "/fnf-event.json", body);
+		var http = new haxe.Http("http://127.0.0.1:__PORT__/event");
 		http.setHeader("Content-Type", "application/json");
 		http.setPostData(body);
 		http.onError = function(e:String) {};
@@ -25,23 +27,24 @@ function send(missHappened:Bool) {
 	} catch (e:Dynamic) {}
 }
 
-function update(elapsed:Float) {
-	if (PlayState.instance == null) return;
-	var ps = PlayState.instance;
-	if (ps.misses != lastMisses) {
-		lastMisses = ps.misses;
-		send(true);
-		sinceLastSend = 0;
+function __CALLBACK__(elapsed:Float) {
+	if (funkin.game.PlayState.instance == null) return;
+	var ps = funkin.game.PlayState.instance;
+	var songName = (funkin.game.PlayState.SONG != null && funkin.game.PlayState.SONG.meta != null) ? funkin.game.PlayState.SONG.meta.name : null;
+	if (songName != relayLastSong) {
+		relayLastSong = songName;
+		relayLastMisses = ps.misses;
+		relaySinceLastSend = 2;
+	}
+	if (ps.misses != relayLastMisses) {
+		relayLastMisses = ps.misses;
+		relaySend(true);
+		relaySinceLastSend = 0;
 		return;
 	}
-	sinceLastSend += elapsed;
-	if (sinceLastSend >= 2.0) {
-		sinceLastSend = 0;
-		send(false);
+	relaySinceLastSend += elapsed;
+	if (relaySinceLastSend >= 2.0) {
+		relaySinceLastSend = 0;
+		relaySend(false);
 	}
-}
-
-function postStateSwitch() {
-	lastMisses = 0;
-	sinceLastSend = 0;
 }

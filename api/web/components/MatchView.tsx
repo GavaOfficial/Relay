@@ -525,6 +525,8 @@ export default function MatchView({ initial, canRename = false, nowMs }: { initi
           mp4={m.videos ?? []}
           web={m.web_videos ?? []}
           vod={m.vod_videos ?? []}
+          fnfTimeline={m.fnf_timeline ?? []}
+          fnfMisses={m.fnf_misses ?? []}
         />
       ) : (
         <div className="emptystate">

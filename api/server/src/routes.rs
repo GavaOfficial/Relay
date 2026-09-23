@@ -106,6 +106,7 @@ pub async fn create_match(
         fnf_score: None,
         fnf_accuracy: None,
         fnf_misses: Vec::new(),
+        fnf_timeline: Vec::new(),
         created_at: SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .map(|d| d.as_secs())
@@ -404,6 +405,8 @@ pub struct FnfInput {
     pub accuracy: Option<f32>,
     #[serde(default)]
     pub misses: Vec<relay_common::FnfMiss>,
+    pub sample: Option<relay_common::FnfSample>,
+    pub miss: Option<relay_common::FnfMiss>,
 }
 
 pub async fn set_fnf(
@@ -428,7 +431,21 @@ pub async fn set_fnf(
     }
     m.fnf_score = input.score.or(m.fnf_score);
     m.fnf_accuracy = input.accuracy.or(m.fnf_accuracy);
-    m.fnf_misses = input.misses;
+    if !input.misses.is_empty() {
+        m.fnf_misses = input.misses;
+    }
+    if let Some(miss) = input.miss {
+        if m.fnf_misses.len() < 20_000 {
+            m.fnf_misses.push(miss);
+        }
+    }
+    if let Some(mut sample) = input.sample {
+        sample.song_name = sample.song_name.as_deref().and_then(clean_name);
+        sample.difficulty = sample.difficulty.as_deref().and_then(clean_name);
+        if m.fnf_timeline.len() < 20_000 {
+            m.fnf_timeline.push(sample);
+        }
+    }
     st.persist(m).await?;
     Ok(Json(m.clone()))
 }

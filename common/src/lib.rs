@@ -64,11 +64,27 @@ pub struct MatchInfo {
     // successa: serve per poter in futuro allineare la lista alla posizione del video.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub fnf_misses: Vec<FnfMiss>,
+
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fnf_timeline: Vec<FnfSample>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct FnfMiss {
     pub at_ms: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FnfSample {
+    pub at_ms: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub song_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub difficulty: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub score: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub accuracy: Option<f32>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

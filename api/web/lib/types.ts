@@ -19,6 +19,7 @@ export type MatchInfo = {
   fnf_score?: number;
   fnf_accuracy?: number;
   fnf_misses?: { at_ms: number }[];
+  fnf_timeline?: { at_ms: number; song_name?: string; difficulty?: string; score?: number; accuracy?: number }[];
   finished: string[];
   status: MatchStatus;
   created_at: number;

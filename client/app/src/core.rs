@@ -212,6 +212,12 @@ fn agent_state_str(s: AgentState) -> &'static str {
     }
 }
 
+fn recording_at_ms(local_now_ms: u64, clock_offset_ms: i64, started_at_ms: u64) -> u64 {
+    (local_now_ms as i128 + clock_offset_ms as i128)
+        .saturating_sub(started_at_ms as i128)
+        .max(0) as u64
+}
+
 impl Core {
     pub fn new(settings_path: PathBuf) -> Arc<Self> {
         let settings = Settings::load(&settings_path);
@@ -311,7 +317,7 @@ impl Core {
         }
     }
 
-    fn data_dir(&self) -> PathBuf {
+    pub(crate) fn data_dir(&self) -> PathBuf {
         self.work_dir()
             .parent()
             .map(|p| p.to_path_buf())
@@ -924,7 +930,7 @@ impl Core {
         accuracy: Option<f32>,
         miss: bool,
     ) {
-        let (id, started_at_ms) = {
+        let (id, started_at_ms, clock_offset_ms) = {
             let cur = self.current.lock().unwrap();
             let Some(c) = cur.as_ref() else {
                 return;
@@ -932,31 +938,40 @@ impl Core {
             if !matches!(c.role, Role::Host | Role::HostPlayer) {
                 return;
             }
-            let started = c.info.as_ref().and_then(|i| i.info.started_at_ms);
-            (c.id.clone(), started)
+            let session = c.handle.as_ref().map(|h| h.state.borrow().clone());
+            let started = session
+                .as_ref()
+                .and_then(|s| s.started_at_ms)
+                .or_else(|| c.info.as_ref().and_then(|i| i.info.started_at_ms));
+            let offset = session.and_then(|s| s.clock_offset_ms).unwrap_or(0);
+            (c.id.clone(), started, offset)
         };
         let Some(started_at_ms) = started_at_ms else {
             return;
         };
-        if miss {
-            let now_ms = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .map(|d| d.as_millis() as u64)
-                .unwrap_or(0);
-            let at_ms = now_ms.saturating_sub(started_at_ms);
-            self.fnf
-                .lock()
-                .unwrap()
-                .misses
-                .push(relay_common::FnfMiss { at_ms });
+        let local_now_ms = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0);
+        let at_ms = recording_at_ms(local_now_ms, clock_offset_ms, started_at_ms);
+        let miss_event = miss.then_some(relay_common::FnfMiss { at_ms });
+        if let Some(item) = miss_event {
+            self.fnf.lock().unwrap().misses.push(item);
         }
-        let misses = self.fnf.lock().unwrap().misses.clone();
+        let sample = relay_common::FnfSample {
+            at_ms,
+            song_name: song_name.clone(),
+            difficulty: difficulty.clone(),
+            score,
+            accuracy,
+        };
         let body = json!({
             "song_name": song_name,
             "difficulty": difficulty,
             "score": score,
             "accuracy": accuracy,
-            "misses": misses,
+            "sample": sample,
+            "miss": miss_event,
         });
         let _: Res<MatchInfo> = self
             .json(Method::POST, &format!("/api/matches/{id}/fnf"), Some(body))
@@ -1299,5 +1314,12 @@ mod tests {
             now.len() == 20 && now.starts_with("20") && now.ends_with('Z'),
             "{now}"
         );
+    }
+
+    #[test]
+    fn fnf_time_uses_the_same_server_clock_as_the_video() {
+        assert_eq!(recording_at_ms(10_000, 475, 8_000), 2_475);
+        assert_eq!(recording_at_ms(10_000, -250, 8_000), 1_750);
+        assert_eq!(recording_at_ms(1_000, -2_000, 500), 0);
     }
 }
