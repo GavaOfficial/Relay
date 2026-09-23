@@ -101,6 +101,11 @@ pub async fn create_match(
         game_app_id: None,
         game_name: None,
         game_cover_url: None,
+        fnf_song_name: None,
+        fnf_difficulty: None,
+        fnf_score: None,
+        fnf_accuracy: None,
+        fnf_misses: Vec::new(),
         created_at: SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .map(|d| d.as_secs())
@@ -392,6 +397,43 @@ pub async fn set_game(
 }
 
 #[derive(serde::Deserialize)]
+pub struct FnfInput {
+    pub song_name: Option<String>,
+    pub difficulty: Option<String>,
+    pub score: Option<i64>,
+    pub accuracy: Option<f32>,
+    #[serde(default)]
+    pub misses: Vec<relay_common::FnfMiss>,
+}
+
+pub async fn set_fnf(
+    State(st): St,
+    AuthUser(user): AuthUser,
+    Path(id): Path<Uuid>,
+    Json(input): Json<FnfInput>,
+) -> Result<Json<MatchInfo>, AppError> {
+    if input.misses.len() > 2000 {
+        return Err(AppError::BadRequest("troppe note mancate"));
+    }
+    let mut all = st.matches.write().await;
+    let m = all.get_mut(&id).ok_or(AppError::NotFound)?;
+    if m.coordinator != user {
+        return Err(AppError::Forbidden);
+    }
+    if let Some(name) = input.song_name.as_deref().and_then(clean_name) {
+        m.fnf_song_name = Some(name);
+    }
+    if let Some(d) = input.difficulty.as_deref().and_then(clean_name) {
+        m.fnf_difficulty = Some(d);
+    }
+    m.fnf_score = input.score.or(m.fnf_score);
+    m.fnf_accuracy = input.accuracy.or(m.fnf_accuracy);
+    m.fnf_misses = input.misses;
+    st.persist(m).await?;
+    Ok(Json(m.clone()))
+}
+
+#[derive(serde::Deserialize)]
 pub struct GameSearchQuery {
     pub q: String,
 }
@@ -422,7 +464,10 @@ pub async fn search_games(
     }
     let games = reqwest::Client::new()
         .get("https://www.cheapshark.com/api/1.0/games")
-        .header(reqwest::header::USER_AGENT, "Relay/0.3 (https://github.com/GavaOfficial/Relay)")
+        .header(
+            reqwest::header::USER_AGENT,
+            "Relay/0.3 (https://github.com/GavaOfficial/Relay)",
+        )
         .query(&[("title", q), ("limit", "30")])
         .send()
         .await

@@ -47,6 +47,11 @@ export default async function Home() {
                         <path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z" />
                       </svg>
                     )}
+                    {m.game_name && (
+                      <div className="thumb-scrim">
+                        <span>{m.game_name}</span>
+                      </div>
+                    )}
                     {live ? (
                       <span className="badge live">Diretta</span>
                     ) : (
@@ -55,12 +60,6 @@ export default async function Home() {
                   </div>
                   <div className="mcard-body">
                     <span className="mcard-title">{m.name ?? (names.length ? names.join(", ") : "Partita")}</span>
-                    {m.game_name && (
-                      <span className="mcard-game">
-                        {m.game_cover_url && <img src={m.game_cover_url} alt="" loading="lazy" />}
-                        <span>{m.game_name}</span>
-                      </span>
-                    )}
                     <span className="mcard-meta">
                       <AvatarStack names={names} max={5} />
                       <When seconds={m.created_at} />

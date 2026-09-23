@@ -3,6 +3,7 @@
 mod capture;
 mod core;
 mod ffmpeg;
+mod fnf;
 mod overlay;
 mod updater;
 
@@ -18,7 +19,7 @@ use serde_json::Value;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Emitter, Manager, State, WindowEvent,
+    AppHandle, Emitter, LogicalSize, Manager, Size, State, WindowEvent,
 };
 use tauri_plugin_deep_link::DeepLinkExt;
 
@@ -195,6 +196,30 @@ async fn host_stop(core: St<'_>) -> Res<()> {
 }
 
 #[tauri::command]
+fn fnf_folders(core: St) -> Vec<String> {
+    core.fnf_folders()
+}
+
+#[tauri::command]
+async fn fnf_pick_folder() -> Res<Option<String>> {
+    let folder = rfd::AsyncFileDialog::new()
+        .set_title("Cartella del gioco Codename Engine")
+        .pick_folder()
+        .await;
+    Ok(folder.map(|f| f.path().to_string_lossy().into_owned()))
+}
+
+#[tauri::command]
+fn fnf_add_folder(core: St, folder: String) -> Res<Vec<String>> {
+    core.fnf_add_folder(folder)
+}
+
+#[tauri::command]
+fn fnf_remove_folder(core: St, folder: String) -> Res<Vec<String>> {
+    core.fnf_remove_folder(folder)
+}
+
+#[tauri::command]
 fn open_url(url: String) -> Res<()> {
     if !(url.starts_with("https://") || url.starts_with("http://")) {
         return Err("Indirizzo non valido.".into());
@@ -241,6 +266,36 @@ fn show_main(app: &AppHandle) {
     }
 }
 
+const NORMAL_SIZE: (f64, f64) = (360.0, 580.0);
+const HOST_SIZE: (f64, f64) = (820.0, 580.0);
+
+async fn set_window_wide(app: &AppHandle, wide: bool) {
+    let Some(w) = app.get_webview_window("main") else {
+        return;
+    };
+    let target = if wide { HOST_SIZE } else { NORMAL_SIZE };
+    let scale = w.scale_factor().unwrap_or(1.0);
+    let start = w
+        .outer_size()
+        .map(|s| (s.width as f64 / scale, s.height as f64 / scale))
+        .unwrap_or(NORMAL_SIZE);
+
+    const STEPS: u32 = 18;
+    const DURATION_MS: u64 = 260;
+    for i in 1..=STEPS {
+        let t = i as f64 / STEPS as f64;
+        let eased = 1.0 - (1.0 - t).powi(3);
+        let width = start.0 + (target.0 - start.0) * eased;
+        let height = start.1 + (target.1 - start.1) * eased;
+        let _ = w.set_size(Size::Logical(LogicalSize { width, height }));
+        tokio::time::sleep(Duration::from_millis(DURATION_MS / STEPS as u64)).await;
+    }
+    let _ = w.set_size(Size::Logical(LogicalSize {
+        width: target.0,
+        height: target.1,
+    }));
+}
+
 fn main() {
     init_logging();
 
@@ -282,6 +337,10 @@ fn main() {
             list_matches,
             host_start,
             host_stop,
+            fnf_folders,
+            fnf_pick_folder,
+            fnf_add_folder,
+            fnf_remove_folder,
             open_url
         ])
         .on_window_event(|window, event| {
@@ -294,6 +353,7 @@ fn main() {
         })
         .setup(move |app| {
             overlay::create(app.handle())?;
+            fnf::spawn(core.clone());
 
             let _ = app.deep_link().register_all();
             {
@@ -394,7 +454,7 @@ fn main() {
             let core = core.clone();
             tauri::async_runtime::spawn(async move {
                 core.init().await;
-                let (mut last, mut overlay_on) = (String::new(), false);
+                let (mut last, mut overlay_on, mut wide_on) = (String::new(), false, false);
                 loop {
                     core.refresh_info().await;
                     let snap = core.snapshot();
@@ -407,6 +467,14 @@ fn main() {
                     if want != overlay_on {
                         overlay::set_visible(&handle, want);
                         overlay_on = want;
+                    }
+                    let want_wide = core.wants_wide_window(&snap);
+                    if want_wide != wide_on {
+                        let handle = handle.clone();
+                        tauri::async_runtime::spawn(async move {
+                            set_window_wide(&handle, want_wide).await;
+                        });
+                        wide_on = want_wide;
                     }
                     tokio::time::sleep(Duration::from_millis(250)).await;
                 }

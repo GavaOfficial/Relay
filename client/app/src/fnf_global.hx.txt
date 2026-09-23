@@ -1,0 +1,47 @@
+import funkin.game.PlayState;
+import haxe.Http;
+import haxe.Json;
+
+var lastMisses:Int = 0;
+var sinceLastSend:Float = 0;
+
+function send(missHappened:Bool) {
+	if (PlayState.instance == null) return;
+	var ps = PlayState.instance;
+	var songName = (PlayState.SONG != null && PlayState.SONG.meta != null) ? PlayState.SONG.meta.name : null;
+	try {
+		var body = Json.stringify({
+			song_name: songName,
+			difficulty: PlayState.difficulty,
+			score: ps.songScore,
+			accuracy: ps.accuracy,
+			miss: missHappened
+		});
+		var http = new Http("http://127.0.0.1:__PORT__/event");
+		http.setHeader("Content-Type", "application/json");
+		http.setPostData(body);
+		http.onError = function(e:String) {};
+		http.request(true);
+	} catch (e:Dynamic) {}
+}
+
+function update(elapsed:Float) {
+	if (PlayState.instance == null) return;
+	var ps = PlayState.instance;
+	if (ps.misses != lastMisses) {
+		lastMisses = ps.misses;
+		send(true);
+		sinceLastSend = 0;
+		return;
+	}
+	sinceLastSend += elapsed;
+	if (sinceLastSend >= 2.0) {
+		sinceLastSend = 0;
+		send(false);
+	}
+}
+
+function postStateSwitch() {
+	lastMisses = 0;
+	sinceLastSend = 0;
+}

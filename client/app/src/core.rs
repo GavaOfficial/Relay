@@ -84,6 +84,12 @@ pub struct Core {
     ffmpeg: Mutex<FfmpegState>,
     capture: Mutex<CaptureState>,
     http: reqwest::Client,
+    fnf: Mutex<FnfState>,
+}
+
+#[derive(Default)]
+struct FnfState {
+    misses: Vec<relay_common::FnfMiss>,
 }
 
 #[derive(Default, Clone)]
@@ -227,6 +233,7 @@ impl Core {
                 .timeout(Duration::from_secs(30))
                 .build()
                 .expect("client http"),
+            fnf: Mutex::new(FnfState::default()),
         })
     }
 
@@ -703,6 +710,7 @@ impl Core {
             None
         };
         *self.last_error.lock().unwrap() = None;
+        self.fnf.lock().unwrap().misses.clear();
         *self.current.lock().unwrap() = Some(Current {
             id: id.to_string(),
             role,
@@ -904,6 +912,67 @@ impl Core {
             .json(Method::POST, &format!("/api/matches/{id}/start{q}"), None)
             .await?;
         Ok(())
+    }
+
+    // Riceve un evento dallo script Codename Engine (nota mancata, punteggio, accuracy).
+    // Solo l'host manda questi dati al server: e' l'unico autorizzato a modificare la partita.
+    pub async fn report_fnf_event(
+        self: &Arc<Self>,
+        song_name: Option<String>,
+        difficulty: Option<String>,
+        score: Option<i64>,
+        accuracy: Option<f32>,
+        miss: bool,
+    ) {
+        let (id, started_at_ms) = {
+            let cur = self.current.lock().unwrap();
+            let Some(c) = cur.as_ref() else {
+                return;
+            };
+            if !matches!(c.role, Role::Host | Role::HostPlayer) {
+                return;
+            }
+            let started = c.info.as_ref().and_then(|i| i.info.started_at_ms);
+            (c.id.clone(), started)
+        };
+        let Some(started_at_ms) = started_at_ms else {
+            return;
+        };
+        if miss {
+            let now_ms = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map(|d| d.as_millis() as u64)
+                .unwrap_or(0);
+            let at_ms = now_ms.saturating_sub(started_at_ms);
+            self.fnf
+                .lock()
+                .unwrap()
+                .misses
+                .push(relay_common::FnfMiss { at_ms });
+        }
+        let misses = self.fnf.lock().unwrap().misses.clone();
+        let body = json!({
+            "song_name": song_name,
+            "difficulty": difficulty,
+            "score": score,
+            "accuracy": accuracy,
+            "misses": misses,
+        });
+        let _: Res<MatchInfo> = self
+            .json(Method::POST, &format!("/api/matches/{id}/fnf"), Some(body))
+            .await;
+    }
+
+    pub fn fnf_folders(&self) -> Vec<String> {
+        crate::fnf::list_folders(&self.data_dir())
+    }
+
+    pub fn fnf_add_folder(&self, folder: String) -> Res<Vec<String>> {
+        crate::fnf::add_folder(&self.data_dir(), folder)
+    }
+
+    pub fn fnf_remove_folder(&self, folder: String) -> Res<Vec<String>> {
+        crate::fnf::remove_folder(&self.data_dir(), &folder)
     }
 
     pub async fn host_stop(&self) -> Res<()> {
@@ -1141,6 +1210,13 @@ impl Core {
         self.settings().overlay
             && m["phase"] == json!("recording")
             && matches!(m["role"].as_str(), Some("player") | Some("host_player"))
+    }
+
+    pub fn wants_wide_window(&self, snap: &Value) -> bool {
+        matches!(
+            snap["match"]["role"].as_str(),
+            Some("host") | Some("host_player")
+        )
     }
 }
 

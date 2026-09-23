@@ -449,6 +449,33 @@ export default function SyncPlayer({ matchId, players, live, names, mp4 = [], we
       </div>
 
       <div className="controls" onMouseEnter={holdChrome} onMouseLeave={bumpChrome}>
+        {qualityMenuOpen && (
+          <div className="qualitymenu" onClick={(e) => e.stopPropagation()}>
+            <div className="qualitymenu-title">Qualità</div>
+            <button
+              type="button"
+              className={`qualityrow${!original ? " on" : ""}`}
+              onClick={() => {
+                setOriginal(false);
+                setQualityMenuOpen(false);
+              }}
+            >
+              <span className="qualitycheck">{!original && <CheckIcon />}</span>
+              HD 720p
+            </button>
+            <button
+              type="button"
+              className={`qualityrow${original ? " on" : ""}`}
+              onClick={() => {
+                setOriginal(true);
+                setQualityMenuOpen(false);
+              }}
+            >
+              <span className="qualitycheck">{original && <CheckIcon />}</span>
+              Originale
+            </button>
+          </div>
+        )}
         <input
           type="range"
           className="seek"
@@ -496,48 +523,19 @@ export default function SyncPlayer({ matchId, players, live, names, mp4 = [], we
               </button>
             )}
             {web.length > 0 && (
-              <div className="qualitywrap">
-                {qualityMenuOpen && (
-                  <div className="qualitymenu" onClick={(e) => e.stopPropagation()}>
-                    <div className="qualitymenu-title">Qualità</div>
-                    <button
-                      type="button"
-                      className={`qualityrow${!original ? " on" : ""}`}
-                      onClick={() => {
-                        setOriginal(false);
-                        setQualityMenuOpen(false);
-                      }}
-                    >
-                      <span className="qualitycheck">{!original && <CheckIcon />}</span>
-                      HD 720p
-                    </button>
-                    <button
-                      type="button"
-                      className={`qualityrow${original ? " on" : ""}`}
-                      onClick={() => {
-                        setOriginal(true);
-                        setQualityMenuOpen(false);
-                      }}
-                    >
-                      <span className="qualitycheck">{original && <CheckIcon />}</span>
-                      Originale
-                    </button>
-                  </div>
-                )}
-                <button
-                  type="button"
-                  className="cbtn"
-                  aria-label="Qualità del video"
-                  aria-expanded={qualityMenuOpen}
-                  title={original ? "Stai guardando la qualità originale" : "Stai guardando la versione leggera (720p)"}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setQualityMenuOpen((v) => !v);
-                  }}
-                >
-                  <GearIcon />
-                </button>
-              </div>
+              <button
+                type="button"
+                className="cbtn"
+                aria-label="Qualità del video"
+                aria-expanded={qualityMenuOpen}
+                title={original ? "Stai guardando la qualità originale" : "Stai guardando la versione leggera (720p)"}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setQualityMenuOpen((v) => !v);
+                }}
+              >
+                <GearIcon />
+              </button>
             )}
             {focused && (
               <button type="button" onClick={exitFullscreen} aria-label="Esci da schermo intero" className="cbtn">

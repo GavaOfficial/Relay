@@ -328,3 +328,40 @@ details.adv > summary:hover { color: var(--text); }
 #m-title .titlebar { padding: 0; }
 .instgroup { width: 260px; margin-top: 12px; text-align: left; }
 .instgroup .bar { margin: 4px 0 0; }
+
+/* Da host, la finestra si allarga: i giocatori restano a sinistra (stessa larghezza di sempre), il resto usa lo spazio in più a destra. */
+@media (min-width: 700px) {
+  .view.match {
+    display: grid;
+    grid-template-columns: 328px 1fr;
+    column-gap: 36px;
+    align-items: start;
+    grid-template-areas:
+      "players title"
+      "players head"
+      "players window"
+      "players invite"
+      "players actions";
+  }
+  #m-players { grid-area: players; margin: 0; align-self: stretch; overflow-y: auto; }
+  .players { margin-top: 0; }
+
+  #m-title { grid-area: title; }
+  #m-title .titlebar { justify-content: flex-start; padding: 0; }
+
+  #m-head { grid-area: head; }
+  #m-head:not(:empty) { margin-top: 6px; padding: 12px 14px; border-radius: var(--r-sm); background: var(--surface); border: 1px solid var(--hair); }
+  .view.match #m-head .headline { margin-top: 2px; }
+  .view.match #m-head .timer { font-size: 32px; margin-top: 0; }
+  .view.match #m-head .spinner, .view.match #m-head .tick { margin: 0 0 4px; }
+
+  #m-window { grid-area: window; }
+  #m-window:not(:empty) { margin-top: 10px; }
+  #m-window .wsel { margin-top: 0; }
+
+  #m-invite { grid-area: invite; }
+  #m-invite:not(:empty) { margin-top: 10px; padding: 9px 12px; border-radius: var(--r-sm); background: var(--surface); border: 1px solid var(--hair); }
+  #m-invite .invite { margin-top: 0; }
+
+  #m-actions { grid-area: actions; position: static; margin-top: 12px; align-self: end; background: none; }
+}

@@ -195,8 +195,8 @@ code {
   background: linear-gradient(120deg, var(--surface), color-mix(in srgb, var(--accent) 10%, var(--surface)));
 }
 .gamehero img {
-  width: 76px;
-  height: 108px;
+  width: 80px;
+  height: 120px;
   flex: none;
   object-fit: cover;
   border-radius: 10px;
@@ -219,6 +219,30 @@ code {
 }
 .gameeditbtn {
   margin-left: auto;
+}
+.fnfstats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin-bottom: 22px;
+  padding: 14px 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+.fnfstats > div {
+  display: grid;
+  gap: 4px;
+}
+.fnfstats span {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.fnfstats strong {
+  font-size: 1.05rem;
 }
 .gameaddbtn {
   margin-bottom: 18px;
@@ -253,8 +277,9 @@ code {
   background: var(--surface-2);
 }
 .gamepicker img {
-  width: 38px;
-  height: 52px;
+  width: 36px;
+  height: 54px;
+  flex: none;
   object-fit: cover;
   border-radius: 5px;
 }
@@ -784,6 +809,7 @@ label {
 }
 
 .controls {
+  position: relative;
   display: flex;
   flex-direction: column;
   padding: 10px 14px 12px;
@@ -1167,6 +1193,28 @@ label {
   background: #fff;
   animation: pulse 1.6s ease-in-out infinite;
 }
+.thumb-scrim {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  min-height: 38%;
+  display: flex;
+  align-items: flex-end;
+  padding: 20px 44px 11px 12px;
+  background: linear-gradient(to top, rgba(6, 7, 12, 0.85) 0%, rgba(6, 7, 12, 0) 100%);
+}
+.thumb-scrim span {
+  flex: 1;
+  min-width: 0;
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 620;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
 .mcard-body {
   display: grid;
   gap: 8px;
@@ -1175,26 +1223,6 @@ label {
 .mcard-title {
   font-weight: 620;
   letter-spacing: -0.01em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.mcard-game {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  color: var(--muted);
-  font-size: 0.84rem;
-}
-.mcard-game img {
-  width: 24px;
-  height: 34px;
-  flex: none;
-  object-fit: cover;
-  border-radius: 4px;
-}
-.mcard-game span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1297,13 +1325,9 @@ label {
   }
 }
 
-.qualitywrap {
-  position: relative;
-  flex: none;
-}
 .qualitymenu {
   position: absolute;
-  right: 0;
+  right: 14px;
   bottom: calc(100% + 8px);
   z-index: 50;
   transform: translateZ(0);

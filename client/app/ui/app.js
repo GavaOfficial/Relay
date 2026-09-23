@@ -491,6 +491,7 @@ function updateSaveMsg() { const e = $('savemsg'); if (e) e.textContent = ui.set
 
 async function openSettings() {
   if (!ui.set) { try { ui.set = await invoke('get_settings'); } catch (e) { ui.notice = errMsg(e); } }
+  if (!ui.fnfFolders) { try { ui.fnfFolders = await invoke('fnf_folders'); } catch (_) { ui.fnfFolders = []; } }
   transition(() => { ui.view = 'settings'; renderNow(snap); setRev(); }, 'settings');
 }
 async function closeSettings() {
@@ -607,6 +608,16 @@ function buildSettings() {
               h('input', { type: 'number', min: '100', class: 'grow', 'data-f': 'limit_kbps', 'data-k': 'limit', value: autoLimit ? '' : String(s.limit_kbps), disabled: autoLimit, placeholder: 'Auto', 'aria-label': 'Limite upload in kbit/s' })),
             autoLimit && h('p', { class: 'hint', text: 'Auto = metà dell’upload misurato.' })),
           field('Encoder', h('select', { 'data-f': 'encoder', 'data-k': 'encoder' }, ENCODERS.map(([v, t]) => h('option', { value: v, text: t, selected: s.encoder === v }))))))),
+    h('div', { class: 'sec' },
+      h('div', { class: 'label', text: "Friday Night Funkin' (Codename Engine)" }),
+      h('p', { class: 'hint', text: 'Aggiungi la cartella del gioco: Relay mostra sul sito canzone, accuracy e note mancate della partita, in automatico.' }),
+      (ui.fnfFolders || []).map((f) => h('div', { class: 'row', style: 'margin-top:6px' },
+        h('span', { class: 'grow small', text: f }),
+        h('button', { class: 'btn ghost sm', 'data-act': 'fnfRemove', 'data-folder': f, text: 'Rimuovi' }))),
+      h('div', { class: 'row', style: 'margin-top:8px' },
+        h('button', { class: 'btn ghost sm', 'data-act': 'fnfAdd', disabled: ui.fnfBusy, text: ui.fnfBusy ? 'Aggiungo…' : 'Aggiungi cartella del gioco' })),
+      ui.fnfErr && h('p', { class: 'err', role: 'alert', style: 'margin-top:8px', text: ui.fnfErr })),
+
     h('div', { class: 'sec' },
       h('div', { class: 'label', text: 'Informazioni' }),
       h('div', { class: 'row' },
@@ -785,6 +796,20 @@ const ACTIONS = {
     setPreset(r.recommended);
     ui.set.limit_kbps = r.limit_kbps;
     scheduleSave(); setRev();
+  },
+  fnfAdd: async () => {
+    ui.fnfErr = null;
+    let folder;
+    try { folder = await invoke('fnf_pick_folder'); } catch (e) { ui.fnfErr = errMsg(e); setRev(); return; }
+    if (!folder) return;
+    ui.fnfBusy = true; setRev();
+    try { ui.fnfFolders = await invoke('fnf_add_folder', { folder }); } catch (e) { ui.fnfErr = errMsg(e); }
+    ui.fnfBusy = false; setRev();
+  },
+  fnfRemove: async (b) => {
+    ui.fnfErr = null;
+    try { ui.fnfFolders = await invoke('fnf_remove_folder', { folder: b.dataset.folder }); } catch (e) { ui.fnfErr = errMsg(e); }
+    setRev();
   },
 };
 

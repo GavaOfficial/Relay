@@ -14,6 +14,10 @@ export function stageLabel(stage: "queue" | "video" | "web", pct: number): strin
   return `Preparo il video ${pct}%`;
 }
 
+export function steamLibraryCover(appId?: number | null): string | undefined {
+  return appId ? `https://cdn.akamai.steamstatic.com/steam/apps/${appId}/library_600x900.jpg` : undefined;
+}
+
 export function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;
   const units = ["KB", "MB", "GB"];

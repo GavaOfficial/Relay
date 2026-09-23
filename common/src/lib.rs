@@ -47,6 +47,28 @@ pub struct MatchInfo {
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub game_cover_url: Option<String>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fnf_song_name: Option<String>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fnf_difficulty: Option<String>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fnf_score: Option<i64>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fnf_accuracy: Option<f32>,
+
+    // Ogni nota mancata, con l'istante esatto (ms dall'inizio della registrazione) in cui e'
+    // successa: serve per poter in futuro allineare la lista alla posizione del video.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fnf_misses: Vec<FnfMiss>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct FnfMiss {
+    pub at_ms: u64,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

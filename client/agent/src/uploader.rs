@@ -9,7 +9,7 @@ use std::{
 
 use anyhow::{bail, Context, Result};
 use bytes::Bytes;
-use futures_util::stream;
+use futures_util::{stream, StreamExt};
 use reqwest::{Body, StatusCode};
 use sha2::{Digest, Sha256};
 use tokio::sync::watch;
@@ -18,6 +18,11 @@ use crate::{hls, throttle::Throttle};
 
 const CHUNK: usize = 16 * 1024;
 const POLL: Duration = Duration::from_millis(500);
+
+// Mentre si registra, poche richieste in parallelo per non rubare banda alla partita in corso.
+// A registrazione finita non c'e' piu' nulla da proteggere: si svuota la coda il piu' in fretta possibile.
+const UPLOAD_CONCURRENCY_LIVE: usize = 2;
+const UPLOAD_CONCURRENCY_DONE: usize = 6;
 
 #[derive(Clone)]
 pub struct UploadConfig {
@@ -176,14 +181,12 @@ impl Uploader {
 
             let durations = read_all_durations(&self.cfg.dir).await;
 
+            let mut batch = Vec::new();
             for (n, path) in ready {
                 let dur = durations.get(&n).copied();
-
                 if dur.is_none() && !*capture_done.borrow() {
-                    tokio::time::sleep(POLL).await;
                     break;
                 }
-
                 if tokio::fs::metadata(&path)
                     .await
                     .map(|m| m.len() == 0)
@@ -193,22 +196,46 @@ impl Uploader {
                     tokio::fs::remove_file(&path).await.ok();
                     continue;
                 }
-                match self.upload_one(n, &path, dur).await {
+                batch.push((n, path, dur));
+            }
+            if batch.is_empty() {
+                tokio::time::sleep(POLL).await;
+                continue;
+            }
+
+            let concurrency = if *capture_done.borrow() {
+                UPLOAD_CONCURRENCY_DONE
+            } else {
+                UPLOAD_CONCURRENCY_LIVE
+            };
+            let mut uploads = stream::iter(batch)
+                .map(|(n, path, dur)| async move {
+                    let r = self.upload_one(n, &path, dur).await;
+                    (n, path, r)
+                })
+                .buffer_unordered(concurrency);
+
+            let mut transient_error = false;
+            // Ogni upload che finisce cancella subito il suo file: la coda deve scendere
+            // man mano, non tutta insieme solo alla fine del gruppo.
+            while let Some((n, path, r)) = uploads.next().await {
+                match r {
                     Ok(()) => {
                         tokio::fs::remove_file(&path).await.ok();
                         tracing::info!("segmento {n} caricato");
-                        backoff = Duration::from_secs(1);
                     }
                     Err(e) if e.downcast_ref::<Fatal>().is_some() => return Err(e),
                     Err(e) => {
-                        tracing::warn!(
-                            "upload segmento {n} fallito ({e:#}), riprovo tra {backoff:?}"
-                        );
-                        tokio::time::sleep(backoff).await;
-                        backoff = (backoff * 2).min(Duration::from_secs(30));
-                        break;
+                        tracing::warn!("upload segmento {n} fallito ({e:#}), riprovo");
+                        transient_error = true;
                     }
                 }
+            }
+            if transient_error {
+                tokio::time::sleep(backoff).await;
+                backoff = (backoff * 2).min(Duration::from_secs(30));
+            } else {
+                backoff = Duration::from_secs(1);
             }
         }
     }

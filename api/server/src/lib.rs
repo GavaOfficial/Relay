@@ -40,6 +40,7 @@ pub fn app(state: Arc<AppState>) -> Router {
         .route("/api/matches/{id}/end", post(routes::end_match))
         .route("/api/matches/{id}/rename", post(routes::rename_match))
         .route("/api/matches/{id}/game", post(routes::set_game))
+        .route("/api/matches/{id}/fnf", post(routes::set_fnf))
         .route(
             "/api/matches/{id}/share",
             post(routes::enable_share).delete(routes::disable_share),

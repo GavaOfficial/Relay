@@ -8,7 +8,7 @@ use anyhow::{anyhow, bail, Context, Result};
 use libobs_simple::sources::windows::{
     GameCaptureSourceBuilder, MonitorCaptureSourceBuilder, ObsGameCaptureMode, ObsHookRate,
 };
-use libobs_window_helper::{get_all_windows, WindowSearchMode};
+use libobs_window_helper::{get_all_windows, WindowInfo as ObsWindowInfo, WindowSearchMode};
 use libobs_wrapper::{
     context::ObsContext,
     data::object::ObsObjectTrait,
@@ -185,6 +185,34 @@ fn sleep_until(unix_secs: f64) {
     }
 }
 
+// La finestra catturata spesso ha un rapporto d'aspetto diverso dal monitor su cui si trova
+// (es. un gioco in 4:3 su un monitor 16:9). Se il canvas OBS viene dimensionato sul monitor,
+// fit_source_to_screen() mantiene le proporzioni della finestra e aggiunge barre nere per
+// riempire lo spazio restante. Usando la risoluzione reale della finestra come canvas, la
+// sorgente lo riempie esattamente e le barre nere spariscono.
+#[cfg(windows)]
+fn window_client_size(w: &ObsWindowInfo) -> Option<(u32, u32)> {
+    use windows_sys::Win32::{Foundation::RECT, UI::WindowsAndMessaging::GetClientRect};
+    let mut rect = RECT {
+        left: 0,
+        top: 0,
+        right: 0,
+        bottom: 0,
+    };
+    let ok = unsafe { GetClientRect(w.handle.0 as _, &mut rect) };
+    if ok == 0 {
+        return None;
+    }
+    let width = (rect.right - rect.left).max(0) as u32;
+    let height = (rect.bottom - rect.top).max(0) as u32;
+    (width > 0 && height > 0).then_some((width, height))
+}
+
+#[cfg(not(windows))]
+fn window_client_size(_w: &ObsWindowInfo) -> Option<(u32, u32)> {
+    None
+}
+
 fn run_record(cfg: RecordConfig) -> Result<()> {
     std::fs::create_dir_all(&cfg.dir).context("creazione della cartella di lavoro")?;
     let monitors = MonitorCaptureSourceBuilder::get_monitors().unwrap_or_default();
@@ -216,8 +244,10 @@ fn run_record(cfg: RecordConfig) -> Result<()> {
             Source::Window { .. } => cfg.fallback_monitor.unwrap_or(0) as usize,
         });
     let monitor = monitors.get(monitor_index).or_else(|| monitors.first());
-    let (base_width, base_height) = monitor
-        .map(|m| (m.0.width, m.0.height))
+    let (base_width, base_height) = window
+        .as_ref()
+        .and_then(window_client_size)
+        .or_else(|| monitor.map(|m| (m.0.width, m.0.height)))
         .unwrap_or((1920, 1080));
     let output_height = cfg.output_height.min(base_height).max(2) & !1;
     let output_width =

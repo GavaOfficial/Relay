@@ -14,6 +14,11 @@ export type MatchInfo = {
   game_app_id?: number;
   game_name?: string;
   game_cover_url?: string;
+  fnf_song_name?: string;
+  fnf_difficulty?: string;
+  fnf_score?: number;
+  fnf_accuracy?: number;
+  fnf_misses?: { at_ms: number }[];
   finished: string[];
   status: MatchStatus;
   created_at: number;

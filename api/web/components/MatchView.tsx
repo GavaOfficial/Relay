@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { isLive } from "@/lib/live";
-import { formatBytes, stageLabel, statusOf } from "@/lib/matchFormat";
+import { formatBytes, stageLabel, statusOf, steamLibraryCover } from "@/lib/matchFormat";
 import type { MatchDetail } from "@/lib/types";
 import Avatar from "./Avatar";
 import SyncPlayer from "./SyncPlayer";
@@ -213,18 +213,33 @@ export default function MatchView({ initial, canRename = false, nowMs }: { initi
 
       {m.game_name && (
         <div className="gamehero">
-          {m.game_cover_url && <img src={m.game_cover_url} alt={`Copertina di ${m.game_name}`} />}
+          {(steamLibraryCover(m.game_app_id) ?? m.game_cover_url) && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={steamLibraryCover(m.game_app_id) ?? m.game_cover_url} alt={`Copertina di ${m.game_name}`} />
+          )}
           <div><span>Gioco</span><strong>{m.game_name}</strong></div>
           {canRename && <button type="button" className="ghost small gameeditbtn" onClick={() => { setGameResults([]); setGameEditing((value) => !value); }}>Cambia</button>}
         </div>
       )}
       {canRename && !m.game_name && <button type="button" className="ghost gameaddbtn" onClick={() => { setGameResults([]); setGameEditing((value) => !value); }}>Aggiungi gioco e copertina</button>}
+      {m.fnf_song_name && (
+        <div className="fnfstats">
+          <div><span>Canzone</span><strong>{m.fnf_song_name}</strong></div>
+          {m.fnf_difficulty && <div><span>Difficolt&agrave;</span><strong>{m.fnf_difficulty}</strong></div>}
+          {m.fnf_score != null && <div><span>Punteggio</span><strong>{m.fnf_score.toLocaleString("it-IT")}</strong></div>}
+          {m.fnf_accuracy != null && <div><span>Accuracy</span><strong>{(m.fnf_accuracy * 100).toFixed(1)}%</strong></div>}
+          <div><span>Note mancate</span><strong>{m.fnf_misses?.length ?? 0}</strong></div>
+        </div>
+      )}
       {canRename && gameEditing && (
         <div className="gamepicker">
           <input autoFocus type="search" value={gameQuery} placeholder="Cerca un gioco..." onChange={(e) => setGameQuery(e.target.value)} />
           {gameResults.map((game) => (
             <button type="button" key={`${game.app_id ?? "game"}-${game.name}`} disabled={gameBusy} onClick={() => void chooseGame(game)}>
-              {game.cover_url && <img src={game.cover_url} alt="" />}
+              {(steamLibraryCover(game.app_id) ?? game.cover_url) && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={steamLibraryCover(game.app_id) ?? game.cover_url} alt="" />
+              )}
               <span>{game.name}</span>
             </button>
           ))}
