@@ -6,6 +6,7 @@ aggiorna da sola.
     python deploy/publish-app.py --notes "Audio e ripresa dopo un crash"
     python deploy/publish-app.py --ffmpeg C:\\percorso\\ffmpeg.exe   # anche ffmpeg (una volta, o quando cambia)
     python deploy/publish-app.py --no-app --ffmpeg ffmpeg.exe      # solo ffmpeg
+    python deploy/publish-app.py --no-app --storage dist/relay-storage   # solo relay-storage (Linux)
     python deploy/publish-app.py --local ./dati        # prova: scrive in ./dati/app invece che sulla VPS
 
 Sulla VPS (SFTP del server API) servono le variabili SFTP_USER e SFTP_PASS; SFTP_HOST e SFTP_PORT
@@ -136,6 +137,8 @@ def main() -> int:
     ap.add_argument("--ffmpeg-version", default=None)
     ap.add_argument("--capture", default=None, help="relay-capture.exe (build --features recorder) da pubblicare")
     ap.add_argument("--capture-version", default=None)
+    ap.add_argument("--storage", default=None, help="relay-storage per Linux x86_64 (deploy/build-storage.ps1) da pubblicare")
+    ap.add_argument("--storage-version", default=None)
     ap.add_argument("--local", default=None, help="cartella dati locale (per prove) invece della VPS")
     a = ap.parse_args()
 
@@ -150,6 +153,9 @@ def main() -> int:
         if a.capture:
             v = a.capture_version or workspace_version()
             publish(target, "relay-capture", "relay-capture", "exe", "capture.json", v, open(a.capture, "rb").read(), "")
+        if a.storage:
+            v = a.storage_version or workspace_version()
+            publish(target, "relay-storage", "relay-storage", "bin", "storage.json", v, open(a.storage, "rb").read(), "")
         if not a.no_app:
             version = a.version or workspace_version()
             if not re.fullmatch(r"[0-9]+(\.[0-9]+){1,3}", version):
