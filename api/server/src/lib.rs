@@ -1,4 +1,5 @@
 pub mod auth;
+pub mod songlib;
 pub mod error;
 pub mod finalize;
 pub mod playlist;
@@ -80,6 +81,12 @@ pub fn app(state: Arc<AppState>) -> Router {
             "/api/share/{token}/players/{pid}/vod/{file}",
             get(routes::share_vod),
         )
+        .nest("/api/codename", songlib::router("codename"))
+        .nest("/api/funkin", songlib::router("funkin"))
+        .nest("/api/psych", songlib::router("psych"))
+        .nest("/api/nmv", songlib::router("nmv"))
+        .nest("/api/kade", songlib::router("kade"))
+        .nest("/api/gd", songlib::router("gd"))
         .layer(DefaultBodyLimit::max(64 * 1024 * 1024))
         .layer(TraceLayer::new_for_http())
         .with_state(state)
