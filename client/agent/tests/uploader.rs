@@ -69,8 +69,6 @@ async fn once_recording_is_done_the_backlog_uploads_in_parallel_not_one_by_one()
     };
     let uploader = Uploader::new(cfg).unwrap();
 
-    // La registrazione e' gia' finita: niente da proteggere, la coda deve svuotarsi
-    // con piu' richieste in volo insieme, non una alla volta.
     let (_tx, rx) = watch::channel(true);
     uploader.run(rx).await.unwrap();
 

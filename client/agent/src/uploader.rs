@@ -19,8 +19,6 @@ use crate::{hls, throttle::Throttle};
 const CHUNK: usize = 16 * 1024;
 const POLL: Duration = Duration::from_millis(500);
 
-// Mentre si registra, poche richieste in parallelo per non rubare banda alla partita in corso.
-// A registrazione finita non c'e' piu' nulla da proteggere: si svuota la coda il piu' in fretta possibile.
 const UPLOAD_CONCURRENCY_LIVE: usize = 2;
 const UPLOAD_CONCURRENCY_DONE: usize = 6;
 
@@ -216,8 +214,6 @@ impl Uploader {
                 .buffer_unordered(concurrency);
 
             let mut transient_error = false;
-            // Ogni upload che finisce cancella subito il suo file: la coda deve scendere
-            // man mano, non tutta insieme solo alla fine del gruppo.
             while let Some((n, path, r)) = uploads.next().await {
                 match r {
                     Ok(()) => {

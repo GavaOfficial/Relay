@@ -185,11 +185,6 @@ fn sleep_until(unix_secs: f64) {
     }
 }
 
-// La finestra catturata spesso ha un rapporto d'aspetto diverso dal monitor su cui si trova
-// (es. un gioco in 4:3 su un monitor 16:9). Se il canvas OBS viene dimensionato sul monitor,
-// fit_source_to_screen() mantiene le proporzioni della finestra e aggiunge barre nere per
-// riempire lo spazio restante. Usando la risoluzione reale della finestra come canvas, la
-// sorgente lo riempie esattamente e le barre nere spariscono.
 #[cfg(windows)]
 fn window_client_size(w: &ObsWindowInfo) -> Option<(u32, u32)> {
     use windows_sys::Win32::{Foundation::RECT, UI::WindowsAndMessaging::GetClientRect};
