@@ -74,6 +74,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     } else {
         tracing::warn!("RELAY_FFMPEG non impostato: i segmenti non vengono uniti in un MP4 e restano sul disco");
     }
+    tokio::spawn(state.storage.clone().run(state.clone()));
     let listener = tokio::net::TcpListener::bind(&bind).await?;
     tracing::info!("in ascolto su {bind}");
     axum::serve(listener, app(state)).await?;

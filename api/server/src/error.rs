@@ -10,6 +10,7 @@ pub enum AppError {
     NotFound,
     BadRequest(&'static str),
     Conflict(&'static str),
+    Unavailable(&'static str),
     Internal(String),
 }
 
@@ -31,6 +32,7 @@ impl IntoResponse for AppError {
             AppError::NotFound => (StatusCode::NOT_FOUND, "not found").into_response(),
             AppError::BadRequest(m) => (StatusCode::BAD_REQUEST, m).into_response(),
             AppError::Conflict(m) => (StatusCode::CONFLICT, m).into_response(),
+            AppError::Unavailable(m) => (StatusCode::SERVICE_UNAVAILABLE, m).into_response(),
             AppError::Internal(m) => {
                 tracing::error!("internal error: {m}");
                 (StatusCode::INTERNAL_SERVER_ERROR, "internal error").into_response()

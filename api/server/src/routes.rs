@@ -818,6 +818,7 @@ pub async fn delete_match(
             "il server sta ancora elaborando dei video: riprova tra poco",
         ));
     };
+    st.storage.forget_dir(&st.match_dir(id));
     if let Err(e) = tokio::fs::remove_dir_all(st.match_dir(id)).await {
         if e.kind() != std::io::ErrorKind::NotFound {
             return Err(e.into());
@@ -827,16 +828,21 @@ pub async fn delete_match(
     Ok(StatusCode::NO_CONTENT)
 }
 
-async fn serve_file(
+pub(crate) async fn serve_file(
     path: &std::path::Path,
     headers: &HeaderMap,
     etag_tag: &str,
     name: Option<String>,
 ) -> Result<axum::response::Response, AppError> {
     use tokio::io::{AsyncReadExt, AsyncSeekExt};
-    let mut file = tokio::fs::File::open(path)
-        .await
-        .map_err(|_| AppError::NotFound)?;
+    let mut file = match tokio::fs::File::open(path).await {
+        Ok(f) => f,
+        Err(_) => {
+            let storage = crate::storage::global().ok_or(AppError::NotFound)?;
+            let entry = storage.entry(path).ok_or(AppError::NotFound)?;
+            return storage.serve(path, entry, headers, name).await;
+        }
+    };
     let meta = file.metadata().await?;
     let total = meta.len();
     if total == 0 {
@@ -958,7 +964,7 @@ pub async fn get_vod(
         .into_response())
 }
 
-fn parse_range(v: &str, total: u64) -> Option<Result<(u64, u64), ()>> {
+pub(crate) fn parse_range(v: &str, total: u64) -> Option<Result<(u64, u64), ()>> {
     let spec = v.strip_prefix("bytes=")?;
     if spec.contains(',') {
         return None;
@@ -1136,6 +1142,29 @@ pub async fn capture_download(State(st): St) -> Result<axum::response::Response,
         "capture.json",
         "application/vnd.microsoft.portable-executable",
         format!("relay-capture-{}.exe", r.version),
+    )
+    .await
+}
+
+pub async fn storage_latest(State(st): St) -> Result<impl IntoResponse, AppError> {
+    let r = read_manifest(&st, "storage.json")
+        .await
+        .ok_or(AppError::NotFound)?;
+    Ok((
+        [(header::CACHE_CONTROL, "no-cache")],
+        Json(release_json(&r, "/api/app/storage/download")),
+    ))
+}
+
+pub async fn storage_download(State(st): St) -> Result<axum::response::Response, AppError> {
+    let r = read_manifest(&st, "storage.json")
+        .await
+        .ok_or(AppError::NotFound)?;
+    download_response(
+        &st,
+        "storage.json",
+        "application/octet-stream",
+        format!("relay-storage-{}", r.version),
     )
     .await
 }

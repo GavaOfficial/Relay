@@ -1,3 +1,5 @@
+pub mod storage;
+
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
@@ -60,8 +62,6 @@ pub struct MatchInfo {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fnf_accuracy: Option<f32>,
 
-    // Ogni nota mancata, con l'istante esatto (ms dall'inizio della registrazione) in cui e'
-    // successa: serve per poter in futuro allineare la lista alla posizione del video.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub fnf_misses: Vec<FnfMiss>,
 

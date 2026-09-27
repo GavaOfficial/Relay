@@ -41,6 +41,8 @@ pub struct AppState {
     pub ffmpeg: Option<PathBuf>,
 
     pub finalize_lock: tokio::sync::Mutex<()>,
+
+    pub storage: Arc<crate::storage::Storage>,
 }
 
 impl AppState {
@@ -83,7 +85,9 @@ impl AppState {
                 p
             }
         });
+        let storage = crate::storage::Storage::open(&data_dir)?;
         Ok(Arc::new(Self {
+            storage,
             data_dir,
             auth,
             matches: RwLock::new(matches),

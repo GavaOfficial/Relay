@@ -21,11 +21,16 @@ pub const THUMB_FILE: &str = "thumb.jpg";
 pub const INFO_FILE: &str = "info.json";
 const TIMEOUT: Duration = Duration::from_secs(3 * 3600);
 
+fn archived(path: &Path) -> bool {
+    crate::storage::global().is_some_and(|s| s.entry(path).is_some())
+}
+
 pub async fn has_video(dir: &Path) -> bool {
     tokio::fs::metadata(dir.join(VIDEO_FILE))
         .await
         .map(|m| m.len() > 0)
         .unwrap_or(false)
+        || archived(&dir.join(VIDEO_FILE))
 }
 
 pub const VOD_DIR: &str = "hls";
@@ -110,6 +115,7 @@ pub async fn has_web(dir: &Path) -> bool {
         .await
         .map(|m| m.len() > 0)
         .unwrap_or(false)
+        || archived(&dir.join(WEB_FILE))
 }
 
 async fn make_web(ffmpeg: &Path, dir: &Path, report: &Report) -> Result<bool, String> {

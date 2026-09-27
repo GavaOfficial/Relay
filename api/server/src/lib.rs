@@ -5,6 +5,7 @@ pub mod finalize;
 pub mod playlist;
 pub mod routes;
 pub mod state;
+pub mod storage;
 pub mod ws;
 
 use std::sync::Arc;
@@ -30,6 +31,17 @@ pub fn app(state: Arc<AppState>) -> Router {
         .route("/api/app/ffmpeg/download", get(routes::ffmpeg_download))
         .route("/api/app/capture/latest", get(routes::capture_latest))
         .route("/api/app/capture/download", get(routes::capture_download))
+        .route("/api/app/storage/latest", get(routes::storage_latest))
+        .route("/api/app/storage/download", get(routes::storage_download))
+        .route(relay_common::storage::TUNNEL_PATH, get(storage::tunnel::tunnel))
+        .route("/api/storage/install.sh", get(storage::routes::install_script))
+        .route("/api/storage/admin", get(storage::routes::am_admin))
+        .route("/api/storage/status", get(storage::routes::status))
+        .route("/api/storage/nodes", post(storage::routes::add_node))
+        .route("/api/storage/nodes/{id}", axum::routing::patch(storage::routes::update_node))
+        .route("/api/storage/nodes/{id}/key", post(storage::routes::rotate_key))
+        .route("/api/storage/cache", axum::routing::put(storage::routes::set_cache))
+        .route("/api/storage/migrate", post(storage::routes::migrate))
         .route(
             "/api/matches",
             get(routes::list_matches).post(routes::create_match),
