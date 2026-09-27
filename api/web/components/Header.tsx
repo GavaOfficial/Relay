@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { logout } from "@/app/actions";
-import { currentIdentity } from "@/lib/api";
+import { apiGetOr, currentIdentity } from "@/lib/api";
 import Avatar from "./Avatar";
 import DownloadApp from "./DownloadApp";
 import Nav from "./Nav";
 
 export default async function Header() {
   const me = await currentIdentity();
+  const admin = me ? (await apiGetOr<{ admin: boolean }>("/api/storage/admin", { admin: false })).admin : false;
   return (
     <div className="topbar-wrap">
       <header className="topbar">
@@ -15,7 +16,7 @@ export default async function Header() {
             <span className="logo" aria-hidden="true" />
             Relay
           </Link>
-          {me && <Nav />}
+          {me && <Nav admin={admin} />}
           <div className="topbar-right">
             <DownloadApp />
             {me && (
