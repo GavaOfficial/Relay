@@ -26,6 +26,13 @@ export function ClipPlayer({
   onPlay: () => void;
   engine?: Engine;
 }) {
+  if (playing && clip.processing) {
+    return (
+      <div className="fnf-player fnf-processing">
+        <p>La clip è in elaborazione: sarà pronta tra poco.</p>
+      </div>
+    );
+  }
   if (playing) {
     return (
       <div className="fnf-player">
@@ -47,7 +54,7 @@ export function ClipPlayer({
           <path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z" />
         </svg>
       </span>
-      <span className="badge">{formatClipLength(clip.duration_ms)}</span>
+      <span className="badge">{clip.processing ? "In elaborazione" : formatClipLength(clip.duration_ms)}</span>
     </button>
   );
 }

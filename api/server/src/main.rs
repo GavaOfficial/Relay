@@ -69,11 +69,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let state = AppState::with_auth(data, auth).await?;
-    if state.ffmpeg.is_some() {
-        tokio::spawn(relay_server::finalize::resume_all(state.clone()));
-    } else {
-        tracing::warn!("RELAY_FFMPEG non impostato: i segmenti non vengono uniti in un MP4 e restano sul disco");
-    }
+    tokio::spawn(relay_server::finalize::resume_all(state.clone()));
     tokio::spawn(state.storage.clone().run(state.clone()));
     let listener = tokio::net::TcpListener::bind(&bind).await?;
     tracing::info!("in ascolto su {bind}");

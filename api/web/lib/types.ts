@@ -1,3 +1,5 @@
+export type Stage = "queue" | "download" | "video" | "web" | "upload";
+
 export type MatchStatus = "open" | "ended";
 
 export type MatchInfo = {
@@ -33,6 +35,7 @@ export type MatchListItem = MatchInfo & {
 
   duration_secs: number | null;
   has_thumb: boolean;
+  processing?: boolean;
 };
 
 export type MatchDetail = MatchInfo & {
@@ -44,7 +47,7 @@ export type MatchDetail = MatchInfo & {
 
   vod_videos?: string[];
 
-  processing?: Record<string, { stage: "queue" | "video" | "web"; pct: number }>;
+  processing?: Record<string, { stage: Stage; pct: number }>;
 };
 
 export type CodenameMod = {
@@ -106,6 +109,7 @@ export type CodenameClip = {
   recorded_at: number;
   archived: boolean;
   has_thumb: boolean;
+  processing?: boolean;
   extra?: Record<string, unknown>;
 };
 

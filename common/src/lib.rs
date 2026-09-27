@@ -1,3 +1,5 @@
+pub mod media;
+pub mod ops;
 pub mod storage;
 
 use std::collections::BTreeMap;

@@ -4612,3 +4612,74 @@ body:has(.impx) .topbar-wrap .topbar {
   inset: 0;
   z-index: 5;
 }
+
+.stor-head h2 .ghost.small {
+  margin-left: 8px;
+  font-size: 12px;
+}
+.stor-rename {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.stor-rename input {
+  min-width: 0;
+  flex: 1 1 160px;
+}
+.stor-drain {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent, #6b8afd) 12%, transparent);
+  font-size: 14px;
+}
+.stor-row button.danger {
+  background: color-mix(in srgb, var(--rec) 14%, transparent);
+  color: var(--rec);
+  border-color: color-mix(in srgb, var(--rec) 40%, transparent);
+}
+
+.fnf-processing,
+.fnf-processing-text {
+  display: grid;
+  place-items: center;
+  text-align: center;
+  color: var(--muted);
+  padding: 16px;
+  font-size: 14px;
+}
+.fnf-player .fnf-processing-text {
+  aspect-ratio: 16 / 9;
+  margin: 0;
+}
+
+.stor-section {
+  margin-top: 24px;
+}
+.stor-section h2 {
+  margin: 0 0 4px;
+}
+.ops-queue {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.ops-queue li {
+  display: grid;
+  gap: 2px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border, rgba(127, 127, 127, 0.2));
+  overflow-wrap: anywhere;
+}
+.ops-queue li:first-child {
+  border-top: 0;
+}
+
+.ops-job {
+  display: grid;
+  gap: 4px;
+  margin-top: 6px;
+}

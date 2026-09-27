@@ -2,6 +2,7 @@ pub mod auth;
 pub mod songlib;
 pub mod error;
 pub mod finalize;
+pub mod ops;
 pub mod playlist;
 pub mod routes;
 pub mod state;
@@ -41,6 +42,19 @@ pub fn app(state: Arc<AppState>) -> Router {
         .route("/api/storage/nodes/{id}", axum::routing::patch(storage::routes::update_node).delete(storage::routes::remove_node))
         .route("/api/storage/nodes/{id}/key", post(storage::routes::rotate_key))
         .route("/api/storage/migrate", post(storage::routes::migrate))
+        .route("/api/ops/install.sh", get(ops::routes::install_script))
+        .route("/api/ops/status", get(ops::routes::status))
+        .route("/api/ops/retry", post(ops::routes::retry))
+        .route("/api/ops/nodes", post(ops::routes::add_node))
+        .route("/api/ops/nodes/{id}", axum::routing::patch(ops::routes::update_node).delete(ops::routes::remove_node))
+        .route("/api/ops/nodes/{id}/key", post(ops::routes::rotate_key))
+        .route("/api/ops/poll", post(ops::routes::poll))
+        .route("/api/ops/jobs/{id}/in/{name}", get(ops::routes::input))
+        .route("/api/ops/jobs/{id}/progress", post(ops::routes::progress))
+        .route("/api/ops/jobs/{id}/out/{output}", get(ops::routes::big_state).put(ops::routes::put_output))
+        .route("/api/ops/jobs/{id}/finish", post(ops::routes::finish))
+        .route("/api/app/ops/latest", get(routes::ops_latest))
+        .route("/api/app/ops/download", get(routes::ops_download))
         .route(
             "/api/matches",
             get(routes::list_matches).post(routes::create_match),

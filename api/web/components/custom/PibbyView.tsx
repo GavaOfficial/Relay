@@ -139,7 +139,7 @@ export default function PibbyView({ initial, engine, fontClass }: { initial: Cod
               <video
                 key={clip.id}
                 className="pibx-clip"
-                src={clipVideo(clip.id, engine)}
+                src={clip.processing ? undefined : clipVideo(clip.id, engine)}
                 poster={clip.has_thumb ? clipThumb(clip.id, engine) : undefined}
                 autoPlay
                 muted

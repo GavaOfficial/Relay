@@ -51,7 +51,11 @@ function LevelCard({ track, entry }: { track: FunkinTrack; entry?: CodenameSong 
     <li className="fnf-song gd-level">
       {current && playing === current.id ? (
         <div className="fnf-player">
-          <video src={clipVideo(current.id, "gd")} controls autoPlay playsInline preload="metadata" />
+          {current.processing ? (
+            <p className="fnf-processing-text">La clip è in elaborazione: sarà pronta tra poco.</p>
+          ) : (
+            <video src={clipVideo(current.id, "gd")} controls autoPlay playsInline preload="metadata" />
+          )}
         </div>
       ) : (
         <button

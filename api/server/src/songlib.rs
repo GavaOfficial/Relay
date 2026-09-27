@@ -1,7 +1,6 @@
 use std::{
     collections::BTreeMap,
     path::{Path as FsPath, PathBuf},
-    process::Stdio,
     sync::{Arc, OnceLock},
     time::SystemTime,
 };
@@ -14,9 +13,12 @@ use axum::{
     routing::{get, post, put},
     Extension, Json, Router,
 };
-use relay_common::{clean_name, valid_id};
+use relay_common::{
+    clean_name, media,
+    ops::{InputFile, JobKind},
+    valid_id,
+};
 use serde::{Deserialize, Serialize};
-use tokio::process::Command;
 use uuid::Uuid;
 
 use crate::{
@@ -152,8 +154,18 @@ pub struct SongClip {
     pub archived: bool,
     #[serde(default)]
     pub has_thumb: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub processing: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cut: Option<RawCut>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub extra: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct RawCut {
+    pub offset_secs: f64,
+    pub duration_secs: f64,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -379,6 +391,8 @@ pub struct FinishInput {
     pub aliases: Vec<String>,
     #[serde(default)]
     pub extra: Option<serde_json::Value>,
+    #[serde(default)]
+    pub raw: Option<RawCut>,
 }
 
 pub async fn finish_upload(
@@ -466,7 +480,9 @@ async fn finish_inner(
         let _ = tokio::fs::remove_file(&tmp).await;
         return Err(AppError::BadRequest("dimensione della clip diversa"));
     }
-    tokio::fs::rename(&tmp, clip_path(dir, id)).await?;
+    let raw = input.raw.filter(|r| r.offset_secs.is_finite() && r.duration_secs.is_finite() && r.duration_secs > 0.0);
+    let dst = if raw.is_some() { src_path(dir, id) } else { clip_path(dir, id) };
+    tokio::fs::rename(&tmp, dst).await?;
 
     for c in lib.clips.iter_mut() {
         if !c.archived && is_chart(c) {
@@ -490,51 +506,92 @@ async fn finish_inner(
         recorded_at: now_secs(),
         archived: false,
         has_thumb: false,
+        processing: raw.is_some(),
+        cut: raw,
         extra: small_object(input.extra),
     };
     lib.clips.push(clip.clone());
     save(dir, &lib).await?;
     drop(_guard);
 
-    if let Some(ffmpeg) = st.ffmpeg.clone() {
-        let dir = dir.to_path_buf();
-        let at = (input.duration_ms as f64 / 1000.0 * 0.4).min(60.0);
-        tokio::spawn(async move { make_thumb(&ffmpeg, &dir, id, at).await });
-    }
+    schedule_clip(st, dir, &clip).await;
     Ok((StatusCode::CREATED, Json(clip)))
 }
 
-async fn make_thumb(ffmpeg: &FsPath, dir: &FsPath, id: Uuid, at: f64) {
-    let tmp = dir.join("clips").join(format!(".{id}.thumb.jpg"));
-    let ok = Command::new(ffmpeg)
-        .args(["-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-ss"])
-        .arg(format!("{at:.1}"))
-        .arg("-i")
-        .arg(clip_path(dir, id))
-        .args(["-frames:v", "1", "-vf", "scale=640:-2", "-q:v", "4"])
-        .arg(&tmp)
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .kill_on_drop(true)
-        .status()
-        .await
-        .map(|s| s.success())
-        .unwrap_or(false);
-    if !ok {
-        let _ = tokio::fs::remove_file(&tmp).await;
+fn src_path(dir: &FsPath, id: Uuid) -> PathBuf {
+    dir.join("clips").join(format!("{id}.src.ts"))
+}
+
+fn engine_of(dir: &FsPath) -> String {
+    dir.parent().and_then(|p| p.file_name()).map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()
+}
+
+async fn schedule_clip(st: &Arc<AppState>, dir: &FsPath, clip: &SongClip) {
+    let id = clip.id;
+    let (offset_secs, duration_secs) = clip.cut.map(|c| (c.offset_secs, c.duration_secs)).unwrap_or((0.0, 0.0));
+    let input_name = if clip.processing { format!("{id}.src.ts") } else { format!("{id}.mp4") };
+    if st.ops.enabled() {
+        let path = dir.join("clips").join(&input_name);
+        let size = match tokio::fs::metadata(&path).await {
+            Ok(m) => m.len(),
+            Err(_) => match st.storage.entry(&path) {
+                Some(e) => e.size,
+                None => return,
+            },
+        };
+        let kind = JobKind::Clip { engine: engine_of(dir), clip: id, offset_secs, duration_secs };
+        st.ops.enqueue(kind, &dir.join("clips"), vec![InputFile { name: input_name, size }]);
         return;
     }
-    if tokio::fs::rename(&tmp, thumb_path(dir, id)).await.is_err() {
-        return;
-    }
+    let Some(ffmpeg) = st.ffmpeg.clone() else { return };
+    let (dir, processing, dur_ms) = (dir.to_path_buf(), clip.processing, clip.duration_ms);
+    tokio::spawn(async move {
+        if processing {
+            let src = src_path(&dir, id);
+            match media::cut_clip(&ffmpeg, &src, offset_secs, duration_secs, &clip_path(&dir, id)).await {
+                Ok(()) => {
+                    let _ = tokio::fs::remove_file(&src).await;
+                }
+                Err(e) => {
+                    tracing::warn!("clip {id} non tagliata: {e}");
+                    return;
+                }
+            }
+        }
+        let at = (dur_ms as f64 / 1000.0 * 0.4).min(60.0);
+        let thumb = media::make_thumb(&ffmpeg, &clip_path(&dir, id), &thumb_path(&dir, id), at, 640).await;
+        clip_processed(&dir, id, thumb).await;
+    });
+}
+
+pub async fn clip_processed(dir: &FsPath, id: Uuid, has_thumb: bool) {
     let _guard = lock().lock().await;
     let mut lib = load(dir).await;
     if let Some(c) = lib.clips.iter_mut().find(|c| c.id == id) {
-        c.has_thumb = true;
+        c.processing = false;
+        c.cut = None;
+        c.has_thumb |= has_thumb;
         let _ = save(dir, &lib).await;
     }
 }
+
+pub async fn resume_clips(st: Arc<AppState>) {
+    for engine in ENGINES {
+        let Ok(mut users) = tokio::fs::read_dir(st.data_dir.join(engine)).await else { continue };
+        while let Ok(Some(u)) = users.next_entry().await {
+            let dir = u.path();
+            let lib = load(&dir).await;
+            for c in lib.clips.iter().filter(|c| c.processing || !c.has_thumb) {
+                if c.processing && !src_path(&dir, c.id).exists() {
+                    continue;
+                }
+                schedule_clip(&st, &dir, c).await;
+            }
+        }
+    }
+}
+
+const ENGINES: [&str; 6] = ["codename", "funkin", "psych", "nmv", "kade", "gd"];
 
 fn short(s: &str, max: usize) -> String {
     let s: String = s.chars().filter(|c| !c.is_control() || *c == '\n').collect();

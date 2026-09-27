@@ -43,6 +43,8 @@ pub struct AppState {
     pub finalize_lock: tokio::sync::Mutex<()>,
 
     pub storage: Arc<crate::storage::Storage>,
+
+    pub ops: Arc<crate::ops::Ops>,
 }
 
 impl AppState {
@@ -86,8 +88,10 @@ impl AppState {
             }
         });
         let storage = crate::storage::Storage::open(&data_dir)?;
+        let ops = crate::ops::Ops::open(&data_dir)?;
         Ok(Arc::new(Self {
             storage,
+            ops,
             data_dir,
             auth,
             matches: RwLock::new(matches),

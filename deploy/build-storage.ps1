@@ -1,5 +1,5 @@
-# Compila relay-storage per Linux x86_64 (eseguibile statico musl) dentro Docker e lo mette in
-# dist/relay-storage. Serve Docker Desktop acceso.
+# Compila relay-storage e relay-ops per Linux x86_64 (eseguibili statici musl) dentro Docker e li
+# mette in dist/relay-storage e dist/relay-ops. Serve Docker Desktop acceso.
 #
 #   powershell -File deploy/build-storage.ps1
 $ErrorActionPreference = "Stop"
@@ -12,6 +12,6 @@ docker run --rm `
   -w /src `
   -e CARGO_TARGET_DIR=/target `
   rust:1-alpine `
-  sh -c "apk add --no-cache musl-dev >/dev/null && cargo build --release -p relay-storage && cp /target/release/relay-storage /src/dist/relay-storage"
+  sh -c "apk add --no-cache musl-dev >/dev/null && cargo build --release -p relay-storage -p relay-ops && cp /target/release/relay-storage /target/release/relay-ops /src/dist/"
 if ($LASTEXITCODE -ne 0) { throw "compilazione fallita" }
-Get-Item "$root\dist\relay-storage" | Select-Object Name, Length
+Get-Item "$root\dist\relay-storage", "$root\dist\relay-ops" | Select-Object Name, Length

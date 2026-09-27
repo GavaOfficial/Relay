@@ -1,5 +1,5 @@
 import { isLive } from "@/lib/live";
-import type { MatchDetail } from "@/lib/types";
+import type { MatchDetail, Stage } from "@/lib/types";
 
 export function statusOf(m: MatchDetail, nowMs: number): { label: string; cls: string } {
   if (m.status === "ended") return { label: "Terminata", cls: "" };
@@ -8,8 +8,10 @@ export function statusOf(m: MatchDetail, nowMs: number): { label: string; cls: s
   return { label: "In attesa", cls: "idle" };
 }
 
-export function stageLabel(stage: "queue" | "video" | "web", pct: number): string {
+export function stageLabel(stage: Stage, pct: number): string {
   if (stage === "queue") return "In coda";
+  if (stage === "download") return `Invio al server operazioni ${pct}%`;
+  if (stage === "upload") return `Salvataggio ${pct}%`;
   if (stage === "web") return `Versione leggera ${pct}%`;
   return `Preparo il video ${pct}%`;
 }

@@ -382,7 +382,7 @@ function ListScreen({
           <div className="icx-record">
             <video
               key={clip.id}
-              src={clipVideo(clip.id, engine)}
+              src={clip.processing ? undefined : clipVideo(clip.id, engine)}
               poster={clip.has_thumb ? clipThumb(clip.id, engine) : undefined}
               autoPlay
               muted
