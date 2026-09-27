@@ -542,11 +542,34 @@ impl Core {
             .ok_or_else(|| "Accedi per continuare.".to_string())
     }
 
-    async fn call(
+    pub(crate) async fn call(
         &self,
         method: Method,
         path: &str,
         body: Option<Value>,
+    ) -> Res<reqwest::Response> {
+        self.call_with(method, path, |req| match &body {
+            Some(b) => req.json(b),
+            None => req,
+        })
+        .await
+    }
+
+    pub(crate) async fn call_bytes(
+        &self,
+        method: Method,
+        path: &str,
+        bytes: Vec<u8>,
+    ) -> Res<reqwest::Response> {
+        self.call_with(method, path, |req| req.body(bytes.clone()))
+            .await
+    }
+
+    async fn call_with(
+        &self,
+        method: Method,
+        path: &str,
+        body: impl Fn(reqwest::RequestBuilder) -> reqwest::RequestBuilder,
     ) -> Res<reqwest::Response> {
         let base = self.settings().server_url;
         if base.is_empty() {
@@ -554,13 +577,11 @@ impl Core {
         }
         for attempt in 0..2 {
             let a = self.auth()?;
-            let mut req = self
-                .http
-                .request(method.clone(), format!("{base}{path}"))
-                .bearer_auth(&a.token);
-            if let Some(b) = &body {
-                req = req.json(b);
-            }
+            let req = body(
+                self.http
+                    .request(method.clone(), format!("{base}{path}"))
+                    .bearer_auth(&a.token),
+            );
             let resp = req
                 .send()
                 .await
@@ -574,7 +595,7 @@ impl Core {
         Err("Sessione scaduta: accedi di nuovo.".into())
     }
 
-    async fn json<T: serde::de::DeserializeOwned>(
+    pub(crate) async fn json<T: serde::de::DeserializeOwned>(
         &self,
         method: Method,
         path: &str,
@@ -920,8 +941,6 @@ impl Core {
         Ok(())
     }
 
-    // Riceve un evento dallo script Codename Engine (nota mancata, punteggio, accuracy).
-    // Solo l'host manda questi dati al server: e' l'unico autorizzato a modificare la partita.
     pub async fn report_fnf_event(
         self: &Arc<Self>,
         song_name: Option<String>,
@@ -1032,6 +1051,22 @@ impl Core {
                 host: m.coordinator == me,
             })
             .collect())
+    }
+
+    pub async fn match_thumb(&self, id: &str) -> Option<String> {
+        let resp = self
+            .call(Method::GET, &format!("/api/matches/{id}/thumb.jpg"), None)
+            .await
+            .ok()?;
+        if !resp.status().is_success() {
+            return None;
+        }
+        let bytes = resp.bytes().await.ok()?;
+        use base64::Engine;
+        Some(format!(
+            "data:image/jpeg;base64,{}",
+            base64::engine::general_purpose::STANDARD.encode(bytes)
+        ))
     }
 
     pub async fn refresh_info(self: &Arc<Self>) {
@@ -1156,6 +1191,19 @@ impl Core {
                 "started_at_ms": started,
                 "stopped_at_ms": stopped,
                 "clock_offset_ms": st.as_ref().and_then(|s| s.clock_offset_ms),
+                "created_at": info.map(|i| i.info.created_at),
+                "game": info.and_then(|i| i.info.game_name.as_ref().map(|name| json!({
+                    "name": name,
+                    "app_id": i.info.game_app_id,
+                    "cover_url": i.info.game_cover_url,
+                }))),
+                "fnf": info.and_then(|i| i.info.fnf_song_name.as_ref().map(|song| json!({
+                    "song": song,
+                    "difficulty": i.info.fnf_difficulty,
+                    "score": i.info.fnf_score,
+                    "accuracy": i.info.fnf_accuracy,
+                    "misses": i.info.fnf_misses.len(),
+                }))),
                 "players": players,
                 "can_start": can_start,
                 "start_blockers": if c.role.is_host() && phase == "lobby" { blockers } else { vec![] },

@@ -1,0 +1,88 @@
+-- Relay: registra in automatico i tuoi record. Scritto e aggiornato dall'app Relay, non modificarlo.
+-- Gli eventi vanno in relay/events.jsonl nella cartella del gioco, che l'app legge.
+-- Funziona con Psych Engine 0.6, 0.7 e 1.0.
+
+local relayPlaying = false
+local relayEnded = false
+
+local function relayQuote(s)
+  s = tostring(s or '')
+  s = s:gsub('\\', '\\\\'):gsub('"', '\\"'):gsub('[%c]', ' ')
+  return '"' .. s .. '"'
+end
+
+local function relayProp(name)
+  local ok, v = pcall(getProperty, name)
+  if ok then return v end
+  return nil
+end
+
+-- Niente record in botplay o in practice mode. La modalita' chart editor (chartingMode) non si
+-- controlla: alcune mod (Pibby Apocalypse) la lasciano sempre accesa per errore.
+local function relayValid()
+  local bot = relayProp('cpuControlled')
+  local practice = relayProp('practiceMode')
+  return not (bot == true or practice == true)
+end
+
+local function relayEmit(kind, extra)
+  local parts = {
+    '"kind":' .. relayQuote(kind),
+    '"engine":"psych"',
+    '"song_name":' .. relayQuote(songName),
+    '"difficulty":' .. relayQuote(difficultyName),
+    '"mod_folder":' .. relayQuote(currentModDirectory),
+    '"valid":' .. tostring(relayValid()),
+  }
+  for k, v in pairs(extra or {}) do
+    parts[#parts + 1] = '"' .. k .. '":' .. v
+  end
+  local ok, err = pcall(function()
+    local f = io.open('relay/events.jsonl', 'a')
+    if f then
+      f:write('{' .. table.concat(parts, ',') .. '}\n')
+      f:close()
+    end
+  end)
+  if not ok then debugPrint('[Relay] evento non scritto: ' .. tostring(err)) end
+end
+
+function onCreatePost()
+  relayPlaying = false
+  relayEnded = false
+  relayEmit('song_load')
+end
+
+function onSongStart()
+  relayPlaying = true
+  relayEmit('song_start')
+end
+
+function onEndSong()
+  if relayPlaying and not relayEnded then
+    relayEnded = true
+    relayPlaying = false
+    local score = tonumber(relayProp('songScore')) or 0
+    local misses = tonumber(relayProp('songMisses')) or 0
+    local rating = tonumber(relayProp('ratingPercent'))
+    local extra = { score = tostring(math.floor(score)), misses = tostring(math.floor(misses)) }
+    if rating ~= nil and rating == rating then extra.accuracy = tostring(rating) end
+    relayEmit('song_end', extra)
+  end
+  return Function_Continue
+end
+
+function onGameOver()
+  if relayPlaying then
+    relayPlaying = false
+    relayEmit('song_abort', { reason = relayQuote('game over') })
+  end
+  return Function_Continue
+end
+
+function onDestroy()
+  if relayPlaying then
+    relayPlaying = false
+    relayEmit('song_abort', { reason = relayQuote('uscita o canzone ricominciata') })
+  end
+end

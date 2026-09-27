@@ -21,7 +21,7 @@
     <button class="iconbtn" data-act="back" data-k="back" aria-label="Indietro" title="Indietro">
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
     </button>
-    <strong class="brand">Impostazioni</strong>
+    <strong class="brand" id="set-title">Impostazioni</strong>
     <span id="savemsg" class="savemsg" role="status" aria-live="polite"></span>
   </div>
 </header>
@@ -32,12 +32,17 @@
   <section id="v-install" class="view" hidden></section>
   <section id="v-home" class="view" hidden></section>
   <section id="v-match" class="view match" hidden>
-    <div id="m-title"></div>
-    <div id="m-head"></div>
-    <div id="m-window"></div>
-    <div id="m-players"></div>
-    <div id="m-invite"></div>
-    <div id="m-actions" class="dock"></div>
+    <div id="m-top" class="m-top"></div>
+    <div class="m-grid">
+      <div class="m-main">
+        <div id="m-hero" class="m-hero"></div>
+        <div id="m-window"></div>
+      </div>
+      <aside class="m-side">
+        <div id="m-invite"></div>
+        <div id="m-players" class="m-card m-people"></div>
+      </aside>
+    </div>
   </section>
   <section id="v-settings" class="view" hidden></section>
 </main>

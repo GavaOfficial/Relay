@@ -1,0 +1,125 @@
+import funkin.modding.module.Module;
+import funkin.play.PlayState;
+import funkin.play.ResultState;
+import funkin.Highscore;
+import funkin.util.FileUtil;
+import haxe.Json;
+import Date;
+
+class RelayIntegration extends Module
+{
+  var playing:Bool = false;
+  var ended:Bool = false;
+
+  public function new()
+  {
+    super('RelayIntegration', 1);
+  }
+
+  function emit(kind:String, extra:Dynamic):Void
+  {
+    try
+    {
+      var data:Dynamic = extra != null ? extra : {};
+      data.kind = kind;
+      data.engine = 'funkin';
+      try
+      {
+        data.sent_at = Date.now().getTime();
+      }
+      catch (e:Dynamic) {}
+      FileUtil.appendStringToPath('relay/events.jsonl', Json.stringify(data) + '\n');
+    }
+    catch (e:Dynamic)
+    {
+      trace('[Relay] evento non scritto: ' + e);
+    }
+  }
+
+  function songInfo():Dynamic
+  {
+    var ps = PlayState.instance;
+    if (ps == null || ps.currentSong == null) return null;
+    var chart = ps.currentChart;
+    var valid = ps.currentSong.validScore && !ps.isPracticeMode && !ps.isBotPlayMode && !ps.isChartingMode;
+    return {
+      song_id: ps.currentSong.id,
+      song_name: chart != null ? chart.songName : ps.currentSong.id,
+      difficulty: ps.currentDifficulty,
+      variation: ps.currentVariation,
+      valid: valid
+    };
+  }
+
+  override public function onCountdownStart(event)
+  {
+    super.onCountdownStart(event);
+    var info = songInfo();
+    if (info != null) emit('song_load', info);
+  }
+
+  override public function onSongStart(event)
+  {
+    super.onSongStart(event);
+    var info = songInfo();
+    if (info == null) return;
+    playing = true;
+    ended = false;
+    emit('song_start', info);
+  }
+
+  override public function onSongEnd(event)
+  {
+    super.onSongEnd(event);
+    if (!playing) return;
+    var info = songInfo();
+    if (info == null) return;
+    playing = false;
+    ended = true;
+    var ps = PlayState.instance;
+    var t = Highscore.tallies;
+    info.score = Std.int(ps.songScore);
+    info.misses = t.missed;
+    info.accuracy = t.totalNotes > 0 ? (t.sick + t.good) / t.totalNotes : null;
+    emit('song_end', info);
+  }
+
+  function abort(reason:String):Void
+  {
+    if (!playing) return;
+    playing = false;
+    var info = songInfo();
+    if (info == null) info = {};
+    info.reason = reason;
+    emit('song_abort', info);
+  }
+
+  override public function onGameOver(event)
+  {
+    super.onGameOver(event);
+    abort('game over');
+  }
+
+  override public function onSongRetry(event)
+  {
+    super.onSongRetry(event);
+    abort('canzone ricominciata');
+  }
+
+  override public function onSubStateOpenEnd(event)
+  {
+    super.onSubStateOpenEnd(event);
+    if (ended && Std.isOfType(event.targetState, ResultState)) emit('results_start', null);
+  }
+
+  override public function onStateChangeBegin(event)
+  {
+    super.onStateChangeBegin(event);
+    abort('uscita dalla canzone');
+    if (ended)
+    {
+      ended = false;
+      emit('results_end', null);
+    }
+  }
+}

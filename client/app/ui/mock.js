@@ -61,7 +61,7 @@
   let settings = {
     server_url: 'https://relay.gavatech.org', auth_url: 'https://auth.gavatech.org', site_url: '',
     window: null, preset: 'high', fps: 60, bitrate_kbps: 6000, limit_kbps: null,
-    encoder: 'auto', ffmpeg_path: 'ffmpeg', last_speedtest: null, overlay: true, audio_game: true, audio_mic: false, audio_mic_gain: 3,
+    encoder: 'auto', ffmpeg_path: 'ffmpeg', last_speedtest: null, overlay: true, audio_game: true, audio_mic: false, audio_mic_gain: 3, fnf_autorecord: true, fnf_mic: false,
   };
   const past = [
     { id: 'm-old1', players: ['Ada', 'Bob'], status: 'done', created_at: Math.floor(Date.now() / 1000) - 86400, host: true },
@@ -75,6 +75,12 @@
     { title: 'Blocco note', exe: 'notepad.exe' }, { title: 'Discord', exe: 'discord.exe' },
   ];
   let slowUpload = false, sim = null, script = [], tickT = null;
+  let fnfFolders = ['D:\\FNF\\Mods\\Vs Hex Codename'];
+  let funkinFolders = [];
+  let psychFolders = [];
+  let nmvFolders = [];
+  let kadeFolders = [];
+  let gdFolders = [];
 
   function mkPlayer(id, name, extra) {
     return Object.assign({ id, name, connected: false, ready: false, state: 'idle', window_found: null,
@@ -140,6 +146,7 @@
     id = id || 'm-' + Math.random().toString(16).slice(2, 10);
     st.match = { id, role, phase: 'lobby', invite_url: role === 'player' ? null : 'https://relay.example.com/join/' + id + '?code=K7Q2XA',
       replay_url: 'https://relay.example.com/matches/' + id, started_at_ms: null, stopped_at_ms: null,
+      created_at: Math.floor(Date.now() / 1000), game: { name: 'Escape the Backrooms', app_id: 1943950 }, fnf: null,
       clock_offset_ms: 0, players: [], can_start: false, start_blockers: [], me: null };
     const m = st.match;
     if (role === 'player') m.players.push(mkPlayer('u-zoe', hostName || 'Zoe', { connected: true, window_found: true, host: true }));
@@ -216,9 +223,51 @@
         if (!st.match.can_start && !a.force) throw 'Non tutti i giocatori sono pronti.';
         startRec(); return;
       case 'host_stop': stopRec(); return;
+      case 'match_thumb': return mockThumb();
+      case 'fnf_folders': return clone(fnfFolders);
+      case 'fnf_pick_folder': return 'C:\\Giochi\\VS Impostor V4';
+      case 'fnf_add_folder': if (!fnfFolders.includes(a.folder)) fnfFolders.push(a.folder); return clone(fnfFolders);
+      case 'scan_mods':
+        await new Promise((r) => setTimeout(r, 1200));
+        nmvFolders.push('E:\\FNF-MODS\\Bricked Up');
+        return { found: [
+          { engine: 'nmv', folder: 'E:\\FNF-MODS\\Bricked Up', name: 'Bricked Up', status: 'nuova' },
+          { engine: 'psych', folder: 'E:\\FNF-MODS\\YeahMan', name: 'YeahMan', status: "gia'" },
+          { engine: 'psych', folder: 'E:\\FNF-MODS\\VS Impostor V4', name: 'VS Impostor V4', status: 'errore', error: 'manca la cartella mods' },
+        ], other_engines: 4 };
+      case 'gd_folders': return clone(gdFolders);
+      case 'gd_find': return 'C:\\Program Files (x86)\\Steam\\steamapps\\common\\Geometry Dash';
+      case 'gd_add_folder': gdFolders = [a.folder]; return clone(gdFolders);
+      case 'gd_remove_folder': gdFolders = []; return clone(gdFolders);
+      case 'kade_folders': return clone(kadeFolders);
+      case 'kade_add_folder': if (!kadeFolders.includes(a.folder)) kadeFolders.push(a.folder); return clone(kadeFolders);
+      case 'kade_remove_folder': kadeFolders = kadeFolders.filter((f) => f !== a.folder); return clone(kadeFolders);
+      case 'nmv_folders': return clone(nmvFolders);
+      case 'nmv_add_folder': if (!nmvFolders.includes(a.folder)) nmvFolders.push(a.folder); return clone(nmvFolders);
+      case 'nmv_remove_folder': nmvFolders = nmvFolders.filter((f) => f !== a.folder); return clone(nmvFolders);
+      case 'psych_folders': return clone(psychFolders);
+      case 'psych_add_folder': if (!psychFolders.includes(a.folder)) psychFolders.push(a.folder); return clone(psychFolders);
+      case 'psych_remove_folder': psychFolders = psychFolders.filter((f) => f !== a.folder); return clone(psychFolders);
+      case 'funkin_folders': return clone(funkinFolders);
+      case 'funkin_add_folder': funkinFolders = [a.folder]; return clone(funkinFolders);
+      case 'funkin_remove_folder': funkinFolders = funkinFolders.filter((f) => f !== a.folder); return clone(funkinFolders);
+      case 'fnf_remove_folder': fnfFolders = fnfFolders.filter((f) => f !== a.folder); return clone(fnfFolders);
       case 'open_url': log('open_url ' + a.url); return;
       default: throw 'Comando sconosciuto: ' + cmd;
     }
+  }
+
+  function mockThumb() {
+    const c = document.createElement('canvas');
+    c.width = 640; c.height = 360;
+    const g = c.getContext('2d');
+    const bg = g.createLinearGradient(0, 0, 640, 360);
+    bg.addColorStop(0, '#3a3527'); bg.addColorStop(1, '#14120c');
+    g.fillStyle = bg; g.fillRect(0, 0, 640, 360);
+    g.fillStyle = 'rgba(255,240,180,.18)';
+    for (let i = 0; i < 6; i++) g.fillRect(40 + i * 100, 40, 60, 180);
+    g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(0, 250, 640, 110);
+    return c.toDataURL('image/jpeg', 0.8);
   }
 
   let logEl;
@@ -233,6 +282,7 @@
     'Riconnessione': () => { st.connection = st.connection === 'reconnecting' ? 'connected' : 'reconnecting'; },
     'Offline': () => { st.connection = st.connection === 'offline' ? 'connected' : 'offline'; },
     'Upload lento': () => { slowUpload = !slowUpload; log('upload lento: ' + slowUpload); },
+    'Dati FNF': () => { if (st.match) st.match.fnf = st.match.fnf ? null : { song: 'Bopeebo', difficulty: 'Hard', score: 184320, accuracy: 0.9412, misses: 7 }; },
     'Fase errore': () => { if (st.match) { st.match.phase = 'error'; st.error = 'Registrazione interrotta.'; } },
   };
   window.__mock = { act: (n) => { DEBUG[n](); push(); }, state: () => st };

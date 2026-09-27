@@ -1,0 +1,128 @@
+import Sys;
+import Std;
+import Date;
+import haxe.Json;
+import sys.io.File;
+import sys.FileSystem;
+import funkin.game.PlayState;
+import funkin.backend.assets.ModsFolder;
+
+var relaySeq:Int = 0;
+var relayStarted:Bool = false;
+var relayDone:Bool = false;
+var relayGameOverSeen:Bool = false;
+var relaySongValid:Bool = true;
+var relayPos:Float = 0;
+var relayLen:Float = 0;
+var relayLastMisses:Int = 0;
+var relaySinceTick:Float = 0;
+
+function relayValid(ps:Dynamic) {
+	if (!ps.validScore || PlayState.chartingMode) return false;
+	var player = ps.playerStrums;
+	return player == null || !player.cpu;
+}
+
+function relayWrite(body:String) {
+	try {
+		var relayDir = Sys.getEnv("APPDATA") + "/Relay";
+		if (!FileSystem.exists(relayDir)) FileSystem.createDirectory(relayDir);
+		var out = File.append(relayDir + "/fnf-events.jsonl", false);
+		out.writeString(body + "\n");
+		out.close();
+	} catch (e:Dynamic) {}
+}
+
+function relayEmit(kind:String, missHappened:Bool, reason:String) {
+	var ps = null;
+	try { ps = PlayState.instance; } catch (e:Dynamic) {}
+	if (ps == null) return;
+	relaySeq++;
+	var valid = relaySongValid;
+	if (!relayStarted) {
+		try { valid = relayValid(ps); } catch (e:Dynamic) {}
+	}
+	var modFolder = null;
+	try { modFolder = ModsFolder.currentModFolder; } catch (e:Dynamic) {}
+	var gameDir = null;
+	try { gameDir = Sys.getCwd(); } catch (e:Dynamic) {}
+	var exe = null;
+	try { exe = Sys.programPath(); } catch (e:Dynamic) {}
+	var song = null;
+	try { song = PlayState.SONG.meta.name; } catch (e:Dynamic) {}
+	var difficulty = null;
+	try { difficulty = PlayState.difficulty; } catch (e:Dynamic) {}
+	try {
+		relayWrite(Json.stringify({
+			kind: kind,
+			seq: relaySeq,
+			sent_at: Date.now().getTime(),
+			song_name: song,
+			difficulty: difficulty,
+			score: ps.songScore,
+			accuracy: ps.accuracy,
+			misses: ps.misses,
+			miss: missHappened,
+			valid: valid,
+			reason: reason,
+			mod_folder: modFolder,
+			game_dir: gameDir,
+			exe: exe
+		}));
+	} catch (e:Dynamic) {}
+}
+
+function postCreate() {
+	relayEmit("song_load", false, null);
+}
+
+function onSongStart() {
+	if (relayStarted) return;
+	relayStarted = true;
+	try { relayLastMisses = PlayState.instance.misses; } catch (e:Dynamic) {}
+	relayEmit("song_start", false, null);
+}
+
+function update(elapsed:Float) {
+	if (!relayStarted || relayDone) return;
+	var ps = PlayState.instance;
+	if (ps == null) return;
+	try {
+		var inst = ps.inst;
+		if (inst != null && inst.length > 0) {
+			relayLen = inst.length;
+			if (inst.time > relayPos) relayPos = inst.time;
+		}
+	} catch (e:Dynamic) {}
+	if (relayLen <= 0 || relayPos < relayLen - 3000) {
+		try { if (!relayValid(ps)) relaySongValid = false; } catch (e:Dynamic) {}
+	}
+	if (ps.misses != relayLastMisses) {
+		relayLastMisses = ps.misses;
+		relayEmit("tick", true, null);
+		relaySinceTick = 0;
+		return;
+	}
+	relaySinceTick += elapsed;
+	if (relaySinceTick >= 2.0) {
+		relaySinceTick = 0;
+		relayEmit("tick", false, null);
+	}
+}
+
+function onSongEnd(?event) {
+	if (relayDone || !relayStarted) return;
+	relayDone = true;
+	relayEmit("song_end", false, "onSongEnd");
+}
+
+function onGameOver(?event) {
+	relayGameOverSeen = true;
+}
+
+function destroy() {
+	if (relayDone || !relayStarted) return;
+	relayDone = true;
+	if (relayLen > 0 && relayPos >= relayLen - 1500) relayEmit("song_end", false, "musica finita");
+	else relayEmit("song_abort", false, relayGameOverSeen ? "game over" : "uscita dalla canzone");
+}

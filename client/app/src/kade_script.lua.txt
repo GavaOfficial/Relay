@@ -1,0 +1,130 @@
+-- Relay: registra in automatico i tuoi record. Scritto e aggiornato dall'app Relay, non modificarlo.
+-- Kade Engine carica questo file (data/<canzone>/modchart.lua) a ogni canzone: gli eventi vanno in
+-- relay/events.jsonl nella cartella del gioco, che l'app legge.
+-- Kade non avvisa lo script quando la canzone finisce: lo stato Lua viene chiuso (fine, morte, uscita
+-- o canzone ricominciata) e lo script lo capisce dal suo "__gc", guardando dove era arrivata la canzone.
+
+-- Salvataggi del gioco in cui cercare il botplay (li scrive l'app).
+local relaySaves = {--[[RELAY_SAVES]]}
+-- Durata della canzone in ms dal suo Inst.ogg (la scrive l'app), se il gioco non la dice.
+local relayLength = --[[RELAY_LENGTH]]0
+
+local relaySong = ''
+local relayPlaying = false
+local relayDone = false
+local relayLast = { pos = 0, length = 0, health = 1, score = 0, misses = 0, accuracy = nil, difficulty = '' }
+
+local function relayQuote(s)
+  s = tostring(s or '')
+  s = s:gsub('\\', '\\\\'):gsub('"', '\\"'):gsub('[%c]', ' ')
+  return '"' .. s .. '"'
+end
+
+local function relayProp(name)
+  local ok, v = pcall(getProperty, name)
+  if ok then return v end
+  return nil
+end
+
+-- "snake-eyes" -> "Snake Eyes"
+local function relayTitle(id)
+  local t = id:gsub('-', ' ')
+  return (t:gsub('(%a)([%w\']*)', function(a, b) return a:upper() .. b end))
+end
+
+local function relayBotplay()
+  for _, path in ipairs(relaySaves) do
+    local f = io.open(path, 'rb')
+    if f then
+      local data = f:read('*a') or ''
+      f:close()
+      if data:find('7:botplayt', 1, true) then return true end
+    end
+  end
+  return false
+end
+
+local function relayEmit(kind, extra)
+  local parts = {
+    '"kind":' .. relayQuote(kind),
+    '"engine":"kade"',
+    '"song_name":' .. relayQuote(relayTitle(relaySong)),
+    '"song_id":' .. relayQuote(relaySong),
+    '"difficulty":' .. relayQuote(relayLast.difficulty),
+    '"valid":' .. tostring(not relayBotplay()),
+  }
+  for k, v in pairs(extra or {}) do
+    parts[#parts + 1] = '"' .. k .. '":' .. v
+  end
+  pcall(function()
+    local f = io.open('relay/events.jsonl', 'a')
+    if f then
+      f:write('{' .. table.concat(parts, ',') .. '}\n')
+      f:close()
+    end
+  end)
+end
+
+local function relayRead()
+  relayLast.pos = tonumber(songPos) or relayLast.pos
+  local length = tonumber(relayProp('songLength'))
+  if length == nil or length <= 0 then length = relayLength end
+  relayLast.length = length
+  relayLast.health = tonumber(relayProp('health')) or relayLast.health
+  relayLast.score = tonumber(relayProp('songScore')) or relayLast.score
+  relayLast.misses = tonumber(relayProp('misses')) or relayLast.misses
+  relayLast.accuracy = tonumber(relayProp('accuracy')) or relayLast.accuracy
+end
+
+-- Chiamato quando Kade chiude lo stato Lua della canzone.
+local function relayClose()
+  if relayDone or not relayPlaying then return end
+  relayDone = true
+  local finished = relayLast.length > 0 and relayLast.pos >= relayLast.length - 2000 and relayLast.health > 0
+  if finished then
+    local extra = {
+      score = tostring(math.floor(relayLast.score)),
+      misses = tostring(math.floor(relayLast.misses)),
+    }
+    local acc = relayLast.accuracy
+    if acc ~= nil and acc == acc then extra.accuracy = tostring(acc / 100) end
+    relayEmit('song_end', extra)
+  elseif relayLast.health <= 0 then
+    relayEmit('song_abort', { reason = relayQuote('game over') })
+  else
+    relayEmit('song_abort', { reason = relayQuote('uscita o canzone ricominciata') })
+  end
+end
+
+if newproxy then
+  relayGuard = newproxy(true)
+  getmetatable(relayGuard).__gc = relayClose
+else
+  relayGuard = setmetatable({}, { __gc = relayClose })
+end
+
+function start(song)
+  relaySong = tostring(song or '')
+  relayLast.difficulty = tostring(relayProp('storyDifficultyText') or '')
+  relayEmit('song_load')
+end
+
+function update(elapsed)
+  if not relayPlaying and not relayDone then
+    relayPlaying = true
+    relayEmit('song_start')
+  end
+  relayRead()
+end
+
+-- Kade chiama anche queste: restano vuote.
+function beatHit(beat) end
+function stepHit(step) end
+function keyPressed(key) end
+function playerOneMiss(note, position) end
+function playerOneSing(note, position) end
+function playerTwoSing(note, position) end
+function playerThreeSing(note, position) end
+function playerOneTurn() end
+function playerTwoTurn() end
+function playerThreeTurn() end

@@ -4,7 +4,14 @@ mod capture;
 mod core;
 mod ffmpeg;
 mod fnf;
+mod gd;
+mod kade;
+mod modname;
+mod funkin;
+mod psych;
+mod scan;
 mod overlay;
+mod songclip;
 mod updater;
 
 use std::{sync::Arc, time::Duration};
@@ -182,6 +189,11 @@ async fn list_matches(core: St<'_>) -> Res<Vec<RecentMatch>> {
 }
 
 #[tauri::command]
+async fn match_thumb(core: St<'_>, id: String) -> Res<Option<String>> {
+    Ok(core.match_thumb(&id).await)
+}
+
+#[tauri::command]
 async fn host_start(
     core: St<'_>,
     force: bool,
@@ -201,9 +213,9 @@ fn fnf_folders(core: St) -> Vec<String> {
 }
 
 #[tauri::command]
-async fn fnf_pick_folder() -> Res<Option<String>> {
+async fn fnf_pick_folder(title: Option<String>) -> Res<Option<String>> {
     let folder = rfd::AsyncFileDialog::new()
-        .set_title("Cartella del gioco Codename Engine")
+        .set_title(title.as_deref().unwrap_or("Cartella del gioco Codename Engine"))
         .pick_folder()
         .await;
     Ok(folder.map(|f| f.path().to_string_lossy().into_owned()))
@@ -217,6 +229,91 @@ fn fnf_add_folder(core: St, folder: String) -> Res<Vec<String>> {
 #[tauri::command]
 fn fnf_remove_folder(core: St, folder: String) -> Res<Vec<String>> {
     core.fnf_remove_folder(folder)
+}
+
+#[tauri::command]
+fn funkin_folders(core: St) -> Vec<String> {
+    funkin::list_folders(&core.data_dir())
+}
+
+#[tauri::command]
+fn funkin_add_folder(core: St, folder: String) -> Res<Vec<String>> {
+    funkin::add_folder(&core, folder)
+}
+
+#[tauri::command]
+fn funkin_remove_folder(core: St, folder: String) -> Res<Vec<String>> {
+    funkin::remove_folder(&core.data_dir(), &folder)
+}
+
+#[tauri::command]
+fn psych_folders(core: St) -> Vec<String> {
+    psych::list_folders(&core.data_dir(), psych::Kind::Psych)
+}
+
+#[tauri::command]
+fn psych_add_folder(core: St, folder: String) -> Res<Vec<String>> {
+    psych::add_folder(&core, psych::Kind::Psych, folder)
+}
+
+#[tauri::command]
+fn psych_remove_folder(core: St, folder: String) -> Res<Vec<String>> {
+    psych::remove_folder(&core.data_dir(), psych::Kind::Psych, &folder)
+}
+
+#[tauri::command]
+fn nmv_folders(core: St) -> Vec<String> {
+    psych::list_folders(&core.data_dir(), psych::Kind::Nmv)
+}
+
+#[tauri::command]
+fn nmv_add_folder(core: St, folder: String) -> Res<Vec<String>> {
+    psych::add_folder(&core, psych::Kind::Nmv, folder)
+}
+
+#[tauri::command]
+fn nmv_remove_folder(core: St, folder: String) -> Res<Vec<String>> {
+    psych::remove_folder(&core.data_dir(), psych::Kind::Nmv, &folder)
+}
+
+#[tauri::command]
+fn kade_folders(core: St) -> Vec<String> {
+    kade::list_folders(&core.data_dir())
+}
+
+#[tauri::command]
+fn kade_add_folder(core: St, folder: String) -> Res<Vec<String>> {
+    kade::add_folder(&core, folder)
+}
+
+#[tauri::command]
+fn kade_remove_folder(core: St, folder: String) -> Res<Vec<String>> {
+    kade::remove_folder(&core.data_dir(), &folder)
+}
+
+#[tauri::command]
+fn gd_folders(core: St) -> Vec<String> {
+    gd::list_folders(&core.data_dir())
+}
+
+#[tauri::command]
+fn gd_find() -> Option<String> {
+    gd::find_game()
+}
+
+#[tauri::command]
+fn gd_add_folder(core: St, folder: String) -> Res<Vec<String>> {
+    gd::add_folder(&core, folder)
+}
+
+#[tauri::command]
+fn gd_remove_folder(core: St, folder: String) -> Res<Vec<String>> {
+    gd::remove_folder(&core.data_dir(), &folder)
+}
+
+#[tauri::command]
+async fn scan_mods(core: St<'_>) -> Res<scan::ScanResult> {
+    scan::scan_and_connect(core.inner().clone()).await
 }
 
 #[tauri::command]
@@ -266,8 +363,8 @@ fn show_main(app: &AppHandle) {
     }
 }
 
-const NORMAL_SIZE: (f64, f64) = (360.0, 580.0);
-const HOST_SIZE: (f64, f64) = (820.0, 580.0);
+const NORMAL_SIZE: (f64, f64) = (480.0, 740.0);
+const HOST_SIZE: (f64, f64) = (1040.0, 740.0);
 
 async fn set_window_wide(app: &AppHandle, wide: bool) {
     let Some(w) = app.get_webview_window("main") else {
@@ -308,6 +405,7 @@ fn main() {
             show_main(app)
         }))
         .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_notification::init())
         .manage(core.clone())
         .invoke_handler(tauri::generate_handler![
             get_state,
@@ -335,12 +433,30 @@ fn main() {
             skip_capture,
             leave_match,
             list_matches,
+            match_thumb,
             host_start,
             host_stop,
             fnf_folders,
             fnf_pick_folder,
             fnf_add_folder,
             fnf_remove_folder,
+            funkin_folders,
+            funkin_add_folder,
+            funkin_remove_folder,
+            psych_folders,
+            psych_add_folder,
+            psych_remove_folder,
+            nmv_folders,
+            nmv_add_folder,
+            nmv_remove_folder,
+            kade_folders,
+            kade_add_folder,
+            kade_remove_folder,
+            scan_mods,
+            gd_folders,
+            gd_find,
+            gd_add_folder,
+            gd_remove_folder,
             open_url
         ])
         .on_window_event(|window, event| {
@@ -353,7 +469,13 @@ fn main() {
         })
         .setup(move |app| {
             overlay::create(app.handle())?;
+            songclip::set_app(app.handle().clone());
             fnf::spawn(core.clone());
+            funkin::spawn(core.clone());
+            psych::spawn(core.clone());
+            kade::spawn(core.clone());
+            gd::spawn(core.clone());
+            songclip::watch(core.clone());
 
             let _ = app.deep_link().register_all();
             {

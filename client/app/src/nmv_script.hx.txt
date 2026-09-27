@@ -1,0 +1,229 @@
+import sys.io.File;
+import haxe.Json;
+
+var relayPlaying = false;
+var relayEnded = false;
+
+function relayField(obj, name)
+{
+	try
+	{
+		if (obj != null) return Reflect.getProperty(obj, name);
+	}
+	catch (e:Dynamic) {}
+	return null;
+}
+
+function relayGame()
+{
+	var found = null;
+	try
+	{
+		found = game;
+	}
+	catch (e:Dynamic) {}
+	if (relayField(found, 'songScore') != null) return found;
+	for (path in ['funkin.states.PlayState', 'PlayState'])
+	{
+		try
+		{
+			var cls = Type.resolveClass(path);
+			var inst = cls != null ? Reflect.field(cls, 'instance') : null;
+			if (inst != null) return inst;
+		}
+		catch (e:Dynamic) {}
+	}
+	try
+	{
+		var flxg = Type.resolveClass('flixel.FlxG');
+		if (flxg != null) return Reflect.field(flxg, 'state');
+	}
+	catch (e:Dynamic) {}
+	return found;
+}
+
+function relaySongName()
+{
+	try
+	{
+		if (songName != null && songName != '') return songName;
+	}
+	catch (e:Dynamic) {}
+	try
+	{
+		return PlayState.SONG.song;
+	}
+	catch (e:Dynamic) {}
+	return '';
+}
+
+function relayDifficulty()
+{
+	try
+	{
+		if (difficultyName != null && difficultyName != '') return difficultyName;
+	}
+	catch (e:Dynamic) {}
+	var index = null;
+	try
+	{
+		index = PlayState.storyMeta.difficulty;
+	}
+	catch (e:Dynamic) {}
+	if (index == null)
+	{
+		try
+		{
+			index = PlayState.storyDifficulty;
+		}
+		catch (e:Dynamic) {}
+	}
+	for (path in ['funkin.backend.Difficulty', 'funkin.data.Difficulty', 'Difficulty'])
+	{
+		try
+		{
+			var cls = Type.resolveClass(path);
+			var list = cls != null ? Reflect.field(cls, 'difficulties') : null;
+			if (list != null && index != null && list[index] != null) return list[index];
+		}
+		catch (e:Dynamic) {}
+	}
+	try
+	{
+		var text = PlayState.storyDifficultyText;
+		if (text != null && text != '') return text;
+	}
+	catch (e:Dynamic) {}
+	return index != null ? ['Easy', 'Normal', 'Hard'][index] : 'Normal';
+}
+
+function relayModFolder()
+{
+	for (path in ['funkin.Mods', 'funkin.data.Mods', 'funkin.Paths', 'Paths'])
+	{
+		try
+		{
+			var cls = Type.resolveClass(path);
+			var dir = cls != null ? Reflect.field(cls, 'currentModDirectory') : null;
+			if (dir != null) return dir;
+		}
+		catch (e:Dynamic) {}
+	}
+	return '';
+}
+
+function relayEmit(kind, extra)
+{
+	try
+	{
+		var data = extra != null ? extra : {};
+		data.kind = kind;
+		data.engine = 'nmv';
+		data.song_name = relaySongName();
+		data.difficulty = relayDifficulty();
+		data.mod_folder = relayModFolder();
+		var bot = false;
+		var practice = false;
+		try
+		{
+			bot = game.cpuControlled == true;
+			practice = game.practiceMode == true;
+		}
+		catch (e:Dynamic)
+		{
+			var g = relayGame();
+			bot = relayField(g, 'cpuControlled') == true;
+			practice = relayField(g, 'practiceMode') == true;
+		}
+		data.valid = !(bot || practice);
+		var out = File.append('relay/events.jsonl', false);
+		out.writeString(Json.stringify(data) + '\n');
+		out.close();
+	}
+	catch (e:Dynamic)
+	{
+		trace('[Relay] evento non scritto: ' + e);
+	}
+}
+
+function onCreatePost()
+{
+	relayPlaying = false;
+	relayEnded = false;
+	relayEmit('song_load', null);
+}
+
+function onSongStart()
+{
+	relayPlaying = true;
+	relayEmit('song_start', null);
+}
+
+function relayStats()
+{
+	var stats = {score: null, misses: null, accuracy: null, debug: ''};
+	try
+	{
+		stats.score = game.songScore;
+		stats.misses = game.songMisses;
+		stats.accuracy = game.ratingPercent;
+	}
+	catch (e:Dynamic)
+	{
+		stats.debug = 'game: ' + e;
+	}
+	if (stats.score == null)
+	{
+		try
+		{
+			stats.score = PlayState.instance.songScore;
+			stats.misses = PlayState.instance.songMisses;
+			stats.accuracy = PlayState.instance.ratingPercent;
+		}
+		catch (e:Dynamic)
+		{
+			stats.debug += ' | PlayState: ' + e;
+		}
+	}
+	if (stats.score == null)
+	{
+		var g = relayGame();
+		stats.score = relayField(g, 'songScore');
+		stats.misses = relayField(g, 'songMisses');
+		stats.accuracy = relayField(g, 'ratingPercent');
+	}
+	return stats;
+}
+
+function onEndSong()
+{
+	if (relayPlaying && !relayEnded)
+	{
+		relayEnded = true;
+		relayPlaying = false;
+		var stats = relayStats();
+		var extra = {score: stats.score, misses: stats.misses, accuracy: stats.accuracy};
+		if (stats.score == null) extra.reason = stats.debug;
+		relayEmit('song_end', extra);
+	}
+	return Function_Continue;
+}
+
+function onGameOver()
+{
+	if (relayPlaying)
+	{
+		relayPlaying = false;
+		relayEmit('song_abort', {reason: 'game over'});
+	}
+	return Function_Continue;
+}
+
+function onDestroy()
+{
+	if (relayPlaying)
+	{
+		relayPlaying = false;
+		relayEmit('song_abort', {reason: 'uscita o canzone ricominciata'});
+	}
+}
