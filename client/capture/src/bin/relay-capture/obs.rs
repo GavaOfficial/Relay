@@ -20,35 +20,12 @@ use libobs_wrapper::{
     sources::{ObsSourceBuilder, ObsSourceRef},
     utils::{AudioEncoderInfo, OutputInfo, StartupInfo, VideoEncoderInfo},
 };
-use relay_capture::ipc::{EncoderChoice, Event, MonitorInfo, RecordConfig, Source, WindowInfo};
+use relay_capture::ipc::{
+    playlist_generation, EncoderChoice, Event, MonitorInfo, RecordConfig, Source, WindowInfo,
+    ENGINE_OBS,
+};
 
-fn emit(ev: &Event) {
-    print!("{}", relay_capture::ipc::encode(ev));
-    let _ = std::io::Write::flush(&mut std::io::stdout());
-}
-
-fn main() {
-    let args: Vec<String> = std::env::args().collect();
-    let result = if args.iter().any(|a| a == "--probe") {
-        run_probe()
-    } else if let Some(i) = args.iter().position(|a| a == "--config") {
-        let path = args.get(i + 1).expect("--config richiede un percorso");
-        let text = std::fs::read_to_string(path).expect("configurazione non leggibile");
-        let cfg: RecordConfig = serde_json::from_str(&text).expect("configurazione non valida");
-        run_record(cfg)
-    } else {
-        eprintln!("uso: relay-capture --probe | --config <file.json>");
-        std::process::exit(2);
-    };
-
-    match result {
-        Ok(()) => std::process::exit(0),
-        Err(e) => {
-            emit(&Event::Error(format!("{e:#}")));
-            std::process::exit(1);
-        }
-    }
-}
+use super::emit;
 
 fn video_encoders(context: &ObsContext) -> Vec<libobs_wrapper::encoders::ObsVideoEncoderType> {
     context
@@ -57,7 +34,7 @@ fn video_encoders(context: &ObsContext) -> Vec<libobs_wrapper::encoders::ObsVide
         .unwrap_or_default()
 }
 
-fn run_probe() -> Result<()> {
+pub fn probe() -> Result<()> {
     let context = ObsContext::new(StartupInfo::default()).context("avvio di OBS")?;
     let encoders: Vec<String> = video_encoders(&context)
         .into_iter()
@@ -88,11 +65,13 @@ fn run_probe() -> Result<()> {
         .unwrap_or_default();
     emit(&Event::Ready {
         obs_version: context.get_version().unwrap_or_default(),
+        engine: ENGINE_OBS.into(),
     });
     emit(&Event::Probed {
         encoders,
         monitors,
         windows,
+        best: None,
     });
     std::process::exit(0);
 }
@@ -203,7 +182,7 @@ fn window_client_size(_w: &ObsWindowInfo) -> Option<(u32, u32)> {
     None
 }
 
-fn run_record(cfg: RecordConfig) -> Result<()> {
+pub fn record(cfg: RecordConfig) -> Result<()> {
     std::fs::create_dir_all(&cfg.dir).context("creazione della cartella di lavoro")?;
     let monitors = MonitorCaptureSourceBuilder::get_monitors().unwrap_or_default();
     let window = if let Source::Window { exe } = &cfg.source {
@@ -352,13 +331,21 @@ fn run_record(cfg: RecordConfig) -> Result<()> {
     }
 
     let mut generation = playlist_generation(&cfg.playlist);
-    let mut output = make_output(&mut context, &cfg, generation, cfg.start_segment, &video_ty, encoder_name)?;
+    let mut output = make_output(
+        &mut context,
+        &cfg,
+        generation,
+        cfg.start_segment,
+        &video_ty,
+        encoder_name,
+    )?;
     output.start().context("avvio della registrazione")?;
     emit(&Event::Started {
         encoder: encoder_name.into(),
         source: source_label.into(),
         first_frame_unix_secs: unix_now(),
         generation,
+        engine: ENGINE_OBS.into(),
     });
 
     let mut stdin = std::io::stdin().lock();
@@ -370,7 +357,11 @@ fn run_record(cfg: RecordConfig) -> Result<()> {
             Ok(_) if line.trim() == "r" => {
                 let now = window.as_ref().and_then(window_client_size);
                 let Some(size) = now.filter(|s| *s != canvas) else {
-                    emit(&Event::Resized { generation, width: canvas.0, height: canvas.1 });
+                    emit(&Event::Resized {
+                        generation,
+                        width: canvas.0,
+                        height: canvas.1,
+                    });
                     continue;
                 };
                 output.stop().context("pausa della registrazione")?;
@@ -384,15 +375,27 @@ fn run_record(cfg: RecordConfig) -> Result<()> {
                 }
                 generation += 1;
                 let next = next_segment(&cfg.dir);
-                output = make_output(&mut context, &cfg, generation, next, &video_ty, encoder_name)?;
+                output = make_output(
+                    &mut context,
+                    &cfg,
+                    generation,
+                    next,
+                    &video_ty,
+                    encoder_name,
+                )?;
                 output.start().context("ripresa della registrazione")?;
                 emit(&Event::Started {
                     encoder: encoder_name.into(),
                     source: source_label.into(),
                     first_frame_unix_secs: unix_now(),
                     generation,
+                    engine: ENGINE_OBS.into(),
                 });
-                emit(&Event::Resized { generation, width: canvas.0, height: canvas.1 });
+                emit(&Event::Resized {
+                    generation,
+                    width: canvas.0,
+                    height: canvas.1,
+                });
             }
             Ok(_) => {}
             Err(_) => break,
@@ -404,12 +407,20 @@ fn run_record(cfg: RecordConfig) -> Result<()> {
 }
 
 fn unix_now() -> f64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs_f64()
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs_f64()
 }
 
-fn video_info(cfg: &RecordConfig, base_width: u32, base_height: u32) -> libobs_wrapper::data::video::ObsVideoInfo {
+fn video_info(
+    cfg: &RecordConfig,
+    base_width: u32,
+    base_height: u32,
+) -> libobs_wrapper::data::video::ObsVideoInfo {
     let output_height = cfg.output_height.min(base_height).max(2) & !1;
-    let output_width = (((base_width as u64 * output_height as u64 / base_height as u64) as u32).max(2)) & !1;
+    let output_width =
+        (((base_width as u64 * output_height as u64 / base_height as u64) as u32).max(2)) & !1;
     ObsVideoInfoBuilder::new()
         .fps_num(cfg.fps)
         .fps_den(1)
@@ -418,10 +429,6 @@ fn video_info(cfg: &RecordConfig, base_width: u32, base_height: u32) -> libobs_w
         .output_width(output_width)
         .output_height(output_height)
         .build()
-}
-
-fn playlist_generation(name: &str) -> u32 {
-    name.strip_prefix("out_").and_then(|s| s.strip_suffix(".m3u8")).and_then(|s| s.parse().ok()).unwrap_or(0)
 }
 
 fn playlist_name(generation: u32) -> String {
@@ -439,7 +446,10 @@ fn next_segment(dir: &std::path::Path) -> u64 {
         .flatten()
         .filter_map(|e| {
             let n = e.file_name().to_string_lossy().into_owned();
-            n.strip_prefix("seg_")?.strip_suffix(".ts")?.parse::<u64>().ok()
+            n.strip_prefix("seg_")?
+                .strip_suffix(".ts")?
+                .parse::<u64>()
+                .ok()
         })
         .max()
         .map_or(0, |m| m + 1)
@@ -455,8 +465,16 @@ fn make_output(
 ) -> Result<libobs_wrapper::data::output::ObsOutputRef> {
     let dir = cfg.dir.clone();
     let mut settings = context.data()?;
-    settings.set_string("path", dir.join(playlist_name(generation)).to_string_lossy().as_ref())?;
-    let seg_pattern = dir.join("seg_%08d.ts").to_string_lossy().replace(char::from(92), "/");
+    settings.set_string(
+        "path",
+        dir.join(playlist_name(generation))
+            .to_string_lossy()
+            .as_ref(),
+    )?;
+    let seg_pattern = dir
+        .join("seg_%08d.ts")
+        .to_string_lossy()
+        .replace(char::from(92), "/");
     settings.set_string(
         "muxer_settings",
         format!(
@@ -466,7 +484,12 @@ fn make_output(
         .as_str(),
     )?;
     let mut output = context
-        .output(OutputInfo::new("ffmpeg_muxer", format!("relay{generation}").as_str(), Some(settings), None))
+        .output(OutputInfo::new(
+            "ffmpeg_muxer",
+            format!("relay{generation}").as_str(),
+            Some(settings),
+            None,
+        ))
         .context("creazione dell'uscita")?;
     let mut v = context.data()?;
     v.set_string("rate_control", "CBR")?;
@@ -478,13 +501,23 @@ fn make_output(
         v.set_string("preset", "veryfast")?;
     }
     output
-        .create_and_set_video_encoder(VideoEncoderInfo::new(video_ty.clone(), format!("relay_v{generation}").as_str(), Some(v), None))
+        .create_and_set_video_encoder(VideoEncoderInfo::new(
+            video_ty.clone(),
+            format!("relay_v{generation}").as_str(),
+            Some(v),
+            None,
+        ))
         .context("encoder video")?;
     let mut a = context.data()?;
     a.set_int("bitrate", 160)?;
     output
         .create_and_set_audio_encoder(
-            AudioEncoderInfo::new(ObsAudioEncoderType::FFMPEG_AAC, format!("relay_a{generation}").as_str(), Some(a), None),
+            AudioEncoderInfo::new(
+                ObsAudioEncoderType::FFMPEG_AAC,
+                format!("relay_a{generation}").as_str(),
+                Some(a),
+                None,
+            ),
             0,
         )
         .context("encoder audio")?;

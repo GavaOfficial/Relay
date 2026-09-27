@@ -224,11 +224,12 @@ function installStageLabel(c) {
   if (c.state === 'error') return 'Non riesco a preparare la registrazione';
   if (c.stage === 'exe') return 'Scarico il programma di registrazione';
   if (c.stage === 'check') return 'Controllo che questo PC riesca a registrare';
+  if (c.stage === 'obs') return 'Scarico i componenti di riserva per registrare su questo PC';
   return 'Scarico i componenti per registrare';
 }
 
 function encoderLabel(id) {
-  return { nvenc: 'scheda NVIDIA', amf: 'scheda AMD', qsv: 'grafica Intel', x264: 'processore' }[id] || id;
+  return { nvenc: 'scheda NVIDIA', amf: 'scheda AMD', qsv: 'grafica Intel', x264: 'processore', software: 'processore' }[id] || id;
 }
 
 function renderInstall() {

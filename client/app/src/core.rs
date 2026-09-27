@@ -232,7 +232,7 @@ impl Core {
             update: Mutex::new(UpdateState::default()),
             ffmpeg: Mutex::new(FfmpegState::default()),
             capture: Mutex::new(CaptureState {
-                stage: "obs",
+                stage: "exe",
                 ..Default::default()
             }),
             http: reqwest::Client::builder()
@@ -395,6 +395,50 @@ impl Core {
         tracing::warn!("relay-capture: controllo di compatibilita' saltato dall'utente");
     }
 
+    async fn check_capture(
+        &self,
+        base: &std::path::Path,
+    ) -> Result<crate::capture::Compat, String> {
+        self.capture.lock().unwrap().stage = "check";
+        tracing::info!("relay-capture: avvio il controllo di compatibilita'");
+        let compat =
+            match tokio::time::timeout(Duration::from_secs(45), crate::capture::check_compat(base))
+                .await
+            {
+                Ok(c) => c,
+                Err(_) => {
+                    return Err(
+                        "il controllo del PC ha impiegato troppo tempo (oltre 45 s): riprova"
+                            .into(),
+                    );
+                }
+            };
+        tracing::info!("relay-capture: controllo di compatibilita' finito: {compat:?}");
+        Ok(compat)
+    }
+
+    async fn install_obs(&self, base: &std::path::Path) -> Result<(), String> {
+        self.capture.lock().unwrap().stage = "obs";
+        let cancel = relay_capture::install::Canceller::new();
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        let base2 = base.to_path_buf();
+        let handle = tokio::task::spawn_blocking(move || {
+            crate::capture::install_obs(&base2, &cancel, &mut |p| {
+                let _ = tx.send(p.clone());
+            })
+        });
+        while let Some(p) = rx.recv().await {
+            let mut c = self.capture.lock().unwrap();
+            c.percent = p.percent;
+            c.groups = p
+                .groups
+                .iter()
+                .map(|g| json!({ "id": g.id, "label": g.label, "percent": g.percent, "done": g.done }))
+                .collect();
+        }
+        handle.await.map_err(|e| e.to_string())?
+    }
+
     pub async fn ensure_capture(&self) {
         {
             let mut c = self.capture.lock().unwrap();
@@ -407,27 +451,6 @@ impl Core {
         let base = self.data_dir();
         let server = self.settings().server_url;
         let result: Result<(), String> = async {
-            if !crate::capture::obs_ready(&base) {
-                self.capture.lock().unwrap().stage = "obs";
-                let cancel = relay_capture::install::Canceller::new();
-                let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-                let base2 = base.clone();
-                let handle = tokio::task::spawn_blocking(move || {
-                    crate::capture::install_obs(&base2, &cancel, &mut |p| {
-                        let _ = tx.send(p.clone());
-                    })
-                });
-                while let Some(p) = rx.recv().await {
-                    let mut c = self.capture.lock().unwrap();
-                    c.percent = p.percent;
-                    c.groups = p
-                        .groups
-                        .iter()
-                        .map(|g| json!({ "id": g.id, "label": g.label, "percent": g.percent, "done": g.done }))
-                        .collect();
-                }
-                handle.await.map_err(|e| e.to_string())??;
-            }
             let installed = crate::capture::exe_installed_version(&base);
             match crate::capture::fetch_latest(&self.http, &server).await {
                 Ok(Some(rel)) => {
@@ -450,15 +473,15 @@ impl Core {
                 Err(e) if installed.is_none() => return Err(e),
                 Err(_) => {}
             }
-            self.capture.lock().unwrap().stage = "check";
-            tracing::info!("relay-capture: avvio il controllo di compatibilita'");
-            let compat = match tokio::time::timeout(Duration::from_secs(45), crate::capture::check_compat(&base)).await {
-                Ok(c) => c,
-                Err(_) => {
-                    return Err("il controllo del PC ha impiegato troppo tempo (oltre 45 s): riprova".into());
-                }
-            };
-            tracing::info!("relay-capture: controllo di compatibilita' finito: {compat:?}");
+            let mut compat = self.check_capture(&base).await?;
+            if !compat.ok && compat.fallback.is_some() && !crate::capture::obs_ready(&base) {
+                tracing::warn!(
+                    "relay-capture: il motore di Relay non funziona su questo PC ({}): scarico OBS come riserva",
+                    compat.fallback.as_deref().unwrap_or("")
+                );
+                self.install_obs(&base).await?;
+                compat = self.check_capture(&base).await?;
+            }
             let ok = compat.ok;
             let err = compat.error.clone();
             self.capture.lock().unwrap().compat = Some(compat);

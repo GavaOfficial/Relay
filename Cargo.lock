@@ -4219,6 +4219,7 @@ dependencies = [
  "libobs-simple",
  "libobs-window-helper",
  "libobs-wrapper",
+ "relay-recorder",
  "reqwest 0.12.28",
  "serde",
  "serde_json",
@@ -4256,6 +4257,15 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uuid",
+]
+
+[[package]]
+name = "relay-recorder"
+version = "0.3.53"
+dependencies = [
+ "anyhow",
+ "wasapi",
+ "windows 0.62.2",
 ]
 
 [[package]]

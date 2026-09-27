@@ -80,6 +80,7 @@ impl ObsCapture {
             output_height: 1080,
         };
         std::fs::create_dir_all(&cfg.dir)?;
+        let _ = std::fs::create_dir_all(&cfg.cwd);
         let config_path = cfg.dir.join(format!("capture_{}.json", cfg.generation));
         std::fs::write(&config_path, serde_json::to_vec(&record)?)?;
 
@@ -112,16 +113,23 @@ impl ObsCapture {
                         source,
                         first_frame_unix_secs,
                         generation,
+                        engine,
                     }) => {
                         let mut sh = shared_w.lock().unwrap();
                         sh.generations.retain(|g| g.0 != generation);
                         sh.generations.push((generation, first_frame_unix_secs));
                         drop(sh);
                         if generation == 0 {
-                            tracing::info!("relay-capture avviato: encoder {encoder}, sorgente {source}")
+                            tracing::info!(
+                                "relay-capture avviato: motore {engine}, encoder {encoder}, sorgente {source}"
+                            )
                         }
                     }
-                    Ok(Event::Resized { generation, width, height }) => {
+                    Ok(Event::Resized {
+                        generation,
+                        width,
+                        height,
+                    }) => {
                         let mut sh = shared_w.lock().unwrap();
                         if sh.size.is_some_and(|s| s != (width, height)) {
                             tracing::info!("relay-capture: nuova dimensione {width}x{height} (playlist {generation})");
@@ -133,6 +141,9 @@ impl ObsCapture {
                         tracing::info!("relay-capture: sorgente {source}")
                     }
                     Ok(Event::Warning(message)) => tracing::warn!("relay-capture: {message}"),
+                    Ok(Event::Fallback { reason }) => {
+                        tracing::warn!("relay-capture passa a OBS: {reason}")
+                    }
                     Ok(Event::Error(message)) => tracing::error!("relay-capture: {message}"),
                     Ok(Event::Stopped) => tracing::info!("relay-capture fermato"),
                     Ok(_) => {}
