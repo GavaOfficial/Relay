@@ -23,6 +23,18 @@ export async function apiGet<T>(path: string): Promise<T> {
   return (await r.json()) as T;
 }
 
+export async function apiGetOr<T>(path: string, fallback: T): Promise<T> {
+  const token = await sessionToken();
+  if (!token) redirect("/login");
+  const r = await fetch(`${API_ORIGIN}${path}`, {
+    headers: { authorization: `Bearer ${token}` },
+    cache: "no-store",
+  }).catch(() => null);
+  if (r?.status === 401) redirect("/login");
+  if (!r || !r.ok) return fallback;
+  return ((await r.json().catch(() => fallback)) ?? fallback) as T;
+}
+
 export type AppRelease = { version: string; size: number; notes: string };
 
 export async function latestApp(): Promise<AppRelease | null> {

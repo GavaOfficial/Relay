@@ -1658,3 +1658,2957 @@ body:has(.homelist) {
     order: 3;
   }
 }
+
+/* --- Giochi / Codename Engine --- */
+.pagehead .muted {
+  margin-top: 6px;
+}
+.gametiles {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr));
+}
+.gametile {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: linear-gradient(120deg, var(--surface), color-mix(in srgb, #b265bd 12%, var(--surface)));
+  color: var(--text);
+  transition: border-color 0.15s, transform 0.18s var(--ease), box-shadow 0.18s;
+}
+a.gametile:hover {
+  border-color: var(--line-2);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow);
+}
+.gametile.soon {
+  background: var(--surface);
+  border-style: dashed;
+  opacity: 0.75;
+}
+.gametile-logo {
+  flex: none;
+  width: 68px;
+  height: 68px;
+  border-radius: 16px;
+}
+.soon-mark {
+  display: grid;
+  place-items: center;
+  border: 1px dashed var(--line-2);
+  color: var(--faint);
+  font-size: 1.8rem;
+}
+.gametile-body {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+.gametile-body strong {
+  font-size: 1.12rem;
+  letter-spacing: -0.01em;
+}
+.gametile-body .muted {
+  font-size: 0.88rem;
+}
+.gametile-kicker {
+  color: var(--faint);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.gametile-go {
+  color: var(--faint);
+}
+.gamehead {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.gamehead img {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  flex: none;
+}
+.empty-logo {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  margin-bottom: 12px;
+}
+.emptystate .muted {
+  max-width: 46ch;
+}
+.thumb img.thumb-logo {
+  position: static;
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  opacity: 0.9;
+}
+
+.modhero {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  padding: 18px;
+  margin-bottom: 28px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: linear-gradient(120deg, var(--surface), color-mix(in srgb, #b265bd 10%, var(--surface)));
+}
+.modhero-cover {
+  flex: none;
+  width: min(40%, 300px);
+  aspect-ratio: 16 / 9;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--surface-2);
+  display: grid;
+  place-items: center;
+}
+.modhero-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.modhero-cover img.logo-fallback {
+  width: 72px;
+  height: 72px;
+  border-radius: 16px;
+}
+.modhero-body {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+.modhero-body h1 {
+  font-size: clamp(1.4rem, 3vw, 2rem);
+  line-height: 1.1;
+}
+.gb-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.gb-link {
+  display: inline-flex;
+  align-items: center;
+  height: 38px;
+  padding: 0 16px;
+  border-radius: 10px;
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  color: var(--text);
+}
+.gb-link:hover {
+  background: var(--surface-2);
+}
+.gb-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+  max-width: 560px;
+}
+.gb-form input {
+  flex: 1 1 260px;
+}
+.gb-form .err,
+.gb-form .fnf-hint {
+  flex-basis: 100%;
+}
+.err {
+  color: var(--rec);
+  font-size: 0.88rem;
+}
+.fnf-hint {
+  font-size: 0.84rem;
+}
+.section-title {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.section-title h2 {
+  font-size: 1.1rem;
+}
+.fnf-songs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
+}
+.fnf-song {
+  display: grid;
+  align-content: start;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow: hidden;
+}
+.fnf-player {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: #000;
+}
+button.fnf-player {
+  width: 100%;
+  height: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+}
+.fnf-player video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: #000;
+}
+.fnf-play {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(8, 9, 14, 0.7);
+  color: #fff;
+  backdrop-filter: blur(6px);
+  transition: transform 0.18s var(--ease), background 0.15s;
+}
+.fnf-play svg {
+  margin-left: 3px;
+}
+button.fnf-player:hover .fnf-play {
+  transform: scale(1.08);
+  background: var(--accent);
+}
+.fnf-song-body {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px 16px;
+}
+.fnf-song-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+.fnf-song-head .pill {
+  margin-top: 6px;
+}
+.fnf-song-name {
+  flex: 1;
+  min-width: 0;
+}
+.fnf-score {
+  flex: none;
+  display: grid;
+  justify-items: end;
+  text-align: right;
+}
+.fnf-score span {
+  color: var(--faint);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.fnf-score strong {
+  font-size: 1.35rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+.fnf-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+.fnf-stats b {
+  color: var(--text);
+  font-weight: 600;
+}
+.fnf-note {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+button.linkish {
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-size: 0.88rem;
+}
+button.linkish:hover:not(:disabled) {
+  background: none;
+  text-decoration: underline;
+}
+.fnf-archive-toggle {
+  justify-self: start;
+}
+.fnf-archive {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.fnf-archive button {
+  width: 100%;
+  height: 36px;
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 14px;
+  align-items: center;
+  text-align: left;
+  border-color: var(--line);
+  font-size: 0.86rem;
+}
+.fnf-archive button.on {
+  border-color: var(--accent);
+}
+.fnf-archive-score {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 640px) {
+  .modhero {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .modhero-cover {
+    width: 100%;
+  }
+}
+
+/* Friday Night Funkin' (gioco originale): pagina della mod divisa per album */
+.modhero-cover {
+  position: relative;
+}
+.modhero-cover img.fk-cover-blur,
+.thumb img.fk-cover-blur {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: blur(22px) saturate(1.3);
+  transform: scale(1.3);
+  opacity: 0.55;
+}
+.modhero-cover img.fk-cover-icon,
+.thumb img.fk-thumb-icon {
+  position: relative;
+  width: auto;
+  height: 70%;
+  aspect-ratio: 1;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+.thumb img.fk-thumb-icon {
+  position: static;
+  z-index: 1;
+}
+.thumb.fk-unplayed img {
+  filter: grayscale(0.6);
+}
+.fk-desc {
+  max-width: 62ch;
+  color: var(--text);
+  opacity: 0.85;
+  font-size: 0.93rem;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: pre-line;
+}
+.fk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.fk-actions .gb-actions,
+.fk-actions .gb-form {
+  margin-top: 0;
+}
+.fk-credits {
+  width: min(520px, calc(100vw - 32px));
+  max-height: min(640px, calc(100vh - 64px));
+  padding: 0;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow);
+}
+.fk-credits::backdrop {
+  background: rgba(5, 6, 10, 0.6);
+  backdrop-filter: blur(4px);
+}
+.fk-credits-inner {
+  display: grid;
+  gap: 14px;
+  padding: 18px 20px 20px;
+}
+.fk-credits-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.fk-credits-head h2 {
+  font-size: 1.15rem;
+}
+.fk-people {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.fk-people a,
+.fk-people div {
+  display: grid;
+  gap: 2px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 0.9rem;
+  line-height: 1.3;
+}
+.fk-people a:hover {
+  border-color: var(--line-2);
+}
+.fk-people span {
+  color: var(--muted);
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+.fk-album {
+  margin-bottom: 36px;
+}
+.fk-album-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.fk-album-head h2 {
+  font-size: 1.25rem;
+}
+.fk-album-art {
+  flex: none;
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+}
+.fk-sub {
+  color: var(--muted);
+  font-size: 0.84rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fk-diffs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+button.fk-diff {
+  height: 28px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 8px;
+  border-color: var(--line);
+  background: transparent;
+  color: var(--faint);
+  font-size: 0.8rem;
+  text-transform: capitalize;
+}
+button.fk-diff.played {
+  color: var(--text);
+}
+button.fk-diff.on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--text);
+}
+.fk-stars {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: #f5c542;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.fk-empty {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: var(--surface-2);
+}
+.fk-empty img.fk-empty-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: grayscale(1) blur(10px);
+  opacity: 0.35;
+  transform: scale(1.2);
+}
+.fk-todo-label {
+  position: relative;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(8, 9, 14, 0.7);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.fnf-song.fk-todo .mcard-title,
+.fnf-song.fk-todo .fk-sub {
+  color: var(--faint);
+}
+
+/* Psych Engine: icone dei personaggi e immagini delle settimane */
+.fk-icon-bg {
+  background: linear-gradient(135deg, var(--surface-3), var(--surface-2));
+}
+.fk-healthicon {
+  position: relative;
+  width: 38%;
+  aspect-ratio: 1;
+  overflow: hidden;
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.35));
+}
+.fk-healthicon img {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: auto;
+  bottom: auto;
+  object-fit: fill;
+  width: auto;
+  height: 100%;
+  max-width: none;
+  image-rendering: pixelated;
+}
+.fnf-song.fk-todo .fk-healthicon {
+  filter: grayscale(0.55) drop-shadow(0 6px 14px rgba(0, 0, 0, 0.35));
+  opacity: 0.8;
+}
+.fk-icon-bg .fk-todo-label {
+  position: absolute;
+  bottom: 10px;
+}
+.fk-week-art {
+  flex: none;
+  height: 48px;
+  width: auto;
+  max-width: min(260px, 45vw);
+  object-fit: contain;
+}
+
+/* Geometry Dash */
+.gd-hero {
+  align-items: center;
+}
+.gd-player {
+  flex: none;
+  width: 112px;
+  height: 112px;
+  display: grid;
+  place-items: center;
+  border-radius: 20px;
+  background: radial-gradient(circle at 50% 40%, color-mix(in srgb, #4ab8ff 30%, var(--surface-2)), var(--surface-2));
+}
+.gd-player img {
+  max-width: 80%;
+  max-height: 80%;
+  image-rendering: auto;
+}
+.gd-player img.logo-fallback {
+  width: 72px;
+  height: 72px;
+  border-radius: 16px;
+}
+.gd-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.gd-stat {
+  display: grid;
+  grid-template-columns: auto auto;
+  grid-template-rows: auto auto;
+  column-gap: 8px;
+  align-items: center;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+.gd-stat img {
+  grid-row: span 2;
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+}
+.gd-stat strong {
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.gd-stat span {
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+button.gd-thumb:disabled {
+  cursor: default;
+  opacity: 1;
+}
+.gd-face {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+}
+.gd-stars {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.gd-stars img {
+  width: 14px;
+  height: 14px;
+}
+.gd-coins {
+  display: flex;
+  gap: 4px;
+}
+.gd-coins img {
+  width: 22px;
+  height: 22px;
+}
+.gd-coins img.off {
+  filter: grayscale(1) brightness(0.45);
+  opacity: 0.6;
+}
+@media (max-width: 640px) {
+  .gd-player {
+    width: 88px;
+    height: 88px;
+  }
+}
+
+/* Pagina speciale: VS Impostor Legacy, come il Freeplay del gioco */
+.impx {
+  --impx-amatic: var(--font-amatic), "Amatic SC", cursive;
+  --impx-vcr: var(--font-vcr), "VT323", monospace;
+  /* A tutto schermo e senza scroll della pagina: come il menu del gioco. */
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+  background: #000;
+  color: #fff;
+  isolation: isolate;
+}
+/* In questa pagina la pagina non scorre e la barra classica di Relay sta sopra al gioco. */
+body:has(.impx) {
+  overflow: hidden;
+}
+body:has(.impx) .topbar-wrap {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 110;
+  padding-top: 6px;
+  /* Il contenitore e' largo quanto lo schermo: i clic passano, tranne sulla barra vera. */
+  pointer-events: none;
+}
+body:has(.impx) .topbar-wrap .topbar {
+  pointer-events: auto;
+}
+.impx-navspace {
+  position: relative;
+  z-index: 20;
+  height: 84px;
+  background-color: #525452;
+  /* Le ultime 2 righe di topBar.png (85px) sono chiare: si allunga l'immagine e si tagliano via. */
+  background-size: 100% calc(100% * 85 / 83);
+  background-position: top;
+  background-repeat: no-repeat;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+}
+.impx-corner {
+  position: absolute;
+  left: 14px;
+  top: 3px;
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.impx-close {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #fff;
+  color: #000;
+  font-weight: 900;
+  text-decoration: none;
+  transition: transform 0.12s var(--ease);
+}
+.impx-close:has(img) {
+  background: transparent;
+}
+.impx-close img {
+  display: block;
+  width: 48px;
+  height: 48px;
+}
+.impx-close:hover {
+  transform: scale(1.1);
+}
+.impx-close:active {
+  transform: scale(0.94);
+}
+.impx-cornerlogo {
+  height: 64px;
+  width: auto;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.6));
+  pointer-events: none;
+}
+/* Se lo spazio accanto alla barra non basta, pulsante e logo scendono appena sotto. */
+@media (max-width: 1500px) {
+  .impx-corner {
+    top: 90px;
+  }
+  .impx-cornerlogo {
+    height: 52px;
+  }
+}
+
+.impx-space {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+}
+.impx-stars {
+  position: absolute;
+  inset: -10%;
+  background-repeat: repeat;
+  background-size: 1100px auto;
+}
+.impx-stars-bg {
+  animation: impx-drift 120s linear infinite;
+  opacity: 0.8;
+}
+.impx-stars-fg {
+  background-size: 1300px auto;
+  animation: impx-drift 60s linear infinite;
+}
+@keyframes impx-drift {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-1100px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .impx-stars {
+    animation: none;
+  }
+}
+
+/* Barra in alto (topBar del gioco) */
+.impx-topbar {
+  position: relative;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  height: clamp(56px, 11.8vh, 85px);
+  padding: 0 24px 8px;
+  background-color: #b7c2d0;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  color: #1c2230;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+}
+.impx-topleft {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.impx-back {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 3px solid #000;
+  background: #fff;
+  color: #000;
+  font-size: 1.5rem;
+  font-weight: 900;
+  line-height: 1;
+  text-decoration: none;
+}
+.impx-back:hover {
+  background: #ffe24a;
+}
+.impx-toplogo {
+  height: calc(100% + 26px);
+  max-height: 96px;
+  width: auto;
+  margin: -4px 0 -26px;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.5));
+}
+.impx-section-switch {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.impx-section-switch h2 {
+  font-family: var(--impx-amatic);
+  font-size: clamp(2rem, 7vh, 3.4rem);
+  line-height: 1;
+  color: #fff;
+  -webkit-text-stroke: 2px #000;
+  paint-order: stroke fill;
+  text-shadow: 0 3px 0 #000;
+  white-space: nowrap;
+}
+.impx-section-switch button {
+  height: 40px;
+  width: 40px;
+  padding: 0;
+  border-radius: 50%;
+  border: 3px solid #000;
+  background: #fff;
+  color: #000;
+  font-size: 1.5rem;
+  font-weight: 900;
+  line-height: 1;
+}
+.impx-section-switch button:hover {
+  background: #ffe24a;
+}
+/* Pulsanti del gioco: la X per uscire (menuBack) e i tasti freccia dei comandi. */
+.impx .impx-back.img,
+.impx .impx-section-switch button.img,
+.impx .impx-section-switch button.img:hover:not(:disabled) {
+  width: auto;
+  height: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.impx-back.img img {
+  display: block;
+  width: 48px;
+  height: 48px;
+  transition: transform 0.12s var(--ease);
+}
+.impx-section-switch button.img img {
+  display: block;
+  width: 38px;
+  height: 38px;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 2px 0 #000) drop-shadow(0 0 1px #000);
+  transition: transform 0.12s var(--ease);
+}
+.impx-back.img:hover img,
+.impx-section-switch button.img:hover img {
+  transform: scale(1.12);
+}
+.impx-back.img:active img,
+.impx-section-switch button.img:active img {
+  transform: scale(0.94);
+}
+.impx-count {
+  justify-self: end;
+  font-family: var(--impx-vcr);
+  font-size: 1.7rem;
+  color: #1c2230;
+}
+
+/* Il palco: 1280x635 unita' del gioco (sotto la barra), in scala con lo schermo. */
+.impx-stage {
+  position: relative;
+  container-type: size;
+  overflow: hidden;
+}
+.impx-stage > *,
+.impx-stage * {
+  --u: min(100cqw / 1280, 100cqh / 635);
+}
+
+.impx-glow {
+  position: absolute;
+  left: calc(470 * var(--u));
+  top: calc(-110 * var(--u));
+  width: calc(840 * var(--u));
+  height: calc(780 * var(--u));
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--song) 85%, transparent), color-mix(in srgb, var(--song) 35%, transparent) 55%, transparent);
+  transition: background 0.3s;
+  pointer-events: none;
+}
+.impx-portrait {
+  position: absolute;
+  left: calc(504 * var(--u));
+  top: calc(-150 * var(--u));
+  width: calc(820 * var(--u));
+  height: auto;
+  filter: drop-shadow(0 18px 36px rgba(0, 0, 0, 0.55));
+  animation: impx-in 0.35s var(--ease);
+  pointer-events: none;
+}
+.impx-portrait.behind {
+  left: calc(700 * var(--u));
+  top: calc(-60 * var(--u));
+  width: calc(640 * var(--u));
+}
+.impx-portrait.todo {
+  filter: brightness(0) drop-shadow(0 0 2px rgba(255, 255, 255, 0.4));
+}
+@keyframes impx-in {
+  from {
+    opacity: 0;
+    transform: translateX(calc(40 * var(--u)));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Ruota di carte: selezionata a (70, 239), le altre a 117 di distanza, spostate di 70 a sinistra
+   e sfumate del 25% per ogni posizione (FreeplayState di Legacy). */
+.impx-wheel {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(640 * var(--u));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.impx-card {
+  position: absolute;
+  left: calc((70 - var(--adist) * 70) * var(--u));
+  top: calc((239 + var(--dist) * 117) * var(--u));
+  width: calc(518 * var(--u));
+  height: calc(101 * var(--u));
+  transition:
+    left 0.25s var(--ease),
+    top 0.25s var(--ease),
+    opacity 0.25s;
+}
+.impx-card button {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background-color: transparent;
+  background-size: 100% 100%;
+  color: #fff;
+  text-align: left;
+  cursor: pointer;
+}
+/* Lo stile generico dei pulsanti del sito cambia lo sfondo al passaggio del mouse: qui le carte e le
+   icone restano come nel gioco. */
+.impx .impx-card button,
+.impx .impx-card button:hover:not(:disabled),
+.impx .impx-card button:active:not(:disabled) {
+  background-color: transparent;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  transform: none;
+}
+.impx .impx-card button:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+.impx .impx-tab:hover:not(:disabled),
+.impx .impx-tab:active:not(:disabled) {
+  background: transparent;
+}
+.impx-card-name {
+  position: absolute;
+  left: calc(110 * var(--u));
+  top: calc(-5 * var(--u));
+  width: calc(340 * var(--u));
+  font-family: var(--impx-amatic);
+  font-size: calc(64 * var(--u));
+  line-height: 1.15;
+  color: #fff;
+  -webkit-text-stroke: calc(4 * var(--u)) #000;
+  paint-order: stroke fill;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.impx-card-credit {
+  position: absolute;
+  left: calc(110 * var(--u));
+  top: calc(72 * var(--u));
+  width: calc(330 * var(--u));
+  display: flex;
+  align-items: center;
+  gap: calc(8 * var(--u));
+  font-family: var(--impx-vcr);
+  font-size: calc(20 * var(--u));
+  line-height: 1;
+  color: #fff;
+  text-shadow:
+    calc(-1.5 * var(--u)) calc(-1.5 * var(--u)) 0 #000,
+    calc(1.5 * var(--u)) calc(-1.5 * var(--u)) 0 #000,
+    calc(-1.5 * var(--u)) calc(1.5 * var(--u)) 0 #000,
+    calc(1.5 * var(--u)) calc(1.5 * var(--u)) 0 #000;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.impx-card-credit img {
+  flex: none;
+  width: calc(12 * var(--u));
+  height: calc(16 * var(--u));
+}
+.impx-card-rank {
+  position: absolute;
+  left: calc(450 * var(--u));
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: var(--impx-amatic);
+  font-size: calc(64 * var(--u));
+  line-height: 1;
+  -webkit-text-stroke: calc(4 * var(--u)) #000;
+  paint-order: stroke fill;
+}
+/* Nel gioco l'icona (150x150) sta a (-13, -23) ed e' ridotta al 60% attorno al suo centro:
+   quella visibile e' 90x90 a (17, 7) dentro la carta. */
+.impx-card-icon {
+  position: absolute;
+  left: calc(17 * var(--u));
+  top: calc(7 * var(--u));
+  width: calc(90 * var(--u));
+  height: calc(90 * var(--u));
+  overflow: hidden;
+  pointer-events: none;
+}
+.impx-card-icon img {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: auto;
+  max-width: none;
+}
+
+/* Testo in alto a destra come nel gioco (VCR 36, allineato a destra, bordo nero). */
+.impx-info {
+  position: absolute;
+  right: calc(8 * var(--u));
+  top: calc(6 * var(--u));
+  z-index: 5;
+  display: grid;
+  justify-items: end;
+  gap: calc(4 * var(--u));
+  max-width: calc(700 * var(--u));
+  text-align: right;
+}
+.impx-line {
+  font-family: var(--impx-vcr);
+  font-size: calc(36 * var(--u));
+  line-height: 1.05;
+  text-shadow:
+    calc(-2 * var(--u)) calc(-2 * var(--u)) 0 #000,
+    calc(2 * var(--u)) calc(-2 * var(--u)) 0 #000,
+    calc(-2 * var(--u)) calc(2 * var(--u)) 0 #000,
+    calc(2 * var(--u)) calc(2 * var(--u)) 0 #000;
+}
+.impx-line.small {
+  font-size: calc(26 * var(--u));
+}
+.impx-line.dim {
+  color: rgba(255, 255, 255, 0.8);
+}
+.impx-diffs {
+  display: flex;
+  gap: calc(6 * var(--u));
+}
+.impx-diffs button {
+  height: calc(34 * var(--u));
+  padding: 0 calc(12 * var(--u));
+  border-radius: calc(8 * var(--u));
+  border: calc(2 * var(--u)) solid #000;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-family: var(--impx-vcr);
+  font-size: calc(24 * var(--u));
+}
+.impx-diffs button.on {
+  background: #fff;
+  color: #000;
+}
+
+/* Il record: parte da solo, in un riquadro al centro davanti al personaggio. */
+.impx-clip {
+  position: absolute;
+  left: calc(580 * var(--u));
+  top: calc(150 * var(--u));
+  z-index: 4;
+  width: calc(600 * var(--u));
+  display: grid;
+  gap: calc(8 * var(--u));
+}
+.impx-clip video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: calc(4 * var(--u)) solid #000;
+  border-radius: calc(12 * var(--u));
+  background: #000;
+  box-shadow:
+    0 0 0 calc(3 * var(--u)) color-mix(in srgb, var(--song) 70%, #fff),
+    0 calc(16 * var(--u)) calc(40 * var(--u)) rgba(0, 0, 0, 0.6);
+  animation: impx-in 0.35s var(--ease);
+}
+.impx-archive {
+  position: relative;
+  justify-self: start;
+}
+.impx-archive-toggle {
+  height: calc(36 * var(--u));
+  padding: 0 calc(14 * var(--u));
+  border-radius: calc(10 * var(--u));
+  border: calc(3 * var(--u)) solid #000;
+  background: #ffe24a;
+  color: #000;
+  font-family: var(--impx-vcr);
+  font-size: calc(24 * var(--u));
+  box-shadow: 0 calc(3 * var(--u)) 0 #000;
+}
+.impx-archive ul {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 6 * var(--u));
+  z-index: 6;
+  margin: 0;
+  padding: calc(6 * var(--u));
+  list-style: none;
+  display: grid;
+  gap: calc(4 * var(--u));
+  border-radius: calc(10 * var(--u));
+  border: calc(3 * var(--u)) solid #000;
+  background: rgba(0, 0, 0, 0.9);
+}
+.impx-archive ul button {
+  width: 100%;
+  height: auto;
+  padding: calc(6 * var(--u)) calc(10 * var(--u));
+  border: 0;
+  border-radius: calc(6 * var(--u));
+  background: transparent;
+  color: #fff;
+  font-family: var(--impx-vcr);
+  font-size: calc(24 * var(--u));
+  text-align: left;
+  white-space: nowrap;
+}
+.impx-archive ul button.on,
+.impx-archive ul button:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* Icone delle sezioni */
+.impx-tabs {
+  position: absolute;
+  left: calc(580 * var(--u));
+  bottom: calc(14 * var(--u));
+  z-index: 5;
+  display: flex;
+  gap: calc(10 * var(--u));
+}
+.impx-tab {
+  display: grid;
+  justify-items: center;
+  gap: calc(2 * var(--u));
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  opacity: 0.6;
+  transition:
+    transform 0.15s var(--ease),
+    opacity 0.15s;
+}
+.impx-tab img {
+  width: calc(62 * var(--u));
+  height: calc(62 * var(--u));
+  border-radius: calc(12 * var(--u));
+}
+.impx-tab small {
+  font-family: var(--impx-vcr);
+  font-size: calc(20 * var(--u));
+  text-shadow: 0 0 calc(4 * var(--u)) #000;
+}
+.impx-tab:hover {
+  opacity: 0.9;
+  background: transparent;
+}
+.impx-tab.on {
+  opacity: 1;
+  transform: scale(1.12);
+}
+.impx-tab.on img {
+  outline: calc(3 * var(--u)) solid #fff;
+}
+
+/* Pagina speciale: Mario's Madness, come il suo freeplay (schermo 1280x720, zoom 0.75) */
+.mmx {
+  --mmx-font: var(--font-mario), "Luckiest Guy", system-ui, sans-serif;
+  background: radial-gradient(ellipse at 50% 60%, #1a0000 0%, #000 70%);
+}
+.mmx-navspace {
+  background: #000;
+  box-shadow: 0 1px 0 rgba(255, 0, 0, 0.35);
+}
+.mmx .impx-close {
+  background: #000;
+  color: #fff;
+  border: 3px solid #fff;
+  font-size: 1.2rem;
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.35);
+}
+.mmx-stage {
+  position: relative;
+  overflow: hidden;
+}
+.mmx-screen {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 1280px;
+  height: 720px;
+  transform-origin: center;
+}
+/* Lo zoom 0.75 della telecamera del freeplay. */
+.mmx-cam {
+  position: absolute;
+  inset: 0;
+  transform: scale(0.75);
+  transform-origin: 640px 360px;
+}
+.mmx-title {
+  position: absolute;
+  left: 281.5px;
+  top: 32.5px;
+  width: 757px;
+  animation: mmx-pop 0.35s ease;
+}
+@keyframes mmx-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.mmx-world {
+  position: absolute;
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  animation: mmx-pop 0.35s ease backwards;
+}
+.mmx .mmx-world:hover:not(:disabled),
+.mmx .mmx-world:active:not(:disabled) {
+  background: transparent;
+  transform: none;
+}
+.mmx-world img {
+  display: block;
+  filter: brightness(0.32);
+  opacity: 0.9;
+  transition: filter 0.15s, opacity 0.15s;
+}
+.mmx-world.on img {
+  filter: drop-shadow(0 0 12px rgba(255, 0, 0, 0.8));
+  opacity: 1;
+}
+.mmx-world-count {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 14px;
+  text-align: center;
+  font-family: var(--mmx-font);
+  font-size: 32px;
+  color: #fff;
+  -webkit-text-stroke: 5px #000;
+  paint-order: stroke fill;
+  opacity: 0.55;
+}
+.mmx-world.on .mmx-world-count {
+  opacity: 1;
+}
+.mmx-desc.below {
+  top: 745px;
+}
+.mmx-desc {
+  position: absolute;
+  left: 50px;
+  width: 1180px;
+  top: 640px;
+  text-align: center;
+  font-family: var(--mmx-font);
+  font-size: 44px;
+  line-height: 1.1;
+  color: #fff;
+  -webkit-text-stroke: 8px #000;
+  paint-order: stroke fill;
+}
+
+/* Canzoni: cartello, carosello dei personaggi, frecce */
+.mmx-sign {
+  position: absolute;
+  left: 414px;
+  top: 0;
+  width: 452px;
+  animation: mmx-bob 3s ease-in-out infinite alternate;
+}
+@keyframes mmx-bob {
+  from {
+    transform: translateY(20px);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+.mmx-carousel {
+  position: absolute;
+  inset: 0;
+}
+/* Personaggio selezionato un po' a sinistra, per lasciare spazio al record; 430 di distanza. */
+.mmx-char {
+  position: absolute;
+  left: calc(470px + (var(--i) - var(--sel)) * 430px);
+  top: 370px;
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  transform: translate(-50%, -50%);
+  transition: left 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.mmx .mmx-char:hover:not(:disabled),
+.mmx .mmx-char:active:not(:disabled) {
+  background: transparent;
+  transform: translate(-50%, -50%);
+}
+.mmx-char img {
+  display: block;
+  max-height: 600px;
+  width: auto;
+  /* Come il colore 0x610000 dei personaggi non selezionati nel gioco. */
+  filter: brightness(0.2) sepia(1) saturate(16) hue-rotate(-28deg);
+  transition: filter 0.2s;
+}
+.mmx-char.on img {
+  filter: none;
+}
+.mmx-arrow {
+  position: absolute;
+  z-index: 3;
+  top: 360px;
+  width: 76px;
+  height: 152px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  transform: translateY(-50%);
+}
+.mmx .mmx-arrow:hover:not(:disabled),
+.mmx .mmx-arrow:active:not(:disabled) {
+  background: transparent;
+  transform: translateY(-50%) scale(1.15);
+}
+.mmx-arrow img {
+  width: 100%;
+  height: 100%;
+  filter: brightness(0.6) sepia(1) saturate(20) hue-rotate(-50deg);
+}
+.mmx-arrow.left {
+  left: -190px;
+}
+.mmx-arrow.left img {
+  transform: scaleX(-1);
+}
+.mmx-arrow.right {
+  left: 1432px;
+}
+
+/* Il record: parte da solo, a destra del personaggio. */
+.mmx-record {
+  position: absolute;
+  z-index: 2;
+  left: 860px;
+  top: 170px;
+  width: 560px;
+  display: grid;
+  gap: 12px;
+}
+.mmx-record video,
+.mmx-norecord {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 4px solid #fff;
+  border-radius: 18px;
+  background: #000;
+  box-shadow:
+    0 0 18px rgba(255, 255, 255, 0.45),
+    0 0 40px rgba(255, 0, 0, 0.35);
+}
+.mmx-norecord {
+  display: grid;
+  place-items: center;
+  font-family: var(--mmx-font);
+  font-size: 48px;
+  color: #fff;
+  -webkit-text-stroke: 6px #000;
+  paint-order: stroke fill;
+  opacity: 0.85;
+}
+.mmx-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  font-family: var(--mmx-font);
+  font-size: 28px;
+  color: #fff;
+  -webkit-text-stroke: 5px #000;
+  paint-order: stroke fill;
+}
+.mmx-archive {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.mmx-archive button {
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 3px solid #fff;
+  background: #000;
+  color: #fff;
+  font-family: var(--mmx-font);
+  font-size: 22px;
+}
+.mmx .mmx-archive button:hover:not(:disabled),
+.mmx .mmx-archive button.on {
+  background: #b00000;
+}
+.mmx-back {
+  position: absolute;
+  left: -190px;
+  top: 10px;
+  height: auto;
+  padding: 6px 16px;
+  border-radius: 14px;
+  border: 3px solid #fff;
+  background: #000;
+  color: #fff;
+  font-family: var(--mmx-font);
+  font-size: 26px;
+}
+.mmx .mmx-back:hover:not(:disabled) {
+  background: #b00000;
+}
+
+/* Mario's Madness: sfondo del menu (scenario NES rosso che scorre, statica TV, vignetta, righe TV) */
+.mmx-bg {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+/* Come FlxColor.RED nel gioco: l'immagine moltiplicata per il rosso. */
+.mmx-red {
+  position: absolute;
+  inset: 0;
+  isolation: isolate;
+}
+.mmx-red::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: #f00;
+  mix-blend-mode: multiply;
+}
+.mmx-level {
+  position: absolute;
+  inset: 0;
+  background-repeat: repeat-x;
+  /* Scenario ingrandito 4 volte (223 px di altezza nel gioco), un po' piu' in alto del centro. */
+  background-size: auto calc(892px * var(--k));
+  background-position: 0 calc(50% - 40px * var(--k));
+  image-rendering: pixelated;
+  animation: mmx-scroll linear infinite;
+  /* Piu' scuro, cosi' i mondi e i personaggi restano leggibili sopra lo scenario. */
+  filter: brightness(0.35);
+}
+@keyframes mmx-scroll {
+  from {
+    background-position-x: 0;
+  }
+  to {
+    background-position-x: -20000px;
+  }
+}
+.mmx-static {
+  opacity: 0.3;
+}
+.mmx-static img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  image-rendering: pixelated;
+}
+.mmx-fog {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.9;
+}
+/* Filtro NTSC della telecamera: righe da televisore e un leggero sfarfallio. */
+.mmx-tv {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  background: repeating-linear-gradient(to bottom, rgba(0, 0, 0, 0.28) 0 1px, transparent 1px 3px);
+  animation: mmx-flicker 0.12s steps(2) infinite;
+}
+@keyframes mmx-flicker {
+  from {
+    opacity: 0.85;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mmx-level,
+  .mmx-tv {
+    animation: none;
+  }
+}
+.mmx-screen {
+  z-index: 2;
+}
+
+/* ---- Pagina speciale: Pibby: Apocalypse (freeplay del gioco, schermo 1280x720) ---- */
+.pibx {
+  --pibx-font: var(--font-pibby), "Special Elite", "Courier New", monospace;
+  font-family: var(--pibx-font);
+}
+.pibx-navspace {
+  background: #000;
+  box-shadow: 0 1px 0 rgba(160, 90, 255, 0.35), 0 6px 18px rgba(0, 0, 0, 0.6);
+}
+.pibx .impx-close {
+  background: #000;
+  color: #fff;
+  border: 3px solid #fff;
+  font-size: 1.2rem;
+  box-shadow: -2px 0 0 #00e5ff, 2px 0 0 #ff1f6d;
+}
+.pibx-stage {
+  background: #000;
+}
+/* background.png e' 1920x1080 messo al centro dello schermo 1280x720: si vede solo il centro. */
+.pibx-bg {
+  position: absolute;
+  left: -320px;
+  top: -180px;
+  width: 1920px;
+  height: 1080px;
+  pointer-events: none;
+}
+.pibx-bg img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.pibx-full {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1280px;
+  height: 720px;
+  pointer-events: none;
+}
+/* Stage e riquadro: y = 3 + sin(t/600) * 720*0.015; frecce: y = 290 + sin(t/600) * 720*0.065. */
+@keyframes pibx-bob {
+  0%, 100% { transform: translateY(3px); }
+  25% { transform: translateY(13.8px); }
+  75% { transform: translateY(-7.8px); }
+}
+@keyframes pibx-arrowbob {
+  0%, 100% { transform: translateY(0); }
+  25% { transform: translateY(46.8px); }
+  75% { transform: translateY(-46.8px); }
+}
+.pibx-center {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  animation: pibx-bob 3.77s ease-in-out infinite;
+}
+/* La finestra dentro stageBox.png: (399,184)-(877,447). */
+.pibx-clip {
+  position: absolute;
+  left: 399px;
+  top: 184px;
+  width: 479px;
+  height: 264px;
+  object-fit: cover;
+  background: #000;
+  pointer-events: auto;
+  z-index: 1;
+}
+.pibx-stageimg {
+  animation: pibx-in 0.25s ease-out;
+}
+@keyframes pibx-in {
+  from { opacity: 0; filter: hue-rotate(90deg) saturate(3); }
+}
+/* stagebox_L/R: stessa immagine, x -500/+500, setGraphicSize 0.45 (dal centro), alpha 0.6, ferme. */
+.pibx .pibx-side {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1280px;
+  height: 720px;
+  padding: 0;
+  border: 0;
+  background: none;
+  opacity: 0.6;
+  scale: 0.45;
+  cursor: pointer;
+  clip-path: inset(23% 29.8% 35% 29.8%);
+  transition: opacity 0.15s;
+}
+.pibx .pibx-side.l { translate: -500px 0; }
+.pibx .pibx-side.r { translate: 500px 0; }
+.pibx .pibx-side:hover {
+  opacity: 0.9;
+  background: none;
+}
+/* arrowL/arrowR: 266x117 con il triangolo piccolo dentro, scala 4 dal centro, blend ADD. */
+.pibx .pibx-arrow {
+  position: absolute;
+  top: 272px;
+  width: 60px;
+  height: 100px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  animation: pibx-arrowbob 3.77s ease-in-out infinite;
+  transition: opacity 0.1s ease-in-out;
+}
+.pibx .pibx-arrow:hover {
+  background: none;
+}
+.pibx .pibx-arrow.flash {
+  opacity: 0.4;
+}
+.pibx .pibx-arrow.l { left: 292px; }
+.pibx .pibx-arrow.r { left: 912px; }
+.pibx-arrow img {
+  position: absolute;
+  top: -157.5px;
+  width: 1064px;
+  height: 468px;
+  mix-blend-mode: plus-lighter;
+  pointer-events: none;
+}
+.pibx-arrow.l img { left: -184px; }
+.pibx-arrow.r img { left: -804px; }
+.pibx-arrow:hover img {
+  filter: drop-shadow(0 0 8px #fff);
+}
+/* songText (y 35, 64px) e artistText (80 piu' sotto, 36px), bianchi in blend ADD con il glitch Pibby. */
+.pibx-title,
+.pibx-artist {
+  position: absolute;
+  left: 0;
+  right: 0;
+  margin: 0;
+  text-align: center;
+  color: #fff;
+  white-space: nowrap;
+  mix-blend-mode: plus-lighter;
+  pointer-events: none;
+}
+.pibx-title {
+  top: 35px;
+  font-size: 64px;
+  line-height: 1;
+  text-shadow: -3px 0 #00e5ff, 3px 0 #ff1f6d, 0 0 18px rgba(255, 255, 255, 0.5);
+  animation: pibx-glitch 2.3s steps(1) infinite;
+}
+.pibx-artist {
+  top: 115px;
+  font-size: 36px;
+  line-height: 1;
+  text-shadow: -2px 0 #00e5ff, 2px 0 #ff1f6d, 0 0 12px rgba(255, 255, 255, 0.4);
+}
+@keyframes pibx-glitch {
+  0%, 86%, 100% { transform: none; }
+  88% { transform: translateX(-6px) skewX(12deg); text-shadow: -8px 0 #00e5ff, 8px 0 #ff1f6d; }
+  91% { transform: translateX(5px); clip-path: inset(30% 0 35% 0); }
+  94% { transform: none; }
+}
+.pibx-bar {
+  position: absolute;
+  left: 630px;
+  top: 510px;
+  width: 248px;
+  height: 28px;
+}
+.pibx-bar img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.pibx-bar span {
+  position: absolute;
+  left: 4px;
+  top: 4px;
+  bottom: 4px;
+  background: #fff;
+  transition: width 0.4s ease-out;
+}
+/* gradient.png (2650x1600) a scala 0.75 al centro, alpha che va e viene in 1 s. */
+@keyframes pibx-vignette {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.pibx-gradient {
+  position: absolute;
+  left: -353.75px;
+  top: -240px;
+  width: 1987.5px;
+  height: 1200px;
+  max-width: none;
+  pointer-events: none;
+  animation: pibx-vignette 1s ease-in-out infinite alternate;
+}
+/* Punteggio come nel freeplay di Psych: in alto a destra su fondo nero al 60%, font VCR. */
+.pibx-score {
+  position: absolute;
+  top: 0;
+  right: 0;
+  min-height: 66px;
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  padding: 5px 6px 0;
+  background: rgba(0, 0, 0, 0.6);
+  font-family: var(--font-vcr), "VT323", monospace;
+  font-size: 32px;
+  line-height: 32px;
+}
+.pibx-score span + span {
+  margin-top: 4px;
+  font-size: 24px;
+  line-height: 24px;
+}
+.pibx-archive {
+  position: absolute;
+  left: 50%;
+  top: 590px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-size: 18px;
+  white-space: nowrap;
+}
+.pibx .pibx-archive button {
+  padding: 4px 10px;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  border-radius: 0;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+.pibx .pibx-archive button.on,
+.pibx .pibx-archive button:hover {
+  border-color: #fff;
+  background: #fff;
+  color: #000;
+}
+.pibx-count {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 18px;
+  margin: 0;
+  text-align: center;
+  font-size: 18px;
+  opacity: 0.7;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pibx-center,
+  .pibx-arrow,
+  .pibx-title,
+  .pibx-gradient {
+    animation: none;
+  }
+}
+
+/* ---- Pagina speciale: Wii Funkin' (menu Wii, canali e freeplay del gioco, schermo 1280x720) ---- */
+.wiix {
+  --wii-font: var(--font-wii), "M PLUS Rounded 1c", "Arial Rounded MT Bold", sans-serif;
+  --cube-out: cubic-bezier(0.33, 1, 0.68, 1);
+  --cube-in: cubic-bezier(0.32, 0, 0.67, 0);
+  --expo-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --back-out: cubic-bezier(0.34, 1.56, 0.64, 1);
+  font-family: var(--wii-font);
+}
+.wiix-navspace {
+  background: linear-gradient(#1b1d20, #0c0d0f);
+  box-shadow: 0 1px 0 rgba(52, 190, 237, 0.45), 0 6px 18px rgba(0, 0, 0, 0.6);
+}
+.wiix .impx-close {
+  background: #fff;
+  color: #8a8a8a;
+  border: 4px solid #34bced;
+  font-size: 1.2rem;
+  box-shadow: 0 0 12px rgba(52, 188, 237, 0.45);
+}
+.wiix .impx-cornerlogo {
+  height: 58px;
+}
+.wiix-stage {
+  background: #000;
+}
+.wiix-screen {
+  overflow: hidden;
+  background: #000;
+}
+.wiix-full {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1280px;
+  height: 720px;
+  max-width: none;
+  pointer-events: none;
+}
+.wiix button {
+  font: inherit;
+}
+
+/* Menu Wii. Lo sfondo pulsa: alpha = 0.75 + cos(t*2) * 0.25. */
+.wiix-menu {
+  position: absolute;
+  inset: 0;
+  transform-origin: 0 0;
+}
+.wiix-menu.in-channel .wiix-tip {
+  display: none;
+}
+/* Il canale vive nel mondo del menu: 1280x720 a scala 0.25 sul riquadro, a zoom 4 riempie lo schermo. */
+.wiix-chworld {
+  position: absolute;
+  width: 1280px;
+  height: 720px;
+  transform: scale(0.25);
+  transform-origin: center;
+  z-index: 10;
+}
+.wiix-chwhitefade {
+  position: absolute;
+  /* 1 px dentro il bordo per non lasciare una riga tra il bianco e il canale. */
+  inset: 1px;
+  box-shadow: 0 0 0 6000px #fff;
+  pointer-events: none;
+}
+/* Transizione di Psych (CustomFadeTransition): una sfumatura nera che scende. */
+.wiix-wipe {
+  position: absolute;
+  left: 0;
+  width: 1280px;
+  height: 1490px;
+  z-index: 50;
+  pointer-events: all;
+}
+.wiix-wipe.out {
+  top: 0;
+  background: linear-gradient(#000 0 770px, transparent);
+  animation: wiix-wipe-out 0.6s linear forwards;
+}
+@keyframes wiix-wipe-out {
+  from { transform: translateY(-1490px); }
+  to { transform: none; }
+}
+.wiix-wipe.in {
+  top: 0;
+  background: linear-gradient(transparent, #000 720px);
+  animation: wiix-wipe-in 0.7s linear forwards;
+}
+@keyframes wiix-wipe-in {
+  from { transform: translateY(-720px); }
+  to { transform: translateY(770px); }
+}
+.wiix-wipe.black {
+  top: 0;
+  height: 720px;
+  background: #000;
+  animation: wiix-fadein 0.5s linear both;
+}
+@keyframes wiix-pulse {
+  from { opacity: 1; }
+  to { opacity: 0.5; }
+}
+.wiix-menubg {
+  animation: wiix-pulse 1.57s ease-in-out infinite alternate;
+}
+.wiix-slot {
+  position: absolute;
+  width: 258px;
+  height: 140px;
+}
+.wiix-outline {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.wiix .wiix-tile {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  cursor: pointer;
+}
+.wiix .wiix-tile:hover,
+.wiix .wiix-tile:disabled {
+  background: none;
+}
+.wiix .wiix-tile:disabled {
+  cursor: default;
+  opacity: 1;
+}
+.wiix-tile > img:first-child {
+  display: block;
+  width: 258px;
+  height: 140px;
+}
+/* outlineBlue (300x180) al centro del canale: appare e si allarga quando ci passa il mouse. */
+.wiix-outline-blue {
+  position: absolute;
+  left: -21px;
+  top: -20px;
+  width: 300px;
+  height: 180px;
+  max-width: none;
+  opacity: 0;
+  transform: scaleX(0.85);
+  transition: opacity 0.35s, transform 0.5s;
+  pointer-events: none;
+}
+.wiix-tile:hover:not(:disabled) .wiix-outline-blue,
+.wiix-tile:focus-visible .wiix-outline-blue {
+  opacity: 1;
+  transform: none;
+  transition: opacity 0.1s, transform 0s;
+}
+/* I canali vuoti hanno la statica, come lo shader del gioco. */
+@keyframes wiix-static {
+  0% { background-position: 0 0; }
+  25% { background-position: -61px 37px; }
+  50% { background-position: 43px -71px; }
+  75% { background-position: -29px -13px; }
+  100% { background-position: 0 0; }
+}
+.wiix-null::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 14px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 1.2 -0.2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay;
+  opacity: 0.55;
+  animation: wiix-static 0.17s steps(1) infinite;
+  pointer-events: none;
+}
+/* Il fumetto del menu Wii (wiiUISlice): compare dopo mezzo secondo sopra il canale. */
+.wiix-tip {
+  position: absolute;
+  z-index: 5;
+  padding: 8px 25px;
+  border: 3px solid #cfd3d6;
+  border-radius: 999px;
+  background: linear-gradient(#fff, #f1f1f1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  color: #858585;
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1.1;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0s;
+}
+.wiix-tip-tile {
+  left: -15px;
+  top: 150px;
+}
+.wiix-tile:hover:not(:disabled) .wiix-tip,
+.wiix-round:hover .wiix-tip,
+.wiix-star:hover .wiix-tip {
+  opacity: 1;
+  transition: opacity 0.12s 0.5s;
+}
+.wiix .wiix-round {
+  position: absolute;
+  width: 153px;
+  height: 153px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+  transform: scale(0.9);
+  transition: transform 0.12s ease-out;
+}
+.wiix .wiix-round:hover {
+  background: none;
+  transform: scale(1);
+}
+.wiix-round img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.wiix-star {
+  position: absolute;
+  transition: transform 0.12s ease-out;
+}
+.wiix-star img {
+  display: block;
+  filter: brightness(0.18);
+}
+.wiix-star.on img {
+  filter: none;
+}
+.wiix-star:hover {
+  transform: scale(1.1);
+}
+
+/* Canale aperto: dopo 0.25 s appaiono cornice e tasti, poi l'animazione del canale (da 1 s). */
+@keyframes wiix-fadein {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes wiix-fadeout {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+.wiix-channel {
+  position: absolute;
+  inset: 0;
+  animation: wiix-fadein 0.35s linear 0.25s both;
+}
+.wiix-channel.leaving {
+  animation: wiix-fadeout 0.35s linear both;
+}
+.wiix-chwhite {
+  background: #fff;
+}
+.wiix-chbg {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+/* Lo sfondo e' largo quanto lo schermo, centrato 100 px sopra il centro (25 unita' x zoom 4). */
+.wiix-chbg img {
+  position: absolute;
+  left: 0;
+  width: 1280px;
+  max-width: none;
+  transform-origin: center;
+}
+.ch-wiik1 .wiix-chbg img,
+.ch-wiik2 .wiix-chbg img,
+.ch-wiikz .wiix-chbg img {
+  top: -56.5px;
+  transform: scale(1.25);
+  animation: wiix-bgzoom 1s var(--cube-out) 1s forwards;
+}
+.ch-wiikz .wiix-chbg img {
+  animation-duration: 1.2s;
+}
+@keyframes wiix-bgzoom {
+  to { transform: none; }
+}
+.ch-fisticuffs .wiix-chbg img {
+  top: 0;
+}
+.ch-freeplay .wiix-chbg img {
+  top: -4px;
+}
+.ch-whitegloves .wiix-chbg img {
+  top: -72.5px;
+  transform: translateY(60px) scale(1.25);
+  animation: wiix-bgzoom 1.25s var(--cube-out) 1s forwards;
+}
+/* White Gloves: lo sfondo parte tutto bianco e torna ai suoi colori. */
+.ch-whitegloves .wiix-chbg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  animation: wiix-fadeout 1s var(--expo-out) 1s forwards;
+}
+.wiix-chborder {
+  z-index: 1;
+}
+.wiix-sprite {
+  position: absolute;
+  max-width: none;
+  opacity: 0;
+  pointer-events: none;
+}
+.wiix-channel .fp-item,
+.wiix-channel .cr-logo {
+  z-index: 2;
+}
+/* Wiik 1: la scritta entra da sinistra, poi il numero. */
+@keyframes wiix-w1-wiik {
+  from { opacity: 1; transform: translateX(-1280px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes wiix-w1-num {
+  from { opacity: 1; transform: translateX(-140px); }
+  to { opacity: 1; transform: none; }
+}
+.w1-wiik { animation: wiix-w1-wiik 0.45s var(--cube-out) 1s forwards; }
+.w1-num { animation: wiix-w1-num 0.5s var(--cube-out) 1.45s forwards; }
+/* Wiik 2: scritta e numero si rimpiccioliscono comparendo. */
+@keyframes wiix-pop {
+  from { opacity: 0; transform: scale(1.25); }
+  to { opacity: 1; transform: none; }
+}
+.w2-wiik { animation: wiix-pop 0.5s var(--cube-out) 1s forwards; }
+.w2-num { animation: wiix-pop 0.5s var(--cube-out) 1.45s forwards; }
+/* Wiik Z: schermo nero, la Z arriva enorme, lampo bianco e poi la scritta. */
+@keyframes wiix-z-black {
+  0%, 15.6% { opacity: 0; }
+  15.7%, 99.9% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.wiix-chblack {
+  background: #000;
+  opacity: 0;
+  animation: wiix-z-black 1.6s linear forwards;
+}
+@keyframes wiix-z-num {
+  from { opacity: 0; transform: translateX(-200px) scale(3); }
+  to { opacity: 1; transform: none; }
+}
+.z-num { animation: wiix-z-num 0.6s var(--cube-in) 1s forwards; }
+@keyframes wiix-flash {
+  0% { opacity: 0; animation-timing-function: cubic-bezier(0.7, 0, 0.84, 0); }
+  50% { opacity: 1; animation-timing-function: var(--expo-out); }
+  100% { opacity: 0; }
+}
+.wiix-chflash {
+  background: #fff;
+  opacity: 0;
+  animation: wiix-flash 1.2s linear 1s forwards;
+}
+.z-wiik { animation: wiix-fadein 0.8s linear 2.2s forwards; }
+/* Fisticuffs: Matt entra nero, diventa bianco e torna a colori; il logo arriva dall'altra parte. */
+@keyframes wiix-fc-render {
+  0% { opacity: 1; transform: translateX(-1120px); filter: brightness(0) invert(0); animation-timing-function: linear; }
+  20% { opacity: 1; transform: translateX(-200px); filter: brightness(0) invert(0); animation-timing-function: step-end; }
+  20.01% { opacity: 1; transform: translateX(-200px); filter: brightness(0) invert(1); animation-timing-function: var(--cube-out); }
+  100% { opacity: 1; transform: none; filter: brightness(1) invert(0); }
+}
+@keyframes wiix-fc-logo {
+  0% { opacity: 1; transform: translateX(1040px); animation-timing-function: linear; }
+  20% { opacity: 1; transform: translateX(120px); animation-timing-function: var(--cube-out); }
+  100% { opacity: 1; transform: none; }
+}
+.fc-render { animation: wiix-fc-render 1.25s linear 1s forwards; }
+.fc-logo { animation: wiix-fc-logo 1.25s linear 1s forwards; }
+@keyframes wiix-grow {
+  from { opacity: 0; transform: scale(0.5); }
+  to { opacity: 1; transform: none; }
+}
+.wg-logo { animation: wiix-grow 1s var(--cube-out) 1s forwards; }
+.fp-item { animation: wiix-fadein 1s var(--expo-out) 1s forwards; }
+/* Credits: i Mii salgono da sotto e poi compare la scritta. */
+@keyframes wiix-rise {
+  from { opacity: 1; transform: translateY(200px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes wiix-logo-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: none; }
+}
+.cr-back { animation: wiix-rise 0.5s var(--back-out) 1s forwards; }
+.cr-fade { animation: wiix-fadein 0.01s linear 1s forwards; }
+.cr-front { animation: wiix-rise 0.5s var(--back-out) 1.25s forwards; }
+.cr-logo { animation: wiix-logo-up 0.5s var(--back-out) 1.5s forwards; }
+/* I tasti Menu e Start nella fascia scura in basso del canale. */
+.wiix-chbuttons {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+.wiix .wiix-chbtn {
+  position: absolute;
+  top: 570px;
+  width: 369px;
+  height: 105px;
+  padding: 0 0 6px;
+  border: 0;
+  border-radius: 999px;
+  background-color: transparent;
+  background-size: 100% 100%;
+  color: #3a3a3a;
+  font-size: 38px;
+  font-weight: 800;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.wiix .wiix-chbtn:hover {
+  background-color: transparent;
+}
+.wiix .wiix-chbtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Scelta del pacchetto: "Which songs would you like to play?" e tre copertine a scala 0.5. */
+.wiix-packs,
+.wiix-list {
+  position: absolute;
+  inset: 0;
+  animation: wiix-fadein 0.3s linear both;
+}
+.wiix-question,
+.wiix-branding {
+  position: absolute;
+  left: 0;
+  right: 0;
+  margin: 0;
+  text-align: center;
+  color: #fff;
+  font-weight: 800;
+}
+.wiix-question {
+  top: 60px;
+  font-size: 46px;
+}
+.wiix-branding {
+  top: 620px;
+  font-size: 22px;
+}
+.wiix .wiix-cover {
+  position: absolute;
+  top: 190.5px;
+  width: 320px;
+  height: 339px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  transition: transform 0.12s ease-out;
+}
+.wiix .wiix-cover:hover:not(:disabled) {
+  background: none;
+  transform: scale(1.04);
+}
+.wiix .wiix-cover:disabled {
+  opacity: 1;
+  cursor: default;
+}
+.wiix-cover img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.wiix .wiix-back {
+  left: 6px;
+  top: 4px;
+  width: 80px;
+  height: 80px;
+  z-index: 6;
+}
+
+/* Freeplay: etichette a x 40, una ogni 130 px; quella scelta e' tinta di lilla (0xACABF8). */
+.wiix-port {
+  position: absolute;
+  right: 0;
+  top: 0;
+  height: 720px;
+  width: auto;
+  max-width: none;
+  opacity: 0;
+  transition: opacity 0.12s, filter 0.2s;
+  pointer-events: none;
+}
+.wiix-port.on {
+  opacity: 1;
+  transition: opacity 0.3s;
+}
+.wiix-port.hidden {
+  filter: brightness(0);
+}
+.wiix-rows {
+  position: absolute;
+  inset: 0;
+}
+.wiix .wiix-row {
+  position: absolute;
+  left: 40px;
+  top: calc((var(--i) - var(--scroll)) * 130px);
+  width: 570px;
+  height: 113px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: #000;
+  text-align: left;
+  cursor: pointer;
+  transition: top 0.25s var(--cube-out);
+}
+.wiix .wiix-row:hover {
+  background: none;
+}
+.wiix-label {
+  position: absolute;
+  inset: 0;
+  width: 570px;
+  height: 113px;
+  pointer-events: none;
+}
+.wiix-tint {
+  position: absolute;
+  inset: 0;
+  background: #acabf8;
+  mix-blend-mode: multiply;
+  -webkit-mask: var(--mask) center / 100% 100% no-repeat;
+  mask: var(--mask) center / 100% 100% no-repeat;
+  opacity: 0;
+  pointer-events: none;
+}
+.wiix-row.on .wiix-tint {
+  opacity: 1;
+}
+.wiix-icon {
+  position: absolute;
+  left: 0;
+  top: -6px;
+  width: 105px;
+  height: 105px;
+  background-size: 200% 100%;
+  background-position: left center;
+  background-repeat: no-repeat;
+}
+.wiix-song {
+  position: absolute;
+  left: 130px;
+  right: 30px;
+  top: 12px;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  font-size: 36px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+/* Il record di Relay, in un riquadro col bordo azzurro dei canali Wii. */
+/* In basso a destra, sotto la faccia del ritratto e sopra il punteggio. */
+.wiix-record {
+  position: absolute;
+  right: 24px;
+  bottom: 96px;
+  width: 480px;
+  display: flex;
+  flex-direction: column-reverse;
+  z-index: 2;
+}
+.wiix-record video {
+  display: block;
+  width: 480px;
+  height: 270px;
+  border: 5px solid #34bced;
+  border-radius: 22px;
+  background: #000;
+  box-shadow: 0 0 0 3px #fff, 0 10px 30px rgba(0, 0, 0, 0.6);
+  object-fit: cover;
+}
+.wiix-archive {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.wiix .wiix-archive button {
+  padding: 4px 14px;
+  border: 3px solid #cfd3d6;
+  border-radius: 999px;
+  background: #fff;
+  color: #6b6b6b;
+  font-size: 18px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.wiix .wiix-archive button.on,
+.wiix .wiix-archive button:hover {
+  border-color: #34bced;
+  background: #fff;
+  color: #1b9fd0;
+}
+.wiix-modebar,
+.wiix-modetitle {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1280px;
+  max-width: none;
+  z-index: 3;
+  pointer-events: none;
+}
+.wiix-score {
+  position: absolute;
+  right: 0;
+  top: 638px;
+  height: 56px;
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 2px;
+  padding: 5px 6px 0;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 24px;
+  font-weight: 500;
+  line-height: 24px;
+  z-index: 3;
+}
+.wiix-bottom {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 694px;
+  height: 26px;
+  margin: 0;
+  padding-top: 4px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 18px;
+  text-align: center;
+  z-index: 3;
+}
+@media (prefers-reduced-motion: reduce) {
+  .wiix-menubg,
+  .wiix-null::after {
+    animation: none;
+  }
+}
+
+/* ---- Pagina speciale: Indie Cross (FreeplaySelect e FreeplayState del gioco, schermo 1280x720) ---- */
+.icx {
+  --ic-font: var(--font-ic), "Oswald", "Arial Narrow", sans-serif;
+  --cube-out: cubic-bezier(0.33, 1, 0.68, 1);
+  font-family: var(--ic-font);
+}
+.icx-navspace {
+  background: linear-gradient(#150b24, #07030d);
+  box-shadow: 0 1px 0 rgba(170, 90, 255, 0.35), 0 6px 18px rgba(0, 0, 0, 0.6);
+}
+.icx .impx-close {
+  background: #0b0612;
+  color: #fff;
+  border: 3px solid #fff;
+  font-size: 1.2rem;
+}
+.icx .impx-cornerlogo {
+  height: 44px;
+}
+.icx-stage {
+  background: #000;
+}
+.icx-screen {
+  overflow: hidden;
+  background: #000;
+}
+.icx-full {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1280px;
+  height: 720px;
+  max-width: none;
+  pointer-events: none;
+}
+.icx button {
+  font: inherit;
+}
+
+/* FreeplaySelect: pulsanti a scala 0.675 (584x1033 -> 394x697), alpha 0.5 e 1 per quello scelto. */
+.icx-select {
+  position: absolute;
+  inset: 0;
+}
+.icx .icx-selbtn {
+  position: absolute;
+  top: 20px;
+  width: 394.2px;
+  height: 697.3px;
+  padding: 0;
+  border: 0;
+  background: none;
+  opacity: 0.5;
+  cursor: pointer;
+}
+.icx .icx-selbtn:hover {
+  background: none;
+}
+.icx .icx-selbtn.on {
+  opacity: 1;
+}
+.icx .icx-selbtn.gone {
+  opacity: 0;
+  transition: opacity 1s var(--cube-out);
+}
+.icx-selbtn img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+/* WhiteOverlayShader: il pulsante scelto diventa bianco (mix verso il bianco) e torna in 1 s. */
+.icx-white {
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  -webkit-mask: var(--mask) center / 100% 100% no-repeat;
+  mask: var(--mask) center / 100% 100% no-repeat;
+  opacity: 0;
+  pointer-events: none;
+}
+@keyframes icx-unwhite {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+.icx-selbtn.picked .icx-white {
+  animation: icx-unwhite 1s var(--cube-out) forwards;
+}
+
+/* FreeplayState. */
+.icx-list {
+  position: absolute;
+  inset: 0;
+}
+.icx-cam {
+  position: absolute;
+  inset: 0;
+  transform-origin: center;
+  transition: filter 0.5s linear;
+}
+.icx-list.leaving .icx-cam {
+  filter: brightness(0);
+}
+.icx-row {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 70px;
+  opacity: 0.6;
+  cursor: pointer;
+  will-change: transform;
+}
+.icx-row.on {
+  opacity: 1;
+}
+.icx-word {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 70px;
+}
+/* Una striscia di fotogrammi a 24 fps. */
+.icx-anim {
+  position: absolute;
+  top: 0;
+  background-repeat: no-repeat;
+  background-size: calc(var(--w) * var(--n)) 100%;
+  pointer-events: none;
+}
+@keyframes icx-frames {
+  from { background-position: 0 0; }
+  to { background-position: calc(-1 * var(--w) * var(--n)) 0; }
+}
+.icx-anim.play {
+  animation: icx-frames var(--dur) steps(var(--n)) infinite;
+}
+.icx-jbug {
+  position: absolute;
+  left: 1016px;
+  top: 549px;
+  width: 258px;
+  height: 146.4px;
+  pointer-events: none;
+}
+/* camHUD: punteggio in alto a destra e secondo riquadro (nel gioco la difficolta' delle meccaniche,
+   qui il record di Relay). */
+.icx-hud {
+  position: absolute;
+  inset: 0;
+  color: #fff;
+  pointer-events: none;
+  transition: opacity 0.5s linear;
+}
+.icx-list.leaving .icx-hud {
+  opacity: 0;
+}
+.icx-hud p {
+  position: absolute;
+  margin: 0;
+  line-height: 1;
+  white-space: nowrap;
+}
+.icx-scorebg,
+.icx-mechbg {
+  position: absolute;
+  background: rgba(0, 0, 0, 0.6);
+}
+.icx-scorebg {
+  left: 870.8px;
+  top: 0;
+  width: 448px;
+  height: 66px;
+}
+.icx-score {
+  left: 876.8px;
+  top: 7px;
+  font-size: 28px;
+}
+.icx-diff {
+  left: 876.8px;
+  top: 38px;
+  font-size: 24px;
+}
+.icx-diff.red {
+  color: #f00;
+}
+.icx-combo {
+  left: 976.8px;
+  top: 38px;
+  font-size: 24px;
+}
+.icx-mechbg {
+  left: 871px;
+  top: 78px;
+  width: 409px;
+  height: 63px;
+}
+.icx-mechinfo {
+  left: 876.8px;
+  top: 85px;
+  font-size: 24px;
+}
+.icx-mech {
+  left: 876.8px;
+  top: 112px;
+  font-size: 24px;
+  display: flex;
+  gap: 24px;
+}
+.icx-mech span:first-child {
+  color: #fb195f;
+}
+.icx-mech .none {
+  color: #888 !important;
+}
+.icx-record {
+  position: absolute;
+  left: 840px;
+  top: 460px;
+  width: 420px;
+  display: flex;
+  flex-direction: column-reverse;
+  pointer-events: auto;
+}
+.icx-record video {
+  display: block;
+  width: 420px;
+  height: 236px;
+  border: 3px solid #fff;
+  background: #000;
+  object-fit: cover;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+}
+.icx-archive {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.icx .icx-archive button {
+  padding: 3px 12px;
+  border: 0;
+  border-radius: 0;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 18px;
+  cursor: pointer;
+}
+.icx .icx-archive button.on,
+.icx .icx-archive button:hover {
+  background: #fff;
+  color: #000;
+}
+.icx .icx-back {
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  width: 52px;
+  height: 52px;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.icx .icx-back:hover {
+  background: #fff;
+  color: #000;
+}
+.icx-diamonds {
+  position: absolute;
+  inset: 0;
+  width: 1280px;
+  height: 720px;
+  z-index: 50;
+}
+@media (prefers-reduced-motion: reduce) {
+  .icx-anim.play {
+    animation: none;
+  }
+}
+
+/* ---- Archivio: server secondari dei video ---- */
+.stor {
+  display: grid;
+  gap: 16px;
+  max-width: 980px;
+}
+.stor-card {
+  display: grid;
+  gap: 16px;
+  padding: 20px 22px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.stor-card h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 1.1rem;
+}
+.stor-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.stor-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 18px;
+}
+.stor-grid > div {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+}
+.stor-k {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+.stor-v {
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+.stor-v .muted {
+  font-size: 0.9rem;
+  font-weight: 400;
+}
+.stor-sub {
+  color: var(--faint);
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+.stor-bar {
+  display: block;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+.stor-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+}
+.stor-bar.warn span {
+  background: var(--warn);
+}
+.stor-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--faint);
+}
+.stor-dot.on {
+  background: var(--ok);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--ok) 25%, transparent);
+}
+.stor-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 10px;
+}
+.stor-row label {
+  flex: 1 1 220px;
+}
+.stor-check {
+  display: flex !important;
+  align-items: center;
+  gap: 8px !important;
+  flex: 0 0 auto !important;
+  height: 38px;
+}
+.stor-check input {
+  width: 16px;
+  height: 16px;
+}
+.stor-range input {
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+.stor-key {
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--line));
+}
+.stor-cmd {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--bg);
+  border: 1px solid var(--line-2);
+  font-size: 0.82rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+/* Video su un server di archivio spento. */
+.video-unavailable {
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  border-radius: 12px;
+  background: #000;
+  color: #c9cddc;
+  font-size: 0.95rem;
+  text-align: center;
+}
+.video-unavailable.over {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+}

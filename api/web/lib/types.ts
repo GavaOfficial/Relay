@@ -46,3 +46,79 @@ export type MatchDetail = MatchInfo & {
 
   processing?: Record<string, { stage: "queue" | "video" | "web"; pct: number }>;
 };
+
+export type CodenameMod = {
+  key: string;
+  name: string;
+  gamebanana_url?: string;
+  gb_name?: string;
+  gb_author?: string;
+  gb_cover_url?: string;
+  catalog?: FunkinCatalog;
+};
+
+export type FunkinCatalog = {
+  title?: string;
+  description?: string;
+  version?: string;
+  contributors: { name: string; role?: string; url?: string }[];
+  has_icon: boolean;
+  albums: { id: string; name: string; artists: string[]; art?: string }[];
+  tracks: FunkinTrack[];
+  extra?: Record<string, unknown>;
+};
+
+export type FunkinTrack = {
+  id: string;
+  variation?: string;
+  name: string;
+  artist?: string;
+  album?: string;
+  bpm?: number;
+  difficulties: string[];
+  ratings: Record<string, number>;
+  icon?: string;
+  color?: string;
+  extra?: Record<string, unknown>;
+};
+
+export type CodenameModSummary = CodenameMod & {
+  title?: string;
+  has_icon?: boolean;
+  tracks?: number;
+  songs: number;
+  clips: number;
+  last_at: number;
+  preview_clip: string | null;
+};
+
+export type CodenameClip = {
+  id: string;
+  mod_key: string;
+  song_id?: string;
+  song: string;
+  difficulty: string;
+  variation?: string;
+  score: number;
+  accuracy?: number | null;
+  misses: number;
+  duration_ms: number;
+  recorded_at: number;
+  archived: boolean;
+  has_thumb: boolean;
+  extra?: Record<string, unknown>;
+};
+
+export type CodenameSong = {
+  song: string;
+  song_id?: string;
+  difficulty: string;
+  variation?: string;
+  best: CodenameClip;
+  archive: CodenameClip[];
+};
+
+export type CodenameModDetail = {
+  mod: CodenameMod;
+  songs: CodenameSong[];
+};
