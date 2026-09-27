@@ -1,0 +1,194 @@
+{
+ "title": "Pibby Apocalypse",
+ "description": "Description",
+ "contributors": [],
+ "has_icon": true,
+ "albums": [
+  {
+   "id": "gumball",
+   "name": "gumball",
+   "artists": [],
+   "art": "week-gumball.png"
+  },
+  {
+   "id": "finn",
+   "name": "finn",
+   "artists": [],
+   "art": "week-finn.png"
+  },
+  {
+   "id": "cawm",
+   "name": "cawm",
+   "artists": []
+  }
+ ],
+ "tracks": [
+  {
+   "id": "childs-play",
+   "name": "Child's Play",
+   "album": "gumball",
+   "bpm": 90.0,
+   "difficulties": [
+    "Easy",
+    "Normal",
+    "Hard"
+   ],
+   "ratings": {},
+   "icon": "hi-gumball.png",
+   "color": "#52a5eb",
+   "extra": {
+    "threat": 20.0
+   }
+  },
+  {
+   "id": "my-amazing-world",
+   "name": "My Amazing World",
+   "album": "gumball",
+   "bpm": 200.0,
+   "difficulties": [
+    "Easy",
+    "Normal",
+    "Hard"
+   ],
+   "ratings": {},
+   "icon": "hi-gumball.png",
+   "color": "#52a5eb",
+   "extra": {
+    "threat": 45.0
+   }
+  },
+  {
+   "id": "retcon",
+   "name": "Retcon",
+   "album": "gumball",
+   "bpm": 200.0,
+   "difficulties": [
+    "Easy",
+    "Normal",
+    "Hard"
+   ],
+   "ratings": {},
+   "icon": "hi-gumball.png",
+   "color": "#52a5eb",
+   "extra": {
+    "threat": 55.0
+   }
+  },
+  {
+   "id": "forgotten-world",
+   "name": "Forgotten World",
+   "album": "gumball",
+   "bpm": 189.55,
+   "difficulties": [
+    "Easy",
+    "Normal",
+    "Hard"
+   ],
+   "ratings": {},
+   "icon": "hi-gumball.png",
+   "color": "#52a5eb",
+   "extra": {
+    "threat": 65.0
+   }
+  },
+  {
+   "id": "mindless",
+   "name": "Mindless",
+   "album": "finn",
+   "bpm": 163.0,
+   "difficulties": [
+    "Easy",
+    "Normal",
+    "Hard"
+   ],
+   "ratings": {},
+   "icon": "hi-finn.png",
+   "color": "#52a5eb",
+   "extra": {
+    "threat": 85.0
+   }
+  },
+  {
+   "id": "blessed-by-swords",
+   "name": "Blessed by Swords",
+   "album": "finn",
+   "bpm": 180.0,
+   "difficulties": [
+    "Easy",
+    "Normal",
+    "Hard"
+   ],
+   "ratings": {},
+   "icon": "hi-finn.png",
+   "color": "#52a5eb",
+   "extra": {
+    "threat": 90.0
+   }
+  },
+  {
+   "id": "brotherly-love",
+   "name": "Brotherly Love",
+   "album": "finn",
+   "bpm": 197.0,
+   "difficulties": [
+    "Easy",
+    "Normal",
+    "Hard"
+   ],
+   "ratings": {},
+   "icon": "hi-jake.png",
+   "color": "#52a5eb",
+   "extra": {
+    "threat": 80.0
+   }
+  },
+  {
+   "id": "suffering-siblings",
+   "name": "Suffering Siblings",
+   "album": "finn",
+   "bpm": 180.0,
+   "difficulties": [
+    "Easy",
+    "Normal",
+    "Hard"
+   ],
+   "ratings": {},
+   "icon": "hi-finn.png",
+   "color": "#52a5eb",
+   "extra": {
+    "threat": 95.0
+   }
+  },
+  {
+   "id": "come-along-with-me",
+   "name": "Come Along With Me",
+   "album": "cawm",
+   "bpm": 180.0,
+   "difficulties": [
+    "Easy",
+    "Normal",
+    "Hard"
+   ],
+   "ratings": {},
+   "icon": "hi-finn.png",
+   "color": "#52a5eb",
+   "extra": {
+    "threat": 75.0
+   }
+  }
+ ],
+ "extra": {
+  "logo": "pib-logo.png",
+  "ui": {
+   "backgrounds": [
+    "pib-bg-0.png",
+    "pib-bg-1.png",
+    "pib-bg-2.png",
+    "pib-bg-3.png",
+    "pib-bg-4.png",
+    "pib-bg-5.png"
+   ],
+   "pibby": true
+  }
+ }
+}

@@ -1,0 +1,64 @@
+{
+ "title": "Marios Madness",
+ "contributors": [],
+ "has_icon": true,
+ "albums": [
+  {
+   "id": "week1",
+   "name": "Daddy Dearest",
+   "artists": [
+    "Week 1"
+   ]
+  }
+ ],
+ "tracks": [
+  {
+   "id": "its-a-me",
+   "name": "Its a me",
+   "album": "week1",
+   "difficulties": [
+    "Easy",
+    "Normal",
+    "Hard"
+   ],
+   "ratings": {},
+   "icon": "hi-marioex.png",
+   "color": "#470f0f"
+  },
+  {
+   "id": "starman-slaughter",
+   "name": "Starman-Slaughter",
+   "album": "week1",
+   "difficulties": [
+    "Easy",
+    "Normal",
+    "Hard"
+   ],
+   "ratings": {},
+   "icon": "hi-mario-land.png",
+   "color": "#470f0f"
+  }
+ ],
+ "extra": {
+  "logo": "mm-logo.png",
+  "ui": {
+   "backgrounds": [
+    "mm-bg-0.png",
+    "mm-bg-1.png",
+    "mm-bg-2.png",
+    "mm-bg-3.png",
+    "mm-bg-4.png",
+    "mm-bg-5.png",
+    "mm-bg-6.png"
+   ],
+   "fog": "mm-fog.png",
+   "marios_madness": true,
+   "static": [
+    "mm-static-0.png",
+    "mm-static-1.png",
+    "mm-static-2.png",
+    "mm-static-3.png"
+   ]
+  }
+ }
+}

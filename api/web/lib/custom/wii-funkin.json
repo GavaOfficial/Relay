@@ -1,0 +1,554 @@
+{
+ "title": "Wii Funkin' V2",
+ "description": "VS Matt V2 Songs.",
+ "contributors": [],
+ "has_icon": true,
+ "albums": [
+  {
+   "id": "1wiik1",
+   "name": "Wii Funkin' Wiik 1",
+   "artists": [
+    "Wiik 1"
+   ]
+  },
+  {
+   "id": "2wiik2",
+   "name": "Wii Funkin' Wiik 2",
+   "artists": [
+    "Wiik 2"
+   ]
+  },
+  {
+   "id": "3wiikZ",
+   "name": "Wii Funkin' Wiik Z",
+   "artists": [
+    "Wiik Z"
+   ]
+  },
+  {
+   "id": "4wiikFisticuffs",
+   "name": "Friday Night Fisticuffs",
+   "artists": []
+  },
+  {
+   "id": "5wiikWG",
+   "name": "White Glove Remixes",
+   "artists": [
+    "Wiik White Gloves"
+   ]
+  },
+  {
+   "id": "6wiikFreeplay",
+   "name": "Wii Funkin' Bonus Songs",
+   "artists": [
+    "Wiik Bonus"
+   ]
+  },
+  {
+   "id": "8wiikshaggystuff",
+   "name": "Wii Funkin' Shaggy Stuff",
+   "artists": [
+    "Shaggy stuff"
+   ]
+  },
+  {
+   "id": "8wiikshaggystuff2",
+   "name": "Wii Funkin' Shaggy Stuff",
+   "artists": [
+    "Shaggy stuff"
+   ]
+  },
+  {
+   "id": "8wiikshaggystuff3",
+   "name": "Wii Funkin' Shaggy Stuff",
+   "artists": [
+    "Shaggy stuff"
+   ]
+  },
+  {
+   "id": "8wiikshaggystuff4",
+   "name": "Wii Funkin' Shaggy Stuff",
+   "artists": [
+    "Shaggy stuff"
+   ]
+  },
+  {
+   "id": "8wiikshaggystuff5",
+   "name": "Wii Funkin' Shaggy Stuff",
+   "artists": [
+    "Shaggy stuff"
+   ]
+  },
+  {
+   "id": "9wiikStupidAlts",
+   "name": "Wii Funkin' Stupid Alts",
+   "artists": [
+    "Stupid Alts"
+   ]
+  },
+  {
+   "id": "captcha",
+   "name": "Vs Matt Captcha",
+   "artists": []
+  },
+  {
+   "id": "letterbomb",
+   "name": "letterbomb",
+   "artists": []
+  }
+ ],
+ "tracks": [
+  {
+   "id": "light-it-up",
+   "name": "Light It Up",
+   "album": "1wiik1",
+   "bpm": 125.0,
+   "difficulties": [
+    "Hard",
+    "Legacy"
+   ],
+   "ratings": {},
+   "icon": "hi-matt.png",
+   "color": "#e07e22"
+  },
+  {
+   "id": "ruckus",
+   "name": "Ruckus",
+   "album": "1wiik1",
+   "bpm": 200.0,
+   "difficulties": [
+    "Hard",
+    "Legacy"
+   ],
+   "ratings": {},
+   "icon": "hi-matt.png",
+   "color": "#e07e22"
+  },
+  {
+   "id": "target-practice",
+   "name": "Target Practice",
+   "album": "1wiik1",
+   "bpm": 245.0,
+   "difficulties": [
+    "Hard",
+    "Legacy"
+   ],
+   "ratings": {},
+   "icon": "hi-matt.png",
+   "color": "#e07e22"
+  },
+  {
+   "id": "sporting",
+   "name": "Sporting",
+   "album": "2wiik2",
+   "bpm": 300.0,
+   "difficulties": [
+    "Hard",
+    "Legacy"
+   ],
+   "ratings": {},
+   "icon": "hi-matt.png",
+   "color": "#e07e22"
+  },
+  {
+   "id": "boxing-match",
+   "name": "Boxing Match",
+   "album": "2wiik2",
+   "bpm": 339.0,
+   "difficulties": [
+    "Hard",
+    "Legacy"
+   ],
+   "ratings": {},
+   "icon": "hi-matt.png",
+   "color": "#e07e22"
+  },
+  {
+   "id": "shimmy",
+   "name": "Shimmy",
+   "album": "3wiikZ",
+   "bpm": 167.0,
+   "difficulties": [
+    "Hard"
+   ],
+   "ratings": {},
+   "icon": "hi-matt.png",
+   "color": "#e07e22"
+  },
+  {
+   "id": "combat",
+   "name": "Combat",
+   "album": "3wiikZ",
+   "bpm": 155.0,
+   "difficulties": [
+    "Hard"
+   ],
+   "ratings": {},
+   "icon": "hi-matt.png",
+   "color": "#e07e22"
+  },
+  {
+   "id": "one-hit",
+   "name": "One Hit",
+   "album": "3wiikZ",
+   "bpm": 342.0,
+   "difficulties": [
+    "Hard"
+   ],
+   "ratings": {},
+   "icon": "hi-matt.png",
+   "color": "#e07e22"
+  },
+  {
+   "id": "paper-cut",
+   "name": "Paper Cut",
+   "album": "4wiikFisticuffs",
+   "bpm": 132.0,
+   "difficulties": [
+    "Hard"
+   ],
+   "ratings": {},
+   "icon": "hi-sketchy.png",
+   "color": "#d9d9d9"
+  },
+  {
+   "id": "sussy-qussy",
+   "name": "Sussy Qussy",
+   "album": "4wiikFisticuffs",
+   "bpm": 134.0,
+   "difficulties": [
+    "Hard"
+   ],
+   "ratings": {},
+   "icon": "hi-impostor.png",
+   "color": "#e03a3a"
+  },
+  {
+   "id": "basket-match",
+   "name": "Basket Match",
+   "album": "4wiikFisticuffs",
+   "bpm": 170.0,
+   "difficulties": [
+    "Hard"
+   ],
+   "ratings": {},
+   "icon": "hi-hex.png",
+   "color": "#ffab7a"
+  },
+  {
+   "id": "funkadelic",
+   "name": "Funkadelic",
+   "album": "4wiikFisticuffs",
+   "bpm": 174.0,
+   "difficulties": [
+    "Hard"
+   ],
+   "ratings": {},
+   "icon": "hi-nikku.png",
+   "color": "#f43a76"
+  },
+  {
+   "id": "light-it-up-wg",
+   "name": "Light It Up WG",
+   "album": "5wiikWG",
+   "bpm": 127.0,
+   "difficulties": [
+    "White Gloves"
+   ],
+   "ratings": {},
+   "icon": "hi-wgmatt.png",
+   "color": "#f0f0f0"
+  },
+  {
+   "id": "target-practice-wg",
+   "name": "Target Practice WG",
+   "album": "5wiikWG",
+   "bpm": 264.0,
+   "difficulties": [
+    "White Gloves"
+   ],
+   "ratings": {},
+   "icon": "hi-wgmatt.png",
+   "color": "#f0f0f0"
+  },
+  {
+   "id": "boxing-match-wg",
+   "name": "Boxing Match WG",
+   "album": "5wiikWG",
+   "bpm": 200.0,
+   "difficulties": [
+    "White Gloves"
+   ],
+   "ratings": {},
+   "icon": "hi-wgmatt.png",
+   "color": "#f0f0f0"
+  },
+  {
+   "id": "been-patient",
+   "name": "Been Patient",
+   "album": "6wiikFreeplay",
+   "bpm": 187.0,
+   "difficulties": [
+    "Hard"
+   ],
+   "ratings": {},
+   "icon": "hi-matt.png",
+   "color": "#fc8e3a"
+  },
+  {
+   "id": "fired-up",
+   "name": "Fired Up",
+   "album": "6wiikFreeplay",
+   "bpm": 186.0,
+   "difficulties": [
+    "Hard"
+   ],
+   "ratings": {},
+   "icon": "hi-fit-trainer.png",
+   "color": "#fc8e3a"
+  },
+  {
+   "id": "mii-funkin",
+   "name": "Mii Funkin",
+   "album": "6wiikFreeplay",
+   "bpm": 140.0,
+   "difficulties": [
+    "Hard"
+   ],
+   "ratings": {},
+   "icon": "hi-miifunkin.png",
+   "color": "#fc8e3a"
+  },
+  {
+   "id": "revolution",
+   "name": "Revolution",
+   "album": "6wiikFreeplay",
+   "bpm": 218.0,
+   "difficulties": [
+    "Hard"
+   ],
+   "ratings": {},
+   "icon": "hi-revmatt.png",
+   "color": "#fc8e3a"
+  },
+  {
+   "id": "3hot",
+   "name": "3hot",
+   "album": "6wiikFreeplay",
+   "bpm": 182.0,
+   "difficulties": [
+    "Hard"
+   ],
+   "ratings": {},
+   "icon": "hi-wiipic.png",
+   "color": "#fc8e3a"
+  },
+  {
+   "id": "4hot",
+   "name": "4hot",
+   "album": "6wiikFreeplay",
+   "bpm": 176.0,
+   "difficulties": [
+    "Hard"
+   ],
+   "ratings": {},
+   "icon": "hi-darnell.png",
+   "color": "#fc8e3a"
+  },
+  {
+   "id": "five-hot",
+   "name": "five hot",
+   "album": "6wiikFreeplay",
+   "bpm": 182.0,
+   "difficulties": [
+    "Hard"
+   ],
+   "ratings": {},
+   "icon": "hi-darnell.png",
+   "color": "#fc8e3a"
+  },
+  {
+   "id": "swap",
+   "name": "Swap!",
+   "album": "6wiikFreeplay",
+   "bpm": 157.0,
+   "difficulties": [
+    "Hard"
+   ],
+   "ratings": {},
+   "icon": "hi-nikki.png",
+   "color": "#fc8e3a"
+  },
+  {
+   "id": "battlefield",
+   "name": "Battlefield",
+   "album": "6wiikFreeplay",
+   "bpm": 187.5,
+   "difficulties": [
+    "Hard"
+   ],
+   "ratings": {},
+   "icon": "hi-sword.png",
+   "color": "#fc8e3a"
+  },
+  {
+   "id": "motion-control",
+   "name": "Motion Control",
+   "album": "6wiikFreeplay",
+   "bpm": 157.0,
+   "difficulties": [
+    "Hard"
+   ],
+   "ratings": {},
+   "icon": "hi-eteled.png",
+   "color": "#fc8e3a"
+  },
+  {
+   "id": "miisacre",
+   "name": "Miisacre",
+   "album": "6wiikFreeplay",
+   "bpm": 180.0,
+   "difficulties": [
+    "Hard"
+   ],
+   "ratings": {},
+   "icon": "hi-ninja.png",
+   "color": "#fc8e3a"
+  },
+  {
+   "id": "snacks",
+   "name": "Snacks",
+   "album": "8wiikshaggystuff",
+   "bpm": 189.0,
+   "difficulties": [
+    "6K",
+    "4K"
+   ],
+   "ratings": {},
+   "icon": "hi-shaggy.png",
+   "color": "#fc8e3a"
+  },
+  {
+   "id": "lazulii",
+   "name": "Lazulii",
+   "album": "8wiikshaggystuff2",
+   "bpm": 212.0,
+   "difficulties": [
+    "6K",
+    "4K"
+   ],
+   "ratings": {},
+   "icon": "hi-bluematt.png",
+   "color": "#fc8e3a"
+  },
+  {
+   "id": "illusion",
+   "name": "Illusion",
+   "album": "8wiikshaggystuff2",
+   "bpm": 240.0,
+   "difficulties": [
+    "6K",
+    "4K"
+   ],
+   "ratings": {},
+   "icon": "hi-mattxbmatt.png",
+   "color": "#fc8e3a"
+  },
+  {
+   "id": "heavenfall",
+   "name": "Heavenfall",
+   "album": "8wiikshaggystuff3",
+   "bpm": 190.0,
+   "difficulties": [
+    "9K",
+    "4K"
+   ],
+   "ratings": {},
+   "icon": "hi-rshaggyxbmatt.png",
+   "color": "#fc8e3a"
+  },
+  {
+   "id": "long-awaited",
+   "name": "Long Awaited",
+   "album": "8wiikshaggystuff4",
+   "bpm": 190.0,
+   "difficulties": [
+    "7K",
+    "4K"
+   ],
+   "ratings": {},
+   "icon": "hi-redshag.png",
+   "color": "#fc8e3a"
+  },
+  {
+   "id": "god-mode",
+   "name": "God Mode",
+   "album": "8wiikshaggystuff5",
+   "bpm": 187.0,
+   "difficulties": [
+    "Hard"
+   ],
+   "ratings": {},
+   "icon": "hi-godmatt.png",
+   "color": "#fc8e3a"
+  },
+  {
+   "id": "broadcasting",
+   "name": "Broadcasting",
+   "album": "9wiikStupidAlts",
+   "bpm": 173.0,
+   "difficulties": [
+    "Hard"
+   ],
+   "ratings": {},
+   "icon": "hi-nikku.png",
+   "color": "#f43a76"
+  },
+  {
+   "id": "foulplay",
+   "name": "Foulplay",
+   "album": "9wiikStupidAlts",
+   "bpm": 190.0,
+   "difficulties": [
+    "Hard"
+   ],
+   "ratings": {},
+   "icon": "hi-nightmarematt.png",
+   "color": "#fc8e3a"
+  },
+  {
+   "id": "destiny",
+   "name": "Destiny",
+   "album": "9wiikStupidAlts",
+   "bpm": 170.0,
+   "difficulties": [
+    "Hard"
+   ],
+   "ratings": {},
+   "icon": "hi-halfcorrupted.png",
+   "color": "#fc8e3a"
+  }
+ ],
+ "extra": {
+  "logo": "wii-logo.png",
+  "ui": {
+   "wii": true,
+   "wii_weeks": {
+    "1wiik1": "wiik1",
+    "2wiik2": "wiik2",
+    "3wiikZ": "wiikz",
+    "4wiikFisticuffs": "fridaynightfisticuffs",
+    "5wiikWG": "wiikwhitegloves",
+    "6wiikFreeplay": "wiikbonus",
+    "8wiikshaggystuff": "shaggystuff",
+    "8wiikshaggystuff2": "shaggystuff",
+    "8wiikshaggystuff3": "shaggystuff",
+    "8wiikshaggystuff4": "shaggystuff",
+    "8wiikshaggystuff5": "shaggystuff",
+    "9wiikStupidAlts": "stupidalts",
+    "captcha": "vsmattcaptcha",
+    "letterbomb": "letterbomb"
+   }
+  }
+ }
+}

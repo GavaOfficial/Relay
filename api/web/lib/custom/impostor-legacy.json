@@ -1,0 +1,1142 @@
+{
+ "title": "VS IMPOSTOR LEGACY",
+ "contributors": [],
+ "has_icon": true,
+ "albums": [
+  {
+   "id": "week1",
+   "name": "Polus Problems",
+   "artists": [
+    "Week 1"
+   ]
+  },
+  {
+   "id": "week2",
+   "name": "MIRA Mania",
+   "artists": [
+    "Week 2"
+   ]
+  },
+  {
+   "id": "week3",
+   "name": "Airship Atrocities",
+   "artists": [
+    "Week 3"
+   ]
+  },
+  {
+   "id": "week4",
+   "name": "Defeat",
+   "artists": [
+    "..."
+   ]
+  },
+  {
+   "id": "week4Crisis",
+   "name": "Endgame",
+   "artists": []
+  },
+  {
+   "id": "week4Finale",
+   "name": "FINALE",
+   "artists": [
+    "..."
+   ]
+  },
+  {
+   "id": "week5",
+   "name": "Magmatic Monstrosity",
+   "artists": [
+    "Week 5"
+   ]
+  },
+  {
+   "id": "week6",
+   "name": "Deadly Delusion",
+   "artists": [
+    "Week 6"
+   ]
+  },
+  {
+   "id": "week7",
+   "name": "Humane Heartbeat",
+   "artists": [
+    "Week 7"
+   ]
+  },
+  {
+   "id": "week7Bonus",
+   "name": "Triple Trouble (Bonus)",
+   "artists": []
+  },
+  {
+   "id": "week8",
+   "name": "Jorsawsee's Jams",
+   "artists": [
+    "Week J"
+   ]
+  },
+  {
+   "id": "week8Bonus",
+   "name": "Week J (Bonus)",
+   "artists": []
+  },
+  {
+   "id": "week9",
+   "name": "Battling the Boyfriend",
+   "artists": [
+    "HENRY"
+   ]
+  },
+  {
+   "id": "week10",
+   "name": "Rosy Rival",
+   "artists": [
+    "Tomongus"
+   ]
+  },
+  {
+   "id": "week10Bonus",
+   "name": "Tomongus (Bonus)",
+   "artists": []
+  },
+  {
+   "id": "week11",
+   "name": "LIME GREEN JADSPOSTOR",
+   "artists": [
+    "JADS"
+   ]
+  },
+  {
+   "id": "weekBonus",
+   "name": "Bonus",
+   "artists": []
+  },
+  {
+   "id": "weekCval",
+   "name": "Cval vs. Pip",
+   "artists": []
+  }
+ ],
+ "tracks": [
+  {
+   "id": "sussus-moogus",
+   "name": "Sussus Moogus",
+   "album": "week1",
+   "bpm": 150.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-red.png",
+   "color": "#ff0000",
+   "extra": {
+    "composers": "EthanTheDoodler",
+    "portrait": "portrait-red.png",
+    "section": "story"
+   }
+  },
+  {
+   "id": "sabotage",
+   "name": "Sabotage",
+   "album": "week1",
+   "bpm": 170.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-red.png",
+   "color": "#ff0000",
+   "extra": {
+    "composers": "EthanTheDoodler",
+    "portrait": "portrait-red.png",
+    "section": "story"
+   }
+  },
+  {
+   "id": "meltdown",
+   "name": "Meltdown",
+   "album": "week1",
+   "bpm": 120.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-red-meltdown.png",
+   "color": "#ff0000",
+   "extra": {
+    "composers": "punkett",
+    "portrait": "portrait-red.png",
+    "section": "story"
+   }
+  },
+  {
+   "id": "sussus-toogus",
+   "name": "Sussus Toogus",
+   "album": "week2",
+   "bpm": 150.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-green-crewmate.png",
+   "color": "#00ff00",
+   "extra": {
+    "composers": "EthanTheDoodler, fabs",
+    "portrait": "portrait-green.png",
+    "section": "story"
+   }
+  },
+  {
+   "id": "lights-down",
+   "name": "Lights Down",
+   "album": "week2",
+   "bpm": 170.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-green.png",
+   "color": "#00ff00",
+   "extra": {
+    "composers": "Rareblin",
+    "portrait": "portrait-green.png",
+    "section": "story"
+   }
+  },
+  {
+   "id": "reactor",
+   "name": "Reactor",
+   "album": "week2",
+   "bpm": 125.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-green.png",
+   "color": "#00ff00",
+   "extra": {
+    "composers": "EthanTheDoodler, Rareblin",
+    "portrait": "portrait-green.png",
+    "section": "story"
+   }
+  },
+  {
+   "id": "ejected",
+   "name": "Ejected",
+   "album": "week2",
+   "bpm": 155.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-green-parasite.png",
+   "color": "#00ff00",
+   "extra": {
+    "composers": "Rareblin",
+    "portrait": "portrait-greenp.png",
+    "section": "story"
+   }
+  },
+  {
+   "id": "mando",
+   "name": "Mando",
+   "album": "week3",
+   "bpm": 130.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-yellow.png",
+   "color": "#ffda43",
+   "extra": {
+    "composers": "emihead, Rareblin",
+    "portrait": "portrait-yellow.png",
+    "section": "story"
+   }
+  },
+  {
+   "id": "dlow",
+   "name": "D'low",
+   "album": "week3",
+   "difficulties": [
+    "Easy",
+    "Normal",
+    "Hard"
+   ],
+   "ratings": {},
+   "icon": "hi-yellow.png",
+   "color": "#ffda43",
+   "extra": {
+    "composers": "punkett, Rareblin",
+    "portrait": "portrait-yellow.png",
+    "section": "story"
+   }
+  },
+  {
+   "id": "oversight",
+   "name": "Oversight",
+   "album": "week3",
+   "bpm": 156.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-white.png",
+   "color": "#ffffff",
+   "extra": {
+    "composers": "emihead, Rareblin",
+    "portrait": "portrait-white.png",
+    "section": "story"
+   }
+  },
+  {
+   "id": "danger",
+   "name": "Danger",
+   "album": "week3",
+   "bpm": 180.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-black.png",
+   "color": "#b300ff",
+   "extra": {
+    "composers": "Rareblin",
+    "portrait": "portrait-black.png",
+    "section": "story"
+   }
+  },
+  {
+   "id": "double-kill",
+   "name": "Double Kill",
+   "album": "week3",
+   "bpm": 200.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-double-kill.png",
+   "color": "#b300ff",
+   "extra": {
+    "composers": "Rareblin",
+    "portrait": "portrait-doublekill.png",
+    "section": "story"
+   }
+  },
+  {
+   "id": "defeat",
+   "name": "Defeat",
+   "album": "week4",
+   "bpm": 200.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-black.png",
+   "color": "#b300ff",
+   "extra": {
+    "composers": "Rareblin",
+    "portrait": "portrait-black.png",
+    "section": "story"
+   }
+  },
+  {
+   "id": "identity-crisis",
+   "name": "Identity Crisis",
+   "album": "week4Crisis",
+   "bpm": 173.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-monotone.png",
+   "color": "#000000",
+   "extra": {
+    "composers": "Doguy, Vruzzen, Rareblin",
+    "portrait": "portrait-monotone.png",
+    "section": "story"
+   }
+  },
+  {
+   "id": "finale",
+   "name": "Finale",
+   "album": "week4Finale",
+   "bpm": 200.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-black.png",
+   "color": "#b300ff",
+   "extra": {
+    "composers": "Vruzzen, punkett",
+    "portrait": "portrait-blackp.png",
+    "section": "story"
+   }
+  },
+  {
+   "id": "ashes",
+   "name": "Ashes",
+   "album": "week5",
+   "bpm": 140.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-maroon.png",
+   "color": "#b50000",
+   "extra": {
+    "composers": "EthanTheDoodler",
+    "portrait": "portrait-maroon.png",
+    "section": "tt"
+   }
+  },
+  {
+   "id": "magmatic",
+   "name": "Magmatic",
+   "album": "week5",
+   "bpm": 158.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-maroon.png",
+   "color": "#b50000",
+   "extra": {
+    "composers": "Rozebud",
+    "portrait": "portrait-maroon.png",
+    "section": "tt"
+   }
+  },
+  {
+   "id": "boiling-point",
+   "name": "Boiling Point",
+   "album": "week5",
+   "bpm": 200.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-maroon-parasite.png",
+   "color": "#b50000",
+   "extra": {
+    "composers": "EthanTheDoodler, Rareblin",
+    "portrait": "portrait-maroonp.png",
+    "section": "tt"
+   }
+  },
+  {
+   "id": "delusion",
+   "name": "Delusion",
+   "album": "week6",
+   "bpm": 158.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-gray.png",
+   "color": "#8b9da8",
+   "extra": {
+    "composers": "fluffyhairs",
+    "portrait": "portrait-grey.png",
+    "section": "tt"
+   }
+  },
+  {
+   "id": "blackout",
+   "name": "Blackout",
+   "album": "week6",
+   "bpm": 185.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-gray.png",
+   "color": "#8b9da8",
+   "extra": {
+    "composers": "Cval",
+    "portrait": "portrait-grey.png",
+    "section": "tt"
+   }
+  },
+  {
+   "id": "neurotic",
+   "name": "Neurotic",
+   "album": "week6",
+   "bpm": 210.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-gray.png",
+   "color": "#8b9da8",
+   "extra": {
+    "composers": "Nii-san",
+    "portrait": "portrait-grey.png",
+    "section": "tt"
+   }
+  },
+  {
+   "id": "heartbeat",
+   "name": "Heartbeat",
+   "album": "week7",
+   "bpm": 87.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-pink.png",
+   "color": "#ff00de",
+   "extra": {
+    "composers": "Saster",
+    "portrait": "portrait-pink.png",
+    "section": "tt"
+   }
+  },
+  {
+   "id": "pinkwave",
+   "name": "Pinkwave",
+   "album": "week7",
+   "bpm": 125.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-pink.png",
+   "color": "#ff00de",
+   "extra": {
+    "composers": "fluffyhairs",
+    "portrait": "portrait-pink.png",
+    "section": "tt"
+   }
+  },
+  {
+   "id": "pretender",
+   "name": "Pretender",
+   "album": "week7",
+   "bpm": 250.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-pretender.png",
+   "color": "#ff0064",
+   "extra": {
+    "composers": "EthanTheDoodler",
+    "portrait": "portrait-pretender.png",
+    "section": "tt"
+   }
+  },
+  {
+   "id": "sauces-moogus",
+   "name": "Sauces Moogus",
+   "album": "week7Bonus",
+   "bpm": 122.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-chef.png",
+   "color": "#f2721c",
+   "extra": {
+    "composers": "Saster",
+    "portrait": "portrait-chef.png",
+    "section": "tt"
+   }
+  },
+  {
+   "id": "o2",
+   "name": "O2",
+   "album": "week8",
+   "bpm": 135.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-jorsawsee.png",
+   "color": "#267fe6",
+   "extra": {
+    "composers": "punkett",
+    "portrait": "portrait-jorsawsee.png",
+    "section": "jams"
+   }
+  },
+  {
+   "id": "voting-time",
+   "name": "Voting Time",
+   "album": "week8",
+   "bpm": 134.0,
+   "difficulties": [
+    "Other",
+    "Normal",
+    "Normal-old"
+   ],
+   "ratings": {},
+   "icon": "hi-votingtime.png",
+   "color": "#9943c4",
+   "extra": {
+    "composers": "punkett, JADS",
+    "portrait": "portrait-voting.png",
+    "section": "jams"
+   }
+  },
+  {
+   "id": "turbulence",
+   "name": "Turbulence",
+   "album": "week8",
+   "bpm": 140.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-redmungus.png",
+   "color": "#ff0000",
+   "extra": {
+    "composers": "Keegan",
+    "portrait": "portrait-mungusp.png",
+    "section": "jams"
+   }
+  },
+  {
+   "id": "victory",
+   "name": "Victory",
+   "album": "week8",
+   "bpm": 115.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-victory.png",
+   "color": "#9943c4",
+   "extra": {
+    "composers": "punkett",
+    "portrait": "portrait-voting.png",
+    "section": "jams"
+   }
+  },
+  {
+   "id": "roomcode",
+   "name": "ROOMCODE",
+   "album": "week8Bonus",
+   "bpm": 135.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-powers.png",
+   "color": "#50adeb",
+   "extra": {
+    "composers": "Keegan",
+    "portrait": "portrait-powers.png",
+    "section": "jams"
+   }
+  },
+  {
+   "id": "titular",
+   "name": "Titular",
+   "album": "week9",
+   "bpm": 110.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-henry.png",
+   "color": "#ff7f00",
+   "extra": {
+    "composers": "EthanTheDoodler",
+    "portrait": "portrait-henry.png",
+    "section": "henry"
+   }
+  },
+  {
+   "id": "greatest-plan",
+   "name": "Greatest Plan",
+   "album": "week9",
+   "bpm": 180.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-charles.png",
+   "color": "#ff0000",
+   "extra": {
+    "composers": "EthanTheDoodler",
+    "portrait": "portrait-charles.png",
+    "section": "henry"
+   }
+  },
+  {
+   "id": "reinforcements",
+   "name": "Reinforcements",
+   "album": "week9",
+   "bpm": 115.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-reinforcements.png",
+   "color": "#ff7f00",
+   "extra": {
+    "composers": "EthanTheDoodler, Philiplol",
+    "portrait": "portrait-ellie.png",
+    "section": "henry"
+   }
+  },
+  {
+   "id": "armed",
+   "name": "Armed",
+   "album": "week9",
+   "bpm": 215.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-armed.png",
+   "color": "#fec028",
+   "extra": {
+    "composers": "EthanTheDoodler, punkett",
+    "portrait": "portrait-rhm.png",
+    "section": "henry"
+   }
+  },
+  {
+   "id": "sussy-bussy",
+   "name": "Sussy Bussy",
+   "album": "week10",
+   "bpm": 132.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-tomongus-pixel.png",
+   "color": "#ff3333",
+   "extra": {
+    "composers": "Saruky",
+    "portrait": "portrait-mech.png",
+    "section": "tomo"
+   }
+  },
+  {
+   "id": "rivals",
+   "name": "Rivals",
+   "album": "week10",
+   "bpm": 135.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-tomongus-pixel.png",
+   "color": "#ff3333",
+   "extra": {
+    "composers": "Keoni",
+    "portrait": "portrait-mech.png",
+    "section": "tomo"
+   }
+  },
+  {
+   "id": "chewmate",
+   "name": "Chewmate",
+   "album": "week10",
+   "bpm": 80.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-hamster-pixel.png",
+   "color": "#ff3333",
+   "extra": {
+    "composers": "Moonmistt",
+    "portrait": "portrait-tomo.png",
+    "section": "tomo"
+   }
+  },
+  {
+   "id": "tomongus-tuesday",
+   "name": "Tomongus Tuesday",
+   "album": "week10Bonus",
+   "bpm": 165.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-tuesday.png",
+   "color": "#ff3333",
+   "extra": {
+    "composers": "emihead",
+    "portrait": "portrait-mech.png",
+    "section": "tomo"
+   }
+  },
+  {
+   "id": "lemon-lime",
+   "name": "Lemon Lime",
+   "album": "week11",
+   "bpm": 118.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-jads.png",
+   "color": "#66ff66",
+   "extra": {
+    "composers": "Rozebud",
+    "portrait": "portrait-jads.png",
+    "section": "jads"
+   }
+  },
+  {
+   "id": "chlorophyll",
+   "name": "Chlorophyll",
+   "album": "week11",
+   "bpm": 140.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-jads.png",
+   "color": "#66ff66",
+   "extra": {
+    "composers": "JADS",
+    "portrait": "portrait-jads.png",
+    "section": "jads"
+   }
+  },
+  {
+   "id": "inflorescence",
+   "name": "Inflorescence",
+   "album": "week11",
+   "bpm": 177.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-jads.png",
+   "color": "#66ff66",
+   "extra": {
+    "composers": "Rozebud",
+    "portrait": "portrait-jads.png",
+    "section": "jads"
+   }
+  },
+  {
+   "id": "stargazer",
+   "name": "Stargazer",
+   "album": "week11",
+   "bpm": 180.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-jads.png",
+   "color": "#66ff66",
+   "extra": {
+    "composers": "Punkett",
+    "portrait": "portrait-jads.png",
+    "section": "jads"
+   }
+  },
+  {
+   "id": "ow",
+   "name": "Ow",
+   "album": "weekBonus",
+   "bpm": 140.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-kills.png",
+   "color": "#54a7ca",
+   "extra": {
+    "composers": "fabs",
+    "portrait": "portrait-ow.png",
+    "section": "bonus"
+   }
+  },
+  {
+   "id": "who",
+   "name": "Who",
+   "album": "weekBonus",
+   "bpm": 155.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-whoguys.png",
+   "color": "#1641f0",
+   "extra": {
+    "composers": "EthanTheDoodler",
+    "portrait": "portrait-who.png",
+    "section": "bonus"
+   }
+  },
+  {
+   "id": "insane-streamer",
+   "name": "Insane Streamer",
+   "album": "weekBonus",
+   "bpm": 210.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-jerma.png",
+   "color": "#ffffcc",
+   "extra": {
+    "composers": "EthanTheDoodler, Neato",
+    "portrait": "portrait-jerma.png",
+    "section": "bonus"
+   }
+  },
+  {
+   "id": "sussus-nuzzus",
+   "name": "Sussus Nuzzus",
+   "album": "weekBonus",
+   "bpm": 180.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-nuzzles.png",
+   "color": "#f05c86",
+   "extra": {
+    "composers": "Lunaxis",
+    "portrait": "portrait-nuzzus.png",
+    "section": "bonus"
+   }
+  },
+  {
+   "id": "idk",
+   "name": "Idk",
+   "album": "weekBonus",
+   "bpm": 134.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-idk.png",
+   "color": "#3f48cc",
+   "extra": {
+    "composers": "Kiwiquest",
+    "portrait": "portrait-idk.png",
+    "section": "bonus"
+   }
+  },
+  {
+   "id": "esculent",
+   "name": "Esculent",
+   "album": "weekBonus",
+   "bpm": 145.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-dead.png",
+   "color": "#87423d",
+   "extra": {
+    "composers": "Nii-san",
+    "portrait": "portrait-esculent.png",
+    "section": "bonus"
+   }
+  },
+  {
+   "id": "drippypop",
+   "name": "Drippypop",
+   "album": "weekBonus",
+   "bpm": 190.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-drippy.png",
+   "color": "#bc6adf",
+   "extra": {
+    "composers": "EthanTheDoodler, Neato",
+    "portrait": "portrait-drip.png",
+    "section": "bonus"
+   }
+  },
+  {
+   "id": "crewicide",
+   "name": "Crewicide",
+   "album": "weekBonus",
+   "bpm": 200.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-dave.png",
+   "color": "#0000ff",
+   "extra": {
+    "composers": "punkett",
+    "portrait": "portrait-dave.png",
+    "section": "bonus"
+   }
+  },
+  {
+   "id": "monotone-attack",
+   "name": "Monotone Attack",
+   "album": "weekBonus",
+   "bpm": 148.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-attack.png",
+   "color": "#ffffff",
+   "extra": {
+    "composers": "Biddle3",
+    "portrait": "portrait-attack.png",
+    "section": "bonus"
+   }
+  },
+  {
+   "id": "top-10",
+   "name": "Top 10",
+   "album": "weekBonus",
+   "bpm": 130.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-top.png",
+   "color": "#ff0000",
+   "extra": {
+    "composers": "Top 10 Awesome",
+    "portrait": "portrait-awesome.png",
+    "section": "bonus"
+   }
+  },
+  {
+   "id": "double-trouble",
+   "name": "Double Trouble",
+   "album": "weekBonus",
+   "bpm": 120.5,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-double-trouble.png",
+   "color": "#00393e",
+   "extra": {
+    "composers": "Rareblin",
+    "portrait": "portrait-doubletrouble.png",
+    "section": "bonus"
+   }
+  },
+  {
+   "id": "chippin",
+   "name": "Chippin",
+   "album": "weekCval",
+   "bpm": 140.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-cvp.png",
+   "color": "#ff3c26",
+   "extra": {
+    "composers": "ziffyclumper",
+    "portrait": "portrait-cval.png",
+    "section": "cvp"
+   }
+  },
+  {
+   "id": "chipping",
+   "name": "Chipping",
+   "album": "weekCval",
+   "bpm": 140.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-cvp.png",
+   "color": "#ff3c26",
+   "extra": {
+    "composers": "ziffyclumper",
+    "portrait": "portrait-cval.png",
+    "section": "cvp"
+   }
+  },
+  {
+   "id": "torture",
+   "name": "Torture",
+   "album": "weekCval",
+   "bpm": 186.0,
+   "difficulties": [
+    "Normal"
+   ],
+   "ratings": {},
+   "icon": "hi-ziffy.png",
+   "color": "#bc6adf",
+   "extra": {
+    "composers": "Team TORTURE",
+    "portrait": "portrait-torture.png",
+    "section": "cvp"
+   }
+  }
+ ],
+ "extra": {
+  "logo": "logo.png",
+  "sections": [
+   {
+    "icon": "section-story.png",
+    "id": "story",
+    "index": 0,
+    "title": "Story Mode"
+   },
+   {
+    "icon": "section-tt.png",
+    "id": "tt",
+    "index": 1,
+    "title": "Triple Trouble"
+   },
+   {
+    "icon": "section-jams.png",
+    "id": "jams",
+    "index": 2,
+    "title": "Jorsawsee's Jams"
+   },
+   {
+    "icon": "section-henry.png",
+    "id": "henry",
+    "index": 5,
+    "title": "Battling the Boyfriend"
+   },
+   {
+    "icon": "section-tomo.png",
+    "id": "tomo",
+    "index": 3,
+    "title": "Rosy Rival"
+   },
+   {
+    "icon": "section-jads.png",
+    "id": "jads",
+    "index": 4,
+    "title": "LIME GREEN JADSPOSTOR"
+   },
+   {
+    "icon": "section-bonus.png",
+    "id": "bonus",
+    "index": 6,
+    "title": "Bonus Songs"
+   },
+   {
+    "icon": "section-cvp.png",
+    "id": "cvp",
+    "index": 7,
+    "title": "Cval vs. Pip"
+   }
+  ],
+  "ui": {
+   "back": "ui-back.png",
+   "card": "ui-card.png",
+   "glow": "ui-glow.png",
+   "key_left": "ui-key-left.png",
+   "key_right": "ui-key-right.png",
+   "note": "ui-note.png",
+   "star_bg": "ui-star-bg.png",
+   "star_fg": "ui-star-fg.png",
+   "top_bar": "ui-top-bar.png"
+  }
+ }
+}
