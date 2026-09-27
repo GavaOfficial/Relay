@@ -4147,7 +4147,7 @@ checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 
 [[package]]
 name = "relay-agent"
-version = "0.3.46"
+version = "0.3.53"
 dependencies = [
  "anyhow",
  "axum",
@@ -4177,7 +4177,7 @@ dependencies = [
 
 [[package]]
 name = "relay-app"
-version = "0.3.46"
+version = "0.3.53"
 dependencies = [
  "anyhow",
  "axum",
@@ -4209,7 +4209,7 @@ dependencies = [
 
 [[package]]
 name = "relay-capture"
-version = "0.3.46"
+version = "0.3.53"
 dependencies = [
  "anyhow",
  "axum",
@@ -4231,16 +4231,36 @@ dependencies = [
 
 [[package]]
 name = "relay-common"
-version = "0.3.46"
+version = "0.3.53"
 dependencies = [
  "serde",
  "serde_json",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "relay-ops"
+version = "0.3.53"
+dependencies = [
+ "ed25519-dalek",
+ "hex",
+ "relay-common",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
  "uuid",
 ]
 
 [[package]]
 name = "relay-server"
-version = "0.3.46"
+version = "0.3.53"
 dependencies = [
  "aes-gcm",
  "axum",
@@ -4267,7 +4287,7 @@ dependencies = [
 
 [[package]]
 name = "relay-storage"
-version = "0.3.46"
+version = "0.3.53"
 dependencies = [
  "ed25519-dalek",
  "fs2",
