@@ -1,6 +1,5 @@
 use std::{
     path::{Path, PathBuf},
-    process::Stdio,
     sync::{Arc, OnceLock},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
@@ -39,6 +38,8 @@ struct Run {
     variation: Option<String>,
     loaded_at: f64,
     start_ms: Option<f64>,
+    generation: u32,
+    first_frame: Option<f64>,
 }
 
 struct Ending {
@@ -118,6 +119,10 @@ pub async fn handle(core: &Arc<Core>, ev: SongEvent) {
                     tauri::async_runtime::spawn(monitor());
                 }
             }
+            let (generation, first_frame) = match st.session.as_mut() {
+                Some(session) => session.capture.fit_window().await.map_or((0, None), |(g, f)| (g, Some(f))),
+                None => (0, None),
+            };
             tracing::info!("registro la canzone {} ({})", target.song, target.mod_name);
             st.run = Some(Run {
                 engine: if ev.is_funkin() {
@@ -144,6 +149,8 @@ pub async fn handle(core: &Arc<Core>, ev: SongEvent) {
                 variation: ev.variation.clone().filter(|v| !v.is_empty() && v != "default"),
                 loaded_at: ev.sent_at,
                 start_ms: None,
+                generation,
+                first_frame,
             });
         }
         "song_start" => {
@@ -222,7 +229,7 @@ fn spawn_finish(st: &mut State, e: Ending, end_ms: f64) {
         return;
     };
     let dir = session.dir.clone();
-    let first_frame = session.capture.first_frame_unix_secs();
+    let first_frame = e.run.first_frame.or_else(|| session.capture.first_frame_unix_secs());
     let id = st.next_id;
     st.next_id += 1;
     st.pending.push((
@@ -413,7 +420,34 @@ fn connected_exes(core: &Arc<Core>) -> Vec<String> {
     exes
 }
 
+fn watch_focus(core: Arc<Core>) {
+    std::thread::spawn(move || {
+        let mut games: Vec<String> = Vec::new();
+        let mut refreshed = Instant::now() - Duration::from_secs(60);
+        let mut last: Option<(String, String, String)> = None;
+        loop {
+            std::thread::sleep(Duration::from_millis(250));
+            if refreshed.elapsed() > Duration::from_secs(10) {
+                games = connected_exes(&core);
+                refreshed = Instant::now();
+            }
+            let now = relay_agent::windows::foreground();
+            let was_game = last.as_ref().is_some_and(|l| games.iter().any(|g| g.eq_ignore_ascii_case(&l.0)));
+            let still_game = now.as_ref().is_some_and(|n| last.as_ref().is_some_and(|l| n.0.eq_ignore_ascii_case(&l.0)));
+            if was_game && !still_game {
+                let (exe, class, title) = now.clone().unwrap_or_default();
+                tracing::info!(
+                    "{} ha perso il primo piano: ora c'e' {exe} (classe {class}, titolo '{title}')",
+                    last.as_ref().map(|l| l.0.as_str()).unwrap_or("?")
+                );
+            }
+            last = now;
+        }
+    });
+}
+
 pub fn watch(core: Arc<Core>) {
+    watch_focus(core.clone());
     tauri::async_runtime::spawn(async move {
         loop {
             tokio::time::sleep(Duration::from_secs(3)).await;
@@ -494,9 +528,10 @@ async fn cleanup(st: &mut State) {
     let Some(session) = st.session.as_ref() else {
         return;
     };
-    let Some(first_frame) = session.capture.first_frame_unix_secs() else {
+    let generations = session.capture.generations();
+    if generations.is_empty() {
         return;
-    };
+    }
     let keep_from_ms = st
         .pending
         .iter()
@@ -506,14 +541,16 @@ async fn cleanup(st: &mut State) {
         .chain(st.ending.as_ref().map(|e| e.start_ms))
         .fold(now_ms(), f64::min)
         - 10_000.0;
-    let keep_from = keep_from_ms / 1000.0 - first_frame;
-    let playlist = session.dir.join(relay_agent::hls::playlist_name(0));
-    let Ok(text) = tokio::fs::read_to_string(&playlist).await else {
-        return;
-    };
-    for seg in parse_segments(&text) {
-        if seg.start + seg.duration < keep_from {
-            let _ = tokio::fs::remove_file(session.dir.join(&seg.name)).await;
+    for (generation, first_frame) in generations {
+        let keep_from = keep_from_ms / 1000.0 - first_frame;
+        let playlist = session.dir.join(relay_agent::hls::playlist_name(generation));
+        let Ok(text) = tokio::fs::read_to_string(&playlist).await else {
+            continue;
+        };
+        for seg in parse_segments(&text) {
+            if seg.start + seg.duration < keep_from {
+                let _ = tokio::fs::remove_file(session.dir.join(&seg.name)).await;
+            }
         }
     }
 }
@@ -557,17 +594,16 @@ fn pick(segments: &[Segment], from: f64, to: f64) -> Option<(Vec<Segment>, f64)>
     Some((chosen, offset))
 }
 
-async fn cut_clip(
-    ffmpeg: &Path,
-    dir: &Path,
-    first_frame: f64,
-    start_ms: f64,
-    end_ms: f64,
-    out: &Path,
-) -> Result<(), String> {
+struct RawClip {
+    bytes: Vec<u8>,
+    offset: f64,
+    duration: f64,
+}
+
+async fn raw_clip(dir: &Path, generation: u32, first_frame: f64, start_ms: f64, end_ms: f64) -> Result<RawClip, String> {
     let from = start_ms / 1000.0 - first_frame;
     let to = end_ms / 1000.0 - first_frame;
-    let playlist = dir.join(relay_agent::hls::playlist_name(0));
+    let playlist = dir.join(relay_agent::hls::playlist_name(generation));
     let deadline = Instant::now() + Duration::from_secs(15);
     let segments = loop {
         let text = tokio::fs::read_to_string(&playlist)
@@ -581,45 +617,14 @@ async fn cut_clip(
         tokio::time::sleep(Duration::from_millis(500)).await;
     };
     let (chosen, offset) = pick(&segments, from, to).ok_or("nessun segmento per la canzone")?;
-    let target = chosen.iter().map(|s| s.duration).fold(1.0, f64::max).ceil();
-    let mut list = format!(
-        "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:{target}\n#EXT-X-MEDIA-SEQUENCE:0\n"
-    );
-    for s in &chosen {
-        list.push_str(&format!("#EXTINF:{:.6},\n{}\n", s.duration, s.name));
+    let mut bytes = Vec::new();
+    for seg in &chosen {
+        let data = tokio::fs::read(dir.join(&seg.name))
+            .await
+            .map_err(|e| format!("pezzo {} non leggibile: {e}", seg.name))?;
+        bytes.extend_from_slice(&data);
     }
-    list.push_str("#EXT-X-ENDLIST\n");
-    let clip_list = dir.join(format!("clip-{}.m3u8", (start_ms as u64)));
-    tokio::fs::write(&clip_list, list)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    let mut cmd = tokio::process::Command::new(ffmpeg);
-    #[cfg(windows)]
-    cmd.creation_flags(0x0800_0000);
-    let ok = cmd
-        .args(["-hide_banner", "-loglevel", "error", "-nostdin", "-y"])
-        .arg("-ss")
-        .arg(format!("{offset:.3}"))
-        .arg("-i")
-        .arg(&clip_list)
-        .arg("-t")
-        .arg(format!("{:.3}", (to - from).max(1.0)))
-        .args(["-c", "copy", "-movflags", "+faststart"])
-        .arg(out)
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .await
-        .map(|s| s.success())
-        .unwrap_or(false);
-    let _ = tokio::fs::remove_file(&clip_list).await;
-    if ok {
-        Ok(())
-    } else {
-        Err("ffmpeg non e' riuscito a tagliare la clip".into())
-    }
+    Ok(RawClip { bytes, offset, duration: (to - from).max(1.0) })
 }
 
 fn running_exe_in(folder: &Path) -> Option<String> {
@@ -668,8 +673,7 @@ async fn finish(
     ev: &SongEvent,
 ) {
     let score = ev.score.unwrap_or(0);
-    let clip = dir.join(format!("clip-{}.mp4", start_ms as u64));
-    match save_record(core, dir, first_frame, run, start_ms, end_ms, ev, &clip).await {
+    match save_record(core, dir, first_frame, run, start_ms, end_ms, ev).await {
         Ok(true) => {
             tracing::info!("nuovo record su {}: {score}", run.song);
             if let Some(app) = APP.get() {
@@ -697,7 +701,6 @@ async fn finish(
         Ok(false) => tracing::info!("{}: {score} non batte il record, clip scartata", run.song),
         Err(e) => tracing::warn!("clip della canzone {} non salvata: {e}", run.song),
     }
-    let _ = tokio::fs::remove_file(&clip).await;
 }
 
 fn score_text(score: i64) -> String {
@@ -724,7 +727,6 @@ async fn save_record(
     start_ms: f64,
     end_ms: f64,
     ev: &SongEvent,
-    clip: &Path,
 ) -> Result<bool, String> {
     let score = ev.score.unwrap_or(0);
     let api = format!("/api/{}", run.engine);
@@ -751,17 +753,9 @@ async fn save_record(
     }
 
     let first_frame = first_frame.ok_or("la registrazione non era ancora partita")?;
-    cut_clip(
-        &core.ffmpeg_path(),
-        dir,
-        first_frame,
-        start_ms,
-        end_ms,
-        clip,
-    )
-    .await?;
+    let raw = raw_clip(dir, run.generation, first_frame, start_ms, end_ms).await?;
     let duration_ms = (end_ms - start_ms).max(1000.0) as u64;
-    let bytes = tokio::fs::read(clip).await.map_err(|e| e.to_string())?;
+    let bytes = raw.bytes;
 
     let upload = uuid::Uuid::new_v4();
     let parts: Vec<&[u8]> = bytes.chunks(PART_BYTES).collect();
@@ -798,6 +792,7 @@ async fn save_record(
                 "duration_ms": duration_ms,
                 "parts": parts.len(),
                 "size": bytes.len(),
+                "raw": { "offset_secs": raw.offset, "duration_secs": raw.duration },
             })),
         )
         .await?;
@@ -811,6 +806,7 @@ async fn save_record(
 #[cfg(test)]
 mod tests {
     use super::*;
+
 
     #[test]
     fn scores_use_italian_thousands_separator() {

@@ -87,6 +87,60 @@ pub fn window_monitor_name(_sel: &WindowSel) -> Option<String> {
     None
 }
 
+#[cfg(windows)]
+pub fn foreground() -> Option<(String, String, String)> {
+    use windows_sys::Win32::Foundation::CloseHandle;
+    use windows_sys::Win32::System::Threading::{OpenProcess, QueryFullProcessImageNameW, PROCESS_QUERY_LIMITED_INFORMATION};
+    use windows_sys::Win32::UI::WindowsAndMessaging::{GetClassNameW, GetForegroundWindow, GetWindowTextW, GetWindowThreadProcessId};
+    unsafe {
+        let hwnd = GetForegroundWindow();
+        if hwnd.is_null() {
+            return None;
+        }
+        let mut pid = 0u32;
+        GetWindowThreadProcessId(hwnd, &mut pid);
+        let mut exe = String::new();
+        let process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+        if !process.is_null() {
+            let mut buf = [0u16; 512];
+            let mut len = buf.len() as u32;
+            if QueryFullProcessImageNameW(process, 0, buf.as_mut_ptr(), &mut len) != 0 {
+                let full = String::from_utf16_lossy(&buf[..len as usize]);
+                exe = full.rsplit(['\\', '/']).next().unwrap_or(&full).to_string();
+            }
+            CloseHandle(process);
+        }
+        let mut class = [0u16; 256];
+        let n = GetClassNameW(hwnd, class.as_mut_ptr(), class.len() as i32).max(0) as usize;
+        let mut title = [0u16; 256];
+        let t = GetWindowTextW(hwnd, title.as_mut_ptr(), title.len() as i32).max(0) as usize;
+        Some((exe, String::from_utf16_lossy(&class[..n]), String::from_utf16_lossy(&title[..t])))
+    }
+}
+
+#[cfg(not(windows))]
+pub fn foreground() -> Option<(String, String, String)> {
+    None
+}
+
+#[cfg(windows)]
+pub fn window_client_size(sel: &WindowSel) -> Option<(u32, u32)> {
+    use windows_sys::Win32::Foundation::{HWND, RECT};
+    use windows_sys::Win32::UI::WindowsAndMessaging::GetClientRect;
+    let hwnd = list_raw().into_iter().find(|(w, _)| matches(sel, w))?.1 as HWND;
+    let mut rect = RECT { left: 0, top: 0, right: 0, bottom: 0 };
+    if unsafe { GetClientRect(hwnd, &mut rect) } == 0 {
+        return None;
+    }
+    let (w, h) = ((rect.right - rect.left).max(0) as u32, (rect.bottom - rect.top).max(0) as u32);
+    (w > 0 && h > 0).then_some((w, h))
+}
+
+#[cfg(not(windows))]
+pub fn window_client_size(_sel: &WindowSel) -> Option<(u32, u32)> {
+    None
+}
+
 impl WindowInfo {
     pub fn label(&self) -> String {
         let t: String = self.title.chars().take(80).collect();

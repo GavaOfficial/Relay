@@ -28,11 +28,6 @@ fn emit(ev: &Event) {
 }
 
 fn main() {
-    #[cfg(windows)]
-    unsafe {
-        windows_sys::Win32::System::Console::FreeConsole();
-    }
-
     let args: Vec<String> = std::env::args().collect();
     let result = if args.iter().any(|a| a == "--probe") {
         run_probe()
@@ -244,23 +239,12 @@ fn run_record(cfg: RecordConfig) -> Result<()> {
         .and_then(window_client_size)
         .or_else(|| monitor.map(|m| (m.0.width, m.0.height)))
         .unwrap_or((1920, 1080));
-    let output_height = cfg.output_height.min(base_height).max(2) & !1;
-    let output_width =
-        (((base_width as u64 * output_height as u64 / base_height as u64) as u32).max(2)) & !1;
     let mut context = ObsContext::new(StartupInfo::default()).context("avvio di OBS")?;
-
     context
-        .reset_video(
-            ObsVideoInfoBuilder::new()
-                .fps_num(cfg.fps)
-                .fps_den(1)
-                .base_width(base_width)
-                .base_height(base_height)
-                .output_width(output_width)
-                .output_height(output_height)
-                .build(),
-        )
+        .reset_video(video_info(&cfg, base_width, base_height))
         .context("impostazione dei fotogrammi al secondo")?;
+    let mut canvas = (base_width, base_height);
+    let mut refit: Option<Box<dyn FnMut() -> Result<()>>> = None;
     let mut scene = context
         .scene("relay", Some(0))
         .context("creazione della scena")?;
@@ -317,6 +301,10 @@ fn run_record(cfg: RecordConfig) -> Result<()> {
             .add_to_scene(&mut scene)
             .context("aggiunta della sorgente di gioco alla scena")?;
         item.fit_source_to_screen()?;
+        refit = Some(Box::new(move || {
+            item.fit_source_to_screen()?;
+            Ok(())
+        }));
     } else {
         let idx = monitor_index as u32;
         let monitor = monitors
@@ -363,26 +351,123 @@ fn run_record(cfg: RecordConfig) -> Result<()> {
         sleep_until(t);
     }
 
+    let mut generation = playlist_generation(&cfg.playlist);
+    let mut output = make_output(&mut context, &cfg, generation, cfg.start_segment, &video_ty, encoder_name)?;
+    output.start().context("avvio della registrazione")?;
+    emit(&Event::Started {
+        encoder: encoder_name.into(),
+        source: source_label.into(),
+        first_frame_unix_secs: unix_now(),
+        generation,
+    });
+
+    let mut stdin = std::io::stdin().lock();
+    loop {
+        let mut line = String::new();
+        match stdin.read_line(&mut line) {
+            Ok(0) => thread::sleep(Duration::from_millis(200)),
+            Ok(_) if line.trim() == "q" => break,
+            Ok(_) if line.trim() == "r" => {
+                let now = window.as_ref().and_then(window_client_size);
+                let Some(size) = now.filter(|s| *s != canvas) else {
+                    emit(&Event::Resized { generation, width: canvas.0, height: canvas.1 });
+                    continue;
+                };
+                output.stop().context("pausa della registrazione")?;
+                if let Err(e) = context.reset_video(video_info(&cfg, size.0, size.1)) {
+                    emit(&Event::Warning(format!("risoluzione non cambiata: {e}")));
+                } else {
+                    canvas = size;
+                    if let Some(f) = refit.as_mut() {
+                        f()?;
+                    }
+                }
+                generation += 1;
+                let next = next_segment(&cfg.dir);
+                output = make_output(&mut context, &cfg, generation, next, &video_ty, encoder_name)?;
+                output.start().context("ripresa della registrazione")?;
+                emit(&Event::Started {
+                    encoder: encoder_name.into(),
+                    source: source_label.into(),
+                    first_frame_unix_secs: unix_now(),
+                    generation,
+                });
+                emit(&Event::Resized { generation, width: canvas.0, height: canvas.1 });
+            }
+            Ok(_) => {}
+            Err(_) => break,
+        }
+    }
+    output.stop().context("chiusura della registrazione")?;
+    emit(&Event::Stopped);
+    std::process::exit(0);
+}
+
+fn unix_now() -> f64 {
+    SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs_f64()
+}
+
+fn video_info(cfg: &RecordConfig, base_width: u32, base_height: u32) -> libobs_wrapper::data::video::ObsVideoInfo {
+    let output_height = cfg.output_height.min(base_height).max(2) & !1;
+    let output_width = (((base_width as u64 * output_height as u64 / base_height as u64) as u32).max(2)) & !1;
+    ObsVideoInfoBuilder::new()
+        .fps_num(cfg.fps)
+        .fps_den(1)
+        .base_width(base_width)
+        .base_height(base_height)
+        .output_width(output_width)
+        .output_height(output_height)
+        .build()
+}
+
+fn playlist_generation(name: &str) -> u32 {
+    name.strip_prefix("out_").and_then(|s| s.strip_suffix(".m3u8")).and_then(|s| s.parse().ok()).unwrap_or(0)
+}
+
+fn playlist_name(generation: u32) -> String {
+    if generation == 0 {
+        "out.m3u8".into()
+    } else {
+        format!("out_{generation}.m3u8")
+    }
+}
+
+fn next_segment(dir: &std::path::Path) -> u64 {
+    std::fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter_map(|e| {
+            let n = e.file_name().to_string_lossy().into_owned();
+            n.strip_prefix("seg_")?.strip_suffix(".ts")?.parse::<u64>().ok()
+        })
+        .max()
+        .map_or(0, |m| m + 1)
+}
+
+fn make_output(
+    context: &mut ObsContext,
+    cfg: &RecordConfig,
+    generation: u32,
+    start_segment: u64,
+    video_ty: &ObsVideoEncoderType,
+    encoder_name: &str,
+) -> Result<libobs_wrapper::data::output::ObsOutputRef> {
     let dir = cfg.dir.clone();
     let mut settings = context.data()?;
-    settings.set_string("path", dir.join(&cfg.playlist).to_string_lossy().as_ref())?;
-    let seg_pattern = dir
-        .join("seg_%08d.ts")
-        .to_string_lossy()
-        .replace(char::from(92), "/");
+    settings.set_string("path", dir.join(playlist_name(generation)).to_string_lossy().as_ref())?;
+    let seg_pattern = dir.join("seg_%08d.ts").to_string_lossy().replace(char::from(92), "/");
     settings.set_string(
         "muxer_settings",
         format!(
-            "hls_time={} hls_list_size=0 hls_flags=independent_segments+temp_file hls_segment_filename={seg_pattern} start_number={}",
-            cfg.segment_secs, cfg.start_segment
+            "hls_time={} hls_list_size=0 hls_flags=independent_segments+temp_file hls_segment_filename={seg_pattern} start_number={start_segment}",
+            cfg.segment_secs
         )
         .as_str(),
     )?;
-    let output_id = "ffmpeg_muxer";
     let mut output = context
-        .output(OutputInfo::new(output_id, "relay", Some(settings), None))
+        .output(OutputInfo::new("ffmpeg_muxer", format!("relay{generation}").as_str(), Some(settings), None))
         .context("creazione dell'uscita")?;
-
     let mut v = context.data()?;
     v.set_string("rate_control", "CBR")?;
     v.set_int("bitrate", cfg.bitrate_kbps as i64)?;
@@ -393,41 +478,17 @@ fn run_record(cfg: RecordConfig) -> Result<()> {
         v.set_string("preset", "veryfast")?;
     }
     output
-        .create_and_set_video_encoder(VideoEncoderInfo::new(video_ty, "relay_v", Some(v), None))
+        .create_and_set_video_encoder(VideoEncoderInfo::new(video_ty.clone(), format!("relay_v{generation}").as_str(), Some(v), None))
         .context("encoder video")?;
-
     let mut a = context.data()?;
     a.set_int("bitrate", 160)?;
     output
         .create_and_set_audio_encoder(
-            AudioEncoderInfo::new(ObsAudioEncoderType::FFMPEG_AAC, "relay_a", Some(a), None),
+            AudioEncoderInfo::new(ObsAudioEncoderType::FFMPEG_AAC, format!("relay_a{generation}").as_str(), Some(a), None),
             0,
         )
         .context("encoder audio")?;
-
-    output.start().context("avvio della registrazione")?;
-    emit(&Event::Started {
-        encoder: encoder_name.into(),
-        source: source_label.into(),
-        first_frame_unix_secs: SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs_f64(),
-    });
-
-    let mut stdin = std::io::stdin().lock();
-    loop {
-        let mut line = String::new();
-        match stdin.read_line(&mut line) {
-            Ok(0) => thread::sleep(Duration::from_millis(200)),
-            Ok(_) if line.trim() == "q" => break,
-            Ok(_) => {}
-            Err(_) => break,
-        }
-    }
-    output.stop().context("chiusura della registrazione")?;
-    emit(&Event::Stopped);
-    std::process::exit(0);
+    Ok(output)
 }
 
 #[cfg(test)]

@@ -36,10 +36,17 @@ pub struct ObsCaptureConfig {
     pub segment_secs: u32,
 }
 
+#[derive(Default)]
+struct Shared {
+    generations: Vec<(u32, f64)>,
+    resized: u64,
+    size: Option<(u32, u32)>,
+}
+
 pub struct ObsCapture {
     child: Child,
     reader: JoinHandle<()>,
-    first_frame: Arc<Mutex<Option<f64>>>,
+    shared: Arc<Mutex<Shared>>,
 }
 
 impl ObsCapture {
@@ -91,8 +98,8 @@ impl ObsCapture {
             .spawn()
             .with_context(|| format!("avvio di {}", cfg.exe.display()))?;
         let stdout = child.stdout.take().context("relay-capture senza uscita")?;
-        let first_frame = Arc::new(Mutex::new(None));
-        let first_frame_w = first_frame.clone();
+        let shared = Arc::new(Mutex::new(Shared::default()));
+        let shared_w = shared.clone();
         let reader = tokio::spawn(async move {
             let mut lines = BufReader::new(stdout).lines();
             while let Ok(Some(line)) = lines.next_line().await {
@@ -104,11 +111,23 @@ impl ObsCapture {
                         encoder,
                         source,
                         first_frame_unix_secs,
+                        generation,
                     }) => {
-                        *first_frame_w.lock().unwrap() = Some(first_frame_unix_secs);
-                        tracing::info!(
-                            "relay-capture avviato: encoder {encoder}, sorgente {source}"
-                        )
+                        let mut sh = shared_w.lock().unwrap();
+                        sh.generations.retain(|g| g.0 != generation);
+                        sh.generations.push((generation, first_frame_unix_secs));
+                        drop(sh);
+                        if generation == 0 {
+                            tracing::info!("relay-capture avviato: encoder {encoder}, sorgente {source}")
+                        }
+                    }
+                    Ok(Event::Resized { generation, width, height }) => {
+                        let mut sh = shared_w.lock().unwrap();
+                        if sh.size.is_some_and(|s| s != (width, height)) {
+                            tracing::info!("relay-capture: nuova dimensione {width}x{height} (playlist {generation})");
+                        }
+                        sh.size = Some((width, height));
+                        sh.resized += 1;
                     }
                     Ok(Event::SourceChanged { source }) => {
                         tracing::info!("relay-capture: sorgente {source}")
@@ -124,12 +143,35 @@ impl ObsCapture {
         Ok(Self {
             child,
             reader,
-            first_frame,
+            shared,
         })
     }
 
     pub fn first_frame_unix_secs(&self) -> Option<f64> {
-        *self.first_frame.lock().unwrap()
+        self.current().map(|c| c.1)
+    }
+
+    pub fn current(&self) -> Option<(u32, f64)> {
+        self.shared.lock().unwrap().generations.last().copied()
+    }
+
+    pub fn generations(&self) -> Vec<(u32, f64)> {
+        self.shared.lock().unwrap().generations.clone()
+    }
+
+    pub async fn fit_window(&mut self) -> Option<(u32, f64)> {
+        let before = self.shared.lock().unwrap().resized;
+        let stdin = self.child.stdin.as_mut()?;
+        stdin.write_all(b"r\n").await.ok()?;
+        stdin.flush().await.ok()?;
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(4);
+        while tokio::time::Instant::now() < deadline {
+            if self.shared.lock().unwrap().resized > before {
+                return self.current();
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+        self.current()
     }
 
     pub async fn wait(&mut self) -> Result<std::process::ExitStatus> {

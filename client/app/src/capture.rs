@@ -111,14 +111,24 @@ pub async fn check_compat(base: &Path) -> Compat {
             .spawn()
             .map_err(|e| format!("non riesco ad avviare relay-capture.exe: {e}"))?;
         let pid = child.id();
+        let (done_tx, done_rx) = std::sync::mpsc::channel::<()>();
         let _watchdog = std::thread::spawn(move || {
-            std::thread::sleep(std::time::Duration::from_secs(40));
-            let _ = Command::new("taskkill")
-                .args(["/F", "/PID", &pid.to_string()])
+            if done_rx.recv_timeout(std::time::Duration::from_secs(40))
+                != Err(std::sync::mpsc::RecvTimeoutError::Timeout)
+            {
+                return;
+            }
+            let mut k = Command::new("taskkill");
+            k.args(["/F", "/PID", &pid.to_string()])
                 .stdin(Stdio::null())
                 .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status();
+                .stderr(Stdio::null());
+            #[cfg(windows)]
+            {
+                use std::os::windows::process::CommandExt;
+                k.creation_flags(CREATE_NO_WINDOW);
+            }
+            let _ = k.status();
         });
         let stdout = child
             .stdout
@@ -133,6 +143,7 @@ pub async fn check_compat(base: &Path) -> Compat {
             let _ = std::io::Read::read_to_end(e, &mut err_out);
         }
         let status = child.wait().map_err(|e| e.to_string())?;
+        drop(done_tx);
         if !status.success() {
             let text = String::from_utf8_lossy(&out);
             let msg = text

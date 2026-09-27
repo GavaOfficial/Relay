@@ -116,6 +116,88 @@ fn mods_dir(game_dir: &Path, kind: Kind) -> PathBuf {
     }
 }
 
+fn global_scripts(dir: &Path) -> bool {
+    static CACHE: OnceLock<Mutex<std::collections::HashMap<PathBuf, bool>>> = OnceLock::new();
+    let cache = CACHE.get_or_init(Default::default);
+    if let Some(v) = cache.lock().unwrap().get(dir) {
+        return *v;
+    }
+    let exes = exes(dir);
+    let v = exes.is_empty() || exes.iter().any(|e| std::fs::read(e).is_ok_and(|d| contains(&d, b"scripts/")));
+    cache.lock().unwrap().insert(dir.to_path_buf(), v);
+    v
+}
+
+const SONG_BEGIN: &str = "-- RELAY-INTEGRATION-BEGIN";
+const SONG_END: &str = "-- RELAY-INTEGRATION-END";
+const SONG_COPY: &str = "-- RELAY-COPY: copia dello script della canzone con in fondo quello di Relay";
+
+fn song_ids(game_dir: &Path) -> Vec<String> {
+    let mut ids = std::collections::BTreeSet::new();
+    for root in [game_dir.join("assets"), game_dir.join("mods")] {
+        for f in std::fs::read_dir(root.join("data").join("songData")).into_iter().flatten().flatten() {
+            if f.path().is_dir() {
+                ids.insert(f.file_name().to_string_lossy().to_lowercase());
+            }
+        }
+        for f in std::fs::read_dir(root.join("data")).into_iter().flatten().flatten() {
+            let id = f.file_name().to_string_lossy().to_lowercase();
+            let chart = std::fs::read_dir(f.path()).into_iter().flatten().flatten().any(|c| {
+                let n = c.file_name().to_string_lossy().to_lowercase();
+                n.ends_with(".json") && n.starts_with(&id)
+            });
+            if f.path().is_dir() && chart && id != "songdata" {
+                ids.insert(id);
+            }
+        }
+    }
+    ids.into_iter().collect()
+}
+
+fn strip_block(text: &str) -> String {
+    match (text.find(SONG_BEGIN), text.find(SONG_END)) {
+        (Some(a), Some(b)) if b > a => format!("{}{}", &text[..a], &text[b + SONG_END.len()..]).trim_end().to_string(),
+        _ => text.to_string(),
+    }
+}
+
+fn install_song_scripts(game_dir: &Path) -> std::io::Result<()> {
+    for id in song_ids(game_dir) {
+        let target = game_dir.join("mods").join("data").join("songData").join(&id).join("script.lua");
+        let original = std::fs::read_to_string(game_dir.join("assets").join("data").join("songData").join(&id).join("script.lua")).ok();
+        let base = match std::fs::read_to_string(&target) {
+            Ok(t) if t.starts_with(SONG_COPY) => format!("{SONG_COPY}
+{}", original.clone().unwrap_or_default()),
+            Ok(t) => strip_block(&t),
+            Err(_) => format!("{SONG_COPY}
+{}", original.unwrap_or_default()),
+        };
+        let text = format!("{}
+
+{SONG_BEGIN}
+{SCRIPT}
+{SONG_END}
+", base.trim_end());
+        write_if_changed(&target, &text)?;
+    }
+    Ok(())
+}
+
+fn uninstall_song_scripts(game_dir: &Path) {
+    let root = game_dir.join("mods").join("data").join("songData");
+    for dir in std::fs::read_dir(&root).into_iter().flatten().flatten() {
+        let path = dir.path().join("script.lua");
+        let Ok(text) = std::fs::read_to_string(&path) else { continue };
+        if text.starts_with(SONG_COPY) {
+            let _ = std::fs::remove_file(&path);
+            let _ = std::fs::remove_dir(dir.path());
+        } else if text.contains(SONG_BEGIN) {
+            let _ = std::fs::write(&path, strip_block(&text) + "
+");
+        }
+    }
+}
+
 fn install(game_dir: &Path, kind: Kind) -> Result<(), String> {
     let mods = mods_dir(game_dir, kind);
     if !mods.is_dir() && !game_dir.join("modsList.txt").is_file() {
@@ -125,7 +207,12 @@ fn install(game_dir: &Path, kind: Kind) -> Result<(), String> {
         Kind::Psych => (SCRIPT_NAME, SCRIPT),
         Kind::Nmv => (NMV_SCRIPT_NAME, NMV_SCRIPT),
     };
-    write_if_changed(&mods.join("scripts").join(name), script)
+    let result = if kind == Kind::Psych && !global_scripts(game_dir) {
+        install_song_scripts(game_dir)
+    } else {
+        write_if_changed(&mods.join("scripts").join(name), script)
+    };
+    result
         .and_then(|_| std::fs::create_dir_all(game_dir.join("relay")))
         .map_err(|e| format!("non riesco a installare lo script di Relay: {e}"))
 }
@@ -136,6 +223,7 @@ fn uninstall(game_dir: &Path) {
             let _ = std::fs::remove_file(game_dir.join(dir).join("scripts").join(name));
         }
     }
+    uninstall_song_scripts(game_dir);
     let _ = std::fs::remove_dir_all(game_dir.join("relay"));
 }
 
@@ -630,6 +718,47 @@ mod tests {
     fn write(path: PathBuf, text: &str) {
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         std::fs::write(path, text).unwrap();
+    }
+
+    #[test]
+    fn old_psych_gets_the_script_at_the_end_of_each_song_script() {
+        let game = tempfile::tempdir().unwrap();
+        let g = game.path();
+        write(g.join("Mario.exe"), "..FunkinLua..psychEngineVersion..");
+        write(g.join("mods/readme.txt"), "");
+        write(g.join("assets/data/alone/alone-hard.json"), "{}");
+        write(g.join("assets/data/songData/alone/script.lua"), "function onEndSong() return Function_Stop end
+");
+        write(g.join("assets/data/unbeatable/unbeatable.json"), "{}");
+        assert!(!global_scripts(g));
+        install(g, Kind::Psych).unwrap();
+        let alone = std::fs::read_to_string(g.join("mods/data/songData/alone/script.lua")).unwrap();
+        assert!(alone.starts_with(SONG_COPY));
+        assert!(alone.contains("function onEndSong() return Function_Stop end"), "lo script della canzone resta");
+        assert!(alone.contains(SONG_BEGIN) && alone.contains("relayPrev"));
+        assert!(g.join("mods/data/songData/unbeatable/script.lua").exists(), "anche le canzoni senza script");
+        install(g, Kind::Psych).unwrap();
+        let again = std::fs::read_to_string(g.join("mods/data/songData/alone/script.lua")).unwrap();
+        assert_eq!(again.matches(SONG_BEGIN).count(), 1, "reinstallare non duplica");
+        uninstall(g);
+        assert!(!g.join("mods/data/songData/alone/script.lua").exists());
+        assert!(g.join("assets/data/songData/alone/script.lua").exists());
+    }
+
+    #[test]
+    fn a_mod_override_keeps_its_own_code() {
+        let game = tempfile::tempdir().unwrap();
+        let g = game.path();
+        write(g.join("Old.exe"), "psychEngineVersion");
+        write(g.join("mods/data/songData/x/script.lua"), "print('mia')
+");
+        write(g.join("assets/data/x/x.json"), "{}");
+        install(g, Kind::Psych).unwrap();
+        let t = std::fs::read_to_string(g.join("mods/data/songData/x/script.lua")).unwrap();
+        assert!(t.starts_with("print('mia')") && t.contains(SONG_BEGIN));
+        uninstall(g);
+        assert_eq!(std::fs::read_to_string(g.join("mods/data/songData/x/script.lua")).unwrap(), "print('mia')
+");
     }
 
     #[test]

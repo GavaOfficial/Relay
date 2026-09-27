@@ -1,7 +1,16 @@
 -- Relay: registra in automatico i tuoi record. Scritto e aggiornato dall'app Relay, non modificarlo.
 -- Gli eventi vanno in relay/events.jsonl nella cartella del gioco, che l'app legge.
--- Funziona con Psych Engine 0.6, 0.7 e 1.0.
+-- Funziona con Psych Engine 0.5, 0.6, 0.7 e 1.0. Nei giochi che non caricano gli script di
+-- mods/scripts (per esempio Mario's Madness) sta in fondo allo script di ogni canzone: per questo
+-- richiama sempre le funzioni che lo script della canzone aveva gia' definito.
 
+local relayPrev = {
+  onCreatePost = onCreatePost,
+  onSongStart = onSongStart,
+  onEndSong = onEndSong,
+  onGameOver = onGameOver,
+  onDestroy = onDestroy,
+}
 local relayPlaying = false
 local relayEnded = false
 
@@ -17,12 +26,27 @@ local function relayProp(name)
   return nil
 end
 
--- Niente record in botplay o in practice mode. La modalita' chart editor (chartingMode) non si
--- controlla: alcune mod (Pibby Apocalypse) la lasciano sempre accesa per errore.
+local function relayClassProp(name)
+  if getPropertyFromClass == nil then return nil end
+  local ok, v = pcall(getPropertyFromClass, 'PlayState', name)
+  if ok then return v end
+  return nil
+end
+
+-- Niente record in botplay o in practice mode (nelle versioni vecchie di Psych sono variabili
+-- statiche di PlayState). La modalita' chart editor non si controlla: alcune mod (Pibby
+-- Apocalypse) la lasciano sempre accesa per errore.
 local function relayValid()
-  local bot = relayProp('cpuControlled')
-  local practice = relayProp('practiceMode')
-  return not (bot == true or practice == true)
+  local bot = relayProp('cpuControlled') == true or relayClassProp('cpuControlled') == true or botPlay == true
+  local practice = relayProp('practiceMode') == true or relayClassProp('practiceMode') == true
+  return not (bot or practice)
+end
+
+local function relayDifficulty()
+  if difficultyName ~= nil and difficultyName ~= '' then return difficultyName end
+  local text = relayProp('storyDifficultyText')
+  if text ~= nil and text ~= '' then return text end
+  return ''
 end
 
 local function relayEmit(kind, extra)
@@ -30,7 +54,7 @@ local function relayEmit(kind, extra)
     '"kind":' .. relayQuote(kind),
     '"engine":"psych"',
     '"song_name":' .. relayQuote(songName),
-    '"difficulty":' .. relayQuote(difficultyName),
+    '"difficulty":' .. relayQuote(relayDifficulty()),
     '"mod_folder":' .. relayQuote(currentModDirectory),
     '"valid":' .. tostring(relayValid()),
   }
@@ -47,18 +71,26 @@ local function relayEmit(kind, extra)
   if not ok then debugPrint('[Relay] evento non scritto: ' .. tostring(err)) end
 end
 
-function onCreatePost()
+local function relayThen(name, ...)
+  local prev = relayPrev[name]
+  if prev ~= nil then return prev(...) end
+  return Function_Continue
+end
+
+function onCreatePost(...)
   relayPlaying = false
   relayEnded = false
   relayEmit('song_load')
+  return relayThen('onCreatePost', ...)
 end
 
-function onSongStart()
+function onSongStart(...)
   relayPlaying = true
   relayEmit('song_start')
+  return relayThen('onSongStart', ...)
 end
 
-function onEndSong()
+function onEndSong(...)
   if relayPlaying and not relayEnded then
     relayEnded = true
     relayPlaying = false
@@ -69,20 +101,21 @@ function onEndSong()
     if rating ~= nil and rating == rating then extra.accuracy = tostring(rating) end
     relayEmit('song_end', extra)
   end
-  return Function_Continue
+  return relayThen('onEndSong', ...)
 end
 
-function onGameOver()
+function onGameOver(...)
   if relayPlaying then
     relayPlaying = false
     relayEmit('song_abort', { reason = relayQuote('game over') })
   end
-  return Function_Continue
+  return relayThen('onGameOver', ...)
 end
 
-function onDestroy()
+function onDestroy(...)
   if relayPlaying then
     relayPlaying = false
     relayEmit('song_abort', { reason = relayQuote('uscita o canzone ricominciata') })
   end
+  return relayThen('onDestroy', ...)
 end

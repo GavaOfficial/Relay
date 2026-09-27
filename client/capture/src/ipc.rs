@@ -89,6 +89,13 @@ pub enum Event {
         encoder: String,
         source: String,
         first_frame_unix_secs: f64,
+        #[serde(default)]
+        generation: u32,
+    },
+    Resized {
+        generation: u32,
+        width: u32,
+        height: u32,
     },
     SourceChanged {
         source: String,
