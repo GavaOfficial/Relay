@@ -1,0 +1,11 @@
+{
+	"geode": "5.10.1",
+	"gd": {
+		"win": "2.2081"
+	},
+	"id": "gavatech.relay",
+	"name": "Relay",
+	"version": "v1.0.0",
+	"developer": "Gavatech",
+	"description": "Registra in automatico i tuoi record per il sito Relay. La installa e la aggiorna l'app Relay."
+}
