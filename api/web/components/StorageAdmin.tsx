@@ -6,6 +6,7 @@ export type StorageNode = {
   id: string;
   name: string;
   limit: number | null;
+  draining: boolean;
   created_at: number;
   online: boolean;
   connections: number;
@@ -21,13 +22,11 @@ export type StorageNode = {
 
 export type StorageStatus = {
   nodes: StorageNode[];
-  cache_limit: number;
   activity: {
     queued: number;
     queued_bytes: number;
     current: string | null;
     last_error: string | null;
-    cache_bytes: number;
     local_only_bytes: number;
   };
 };
@@ -67,7 +66,6 @@ export default function StorageAdmin({ initial }: { initial: StorageStatus }) {
   const [err, setErr] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
   const [shownKey, setShownKey] = useState<{ name: string; key: string } | null>(null);
-  const [cacheGb, setCacheGb] = useState(String(Math.round(initial.cache_limit / GB)));
 
   const refresh = useCallback(async () => {
     try {
@@ -110,13 +108,6 @@ export default function StorageAdmin({ initial }: { initial: StorageStatus }) {
         </div>
         <div className="stor-grid">
           <div>
-            <span className="stor-k">Cache dei video</span>
-            <span className="stor-v">
-              {size(a.cache_bytes)} <span className="muted">di {size(st.cache_limit)}</span>
-            </span>
-            <Bar value={a.cache_bytes} max={st.cache_limit} />
-          </div>
-          <div>
             <span className="stor-k">Da spostare</span>
             <span className="stor-v">
               {a.queued} video <span className="muted">· {size(a.queued_bytes)}</span>
@@ -124,20 +115,6 @@ export default function StorageAdmin({ initial }: { initial: StorageStatus }) {
             {a.current && <span className="stor-sub">In corso: {a.current.split("/").pop()}</span>}
           </div>
         </div>
-        <form
-          className="stor-row"
-          onSubmit={(e) => {
-            e.preventDefault();
-            const gb = Number(cacheGb);
-            if (Number.isFinite(gb) && gb >= 0) void act(() => call("/api/storage/cache", "PUT", { limit: Math.round(gb * GB) }));
-          }}
-        >
-          <label>
-            Spazio massimo per la cache sul centrale (GB)
-            <input type="number" min={0} step={1} value={cacheGb} onChange={(e) => setCacheGb(e.target.value)} />
-          </label>
-          <button type="submit">Salva</button>
-        </form>
         {a.last_error && <p className="err">Ultimo errore: {a.last_error}</p>}
       </section>
 
@@ -209,13 +186,37 @@ function NodeCard({
   const [limitGb, setLimitGb] = useState(n.limit != null ? Math.round(n.limit / GB) : maxGb);
   const [auto, setAuto] = useState(n.limit == null);
   const cap = n.limit ?? n.used + Math.max(0, n.disk_free - 5 * GB);
+  const [renaming, setRenaming] = useState(false);
+  const [name, setName] = useState(n.name);
+  const [confirm, setConfirm] = useState<"drain" | "remove" | null>(null);
   return (
     <section className="stor-card">
       <div className="stor-head">
-        <h2>
-          <span className={`stor-dot${n.online ? " on" : ""}`} aria-hidden="true" />
-          {n.name}
-        </h2>
+        {renaming ? (
+          <form
+            className="stor-rename"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const v = name.trim();
+              if (!v) return;
+              void act(() => call(`/api/storage/nodes/${n.id}`, "PATCH", { name: v })).then(() => setRenaming(false));
+            }}
+          >
+            <input value={name} onChange={(e) => setName(e.target.value)} maxLength={40} autoFocus aria-label="Nome del server" />
+            <button type="submit" className="small">Salva</button>
+            <button type="button" className="ghost small" onClick={() => { setName(n.name); setRenaming(false); }}>
+              Annulla
+            </button>
+          </form>
+        ) : (
+          <h2>
+            <span className={`stor-dot${n.online ? " on" : ""}`} aria-hidden="true" />
+            {n.name}
+            <button type="button" className="ghost small" onClick={() => setRenaming(true)}>
+              Rinomina
+            </button>
+          </h2>
+        )}
         <span className="muted">
           {n.online ? `Online · ${n.connections} connessioni · v${n.version}` : "Offline"}
         </span>
@@ -275,6 +276,59 @@ function NodeCard({
           Nuova chiave
         </button>
       </form>
+      {n.draining && (
+        <p className="stor-drain">
+          {n.files > 0
+            ? `Svuotamento in corso: restano ${n.files} video (${size(n.used)}) da spostare sugli altri server.${n.online ? "" : " Il server è offline: riprende quando si ricollega."}`
+            : "Svuotato: non contiene più video e non ne riceve di nuovi. Ora puoi eliminarlo."}
+        </p>
+      )}
+      <div className="stor-row">
+        {confirm ? (
+          <>
+            <span>
+              {confirm === "drain"
+                ? "Spostare tutti i video di questo server sugli altri? Passano dal server centrale, quindi con tanti video ci vuole tempo."
+                : "Eliminare questo server da Relay? La sua chiave smette di funzionare."}
+            </span>
+            <button
+              type="button"
+              className={confirm === "remove" ? "danger" : undefined}
+              onClick={() =>
+                void act(() =>
+                  confirm === "drain"
+                    ? call(`/api/storage/nodes/${n.id}`, "PATCH", { draining: true })
+                    : call(`/api/storage/nodes/${n.id}`, "DELETE"),
+                ).then(() => setConfirm(null))
+              }
+            >
+              Sì
+            </button>
+            <button type="button" className="ghost" onClick={() => setConfirm(null)}>
+              No
+            </button>
+          </>
+        ) : n.draining ? (
+          <>
+            <button type="button" className="ghost" onClick={() => void act(() => call(`/api/storage/nodes/${n.id}`, "PATCH", { draining: false }))}>
+              Annulla svuotamento
+            </button>
+            {n.files === 0 && (
+              <button type="button" className="danger" onClick={() => setConfirm("remove")}>
+                Elimina server
+              </button>
+            )}
+          </>
+        ) : n.files === 0 ? (
+          <button type="button" className="danger" onClick={() => setConfirm("remove")}>
+            Elimina server
+          </button>
+        ) : (
+          <button type="button" className="ghost" onClick={() => setConfirm("drain")}>
+            Svuota questo server
+          </button>
+        )}
+      </div>
     </section>
   );
 }

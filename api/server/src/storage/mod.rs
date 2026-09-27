@@ -3,7 +3,7 @@ pub mod routes;
 pub mod tunnel;
 
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::BTreeMap,
     path::{Path, PathBuf},
     sync::{Arc, Mutex, OnceLock},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
@@ -18,7 +18,7 @@ use relay_common::storage::{cipher_len, Request, Response as NodeResponse, PLAIN
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
+    io::AsyncReadExt,
     sync::Notify,
 };
 
@@ -26,11 +26,12 @@ use crate::{error::AppError, state::AppState};
 use crypto::{chunks, cipher_chunk_len, cipher_offset, BlobCipher};
 
 pub const GB: u64 = 1_000_000_000;
-pub const DEFAULT_CACHE: u64 = 10 * GB;
 const NODE_MARGIN: u64 = 5 * GB;
 const CLIP_AGE: Duration = Duration::from_secs(3 * 60);
 const MATCH_AGE: Duration = Duration::from_secs(15 * 60);
 const PARALLEL_CHUNKS: usize = 16;
+const READ_AHEAD: usize = 8;
+const CHUNK_TIMEOUT: Duration = Duration::from_secs(60);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NodeCfg {
@@ -40,14 +41,14 @@ pub struct NodeCfg {
     #[serde(default)]
     pub limit: Option<u64>,
     pub created_at: u64,
+    #[serde(default)]
+    pub draining: bool,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 struct Config {
     #[serde(default)]
     nodes: Vec<NodeCfg>,
-    #[serde(default)]
-    cache_limit: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -75,7 +76,6 @@ pub struct Activity {
     pub queued_bytes: u64,
     pub current: Option<String>,
     pub last_error: Option<String>,
-    pub cache_bytes: u64,
     pub local_only_bytes: u64,
 }
 
@@ -89,7 +89,6 @@ pub struct Storage {
     wake: Notify,
     rush: std::sync::atomic::AtomicBool,
     pub activity: Mutex<Activity>,
-    filling: Mutex<HashSet<String>>,
 }
 
 static GLOBAL: OnceLock<Arc<Storage>> = OnceLock::new();
@@ -120,6 +119,25 @@ pub fn hash_key(key: &str) -> String {
     hex::encode(Sha256::digest(key.as_bytes()))
 }
 
+async fn fetch_chunk(link: &tunnel::NodeLink, e: &Entry, index: u64) -> Result<Vec<u8>, String> {
+    let need = cipher_chunk_len(e.size, index) as usize;
+    let mut rx = link.get(&e.blob, cipher_offset(index), need as u64).await?;
+    let mut buf = Vec::with_capacity(need);
+    let read = async {
+        while buf.len() < need {
+            match rx.recv().await {
+                Some(Ok(b)) => buf.extend_from_slice(&b),
+                Some(Err(m)) => return Err(m),
+                None => return Err("trasferimento interrotto".to_string()),
+            }
+        }
+        Ok(())
+    };
+    tokio::time::timeout(CHUNK_TIMEOUT, read).await.map_err(|_| "il server di archivio non risponde".to_string())??;
+    buf.truncate(need);
+    Ok(buf)
+}
+
 impl Storage {
     pub fn open(data_dir: &Path) -> std::io::Result<Arc<Self>> {
         let dir = data_dir.join("storage");
@@ -145,7 +163,6 @@ impl Storage {
             wake: Notify::new(),
             rush: Default::default(),
             activity: Mutex::new(Activity::default()),
-            filling: Mutex::new(HashSet::new()),
         });
         let _ = GLOBAL.set(s.clone());
         Ok(s)
@@ -169,18 +186,33 @@ impl Storage {
     }
 
 
+    pub fn has_nodes(&self) -> bool {
+        !self.config.lock().unwrap().nodes.is_empty()
+    }
+
+    pub(crate) fn pick_for(&self, size: u64) -> Option<(String, Arc<tunnel::NodeLink>)> {
+        self.pick_node(size, None)
+    }
+
+    pub(crate) fn cipher(&self, blob: &str) -> BlobCipher {
+        BlobCipher::new(&self.master, blob)
+    }
+
+    pub(crate) fn adopt(&self, path: &Path, node: &str, blob: &str, size: u64, sha256: &str) -> bool {
+        let Some(rel) = self.rel(path) else { return false };
+        let old = self.index.lock().unwrap().files.insert(
+            rel,
+            Entry { node: node.to_string(), blob: blob.to_string(), size, sha256: sha256.to_string(), stored_at: now_secs(), last_access: now_secs() },
+        );
+        if let Some(old) = old {
+            self.index.lock().unwrap().deletes.push((old.node, old.blob));
+        }
+        self.save_index();
+        true
+    }
+
     pub fn nodes(&self) -> Vec<NodeCfg> {
         self.config.lock().unwrap().nodes.clone()
-    }
-
-    pub fn cache_limit(&self) -> u64 {
-        self.config.lock().unwrap().cache_limit.unwrap_or(DEFAULT_CACHE)
-    }
-
-    pub fn set_cache_limit(&self, bytes: u64) {
-        self.config.lock().unwrap().cache_limit = Some(bytes);
-        self.save_config();
-        self.wake();
     }
 
     pub fn add_node(&self, name: &str) -> (NodeCfg, String) {
@@ -188,13 +220,13 @@ impl Storage {
         let mut secret = [0u8; 32];
         let _ = getrandom::getrandom(&mut secret);
         let key = format!("rsk_{}", hex::encode(secret));
-        let cfg = NodeCfg { id, name: name.to_string(), key_sha256: hash_key(&key), limit: None, created_at: now_secs() };
+        let cfg = NodeCfg { id, name: name.to_string(), key_sha256: hash_key(&key), limit: None, created_at: now_secs(), draining: false };
         self.config.lock().unwrap().nodes.push(cfg.clone());
         self.save_config();
         (cfg, key)
     }
 
-    pub fn update_node(&self, id: &str, name: Option<&str>, limit: Option<Option<u64>>) -> bool {
+    pub fn update_node(&self, id: &str, name: Option<&str>, limit: Option<Option<u64>>, draining: Option<bool>) -> bool {
         let mut c = self.config.lock().unwrap();
         let Some(n) = c.nodes.iter_mut().find(|n| n.id == id) else { return false };
         if let Some(name) = name {
@@ -203,10 +235,30 @@ impl Storage {
         if let Some(limit) = limit {
             n.limit = limit;
         }
+        if let Some(draining) = draining {
+            n.draining = draining;
+        }
         drop(c);
         self.save_config();
         self.wake();
         true
+    }
+
+    pub fn remove_node(&self, id: &str) -> Result<(), AppError> {
+        if self.used_by_node().get(id).is_some_and(|u| u.1 > 0) {
+            return Err(AppError::BadRequest("prima svuota il server: ci sono ancora video"));
+        }
+        let mut c = self.config.lock().unwrap();
+        let before = c.nodes.len();
+        c.nodes.retain(|n| n.id != id);
+        if c.nodes.len() == before {
+            return Err(AppError::NotFound);
+        }
+        drop(c);
+        self.save_config();
+        self.index.lock().unwrap().deletes.retain(|d| d.0 != id);
+        self.save_index();
+        Ok(())
     }
 
     pub fn rotate_key(&self, id: &str) -> Option<String> {
@@ -235,11 +287,14 @@ impl Storage {
         out
     }
 
-    fn pick_node(&self, size: u64) -> Option<(String, Arc<tunnel::NodeLink>)> {
+    fn pick_node(&self, size: u64, except: Option<&str>) -> Option<(String, Arc<tunnel::NodeLink>)> {
         let need = cipher_len(size);
         let used = self.used_by_node();
         let mut best: Option<(u64, String, Arc<tunnel::NodeLink>)> = None;
         for n in self.nodes() {
+            if n.draining || except == Some(n.id.as_str()) {
+                continue;
+            }
             let Some(link) = self.links.get(&n.id) else { continue };
             let stats = link.stats.lock().unwrap().clone();
             let by_disk = stats.free.saturating_sub(NODE_MARGIN);
@@ -316,8 +371,7 @@ impl Storage {
             None => (StatusCode::OK, 0, total - 1),
         };
         self.touch(path);
-        let fill = (start == 0 && end == total - 1 && self.filling.lock().unwrap().insert(entry.blob.clone())).then(|| path.to_path_buf());
-        let body = self.clone().read_range(link, entry.clone(), start, end, fill).await?;
+        let body = self.clone().read_range(link, entry.clone(), start, end).await?;
         let len = end - start + 1;
         let mut resp = (status, axum::body::Body::from_stream(body)).into_response();
         let h = resp.headers_mut();
@@ -341,108 +395,36 @@ impl Storage {
         e: Entry,
         start: u64,
         end: u64,
-        fill: Option<PathBuf>,
     ) -> Result<impl futures_util::Stream<Item = Result<Bytes, std::io::Error>>, AppError> {
+        use futures_util::StreamExt;
         let first = start / PLAIN_CHUNK;
         let last = end / PLAIN_CHUNK;
-        let off = cipher_offset(first);
-        let len = cipher_offset(last) + cipher_chunk_len(e.size, last) - off;
-        let rx = link.get(&e.blob, off, len).await.map_err(|_| AppError::Unavailable("video non disponibile: il server di archivio e' offline"))?;
-        let cache = match &fill {
-            Some(p) => {
-                let tmp = p.with_file_name(format!(".{}.fill", e.blob));
-                tokio::fs::File::create(&tmp).await.ok().map(|f| (f, tmp, p.clone()))
+        let cipher = Arc::new(BlobCipher::new(&self.master, &e.blob));
+        let first_piece = fetch_chunk(&link, &e, first)
+            .await
+            .map_err(|_| AppError::Unavailable("video non disponibile: il server di archivio e' offline"))?;
+        let began = Instant::now();
+        let storage = self.clone();
+        let node = e.node.clone();
+        let rest = futures_util::stream::iter(first + 1..=last)
+            .map(move |i| {
+                let (link, e) = (link.clone(), e.clone());
+                async move { (i, fetch_chunk(&link, &e, i).await) }
+            })
+            .buffered(READ_AHEAD);
+        let pieces = futures_util::stream::once(async move { (first, Ok(first_piece)) }).chain(rest);
+        Ok(pieces.map(move |(i, piece)| {
+            let piece = piece.map_err(std::io::Error::other)?;
+            let plain = cipher.open(i, &piece).ok_or_else(|| std::io::Error::other("pezzo del video danneggiato"))?;
+            let base = i * PLAIN_CHUNK;
+            let from = start.saturating_sub(base) as usize;
+            let to = ((end - base) as usize + 1).min(plain.len());
+            if i == last {
+                let secs = began.elapsed().as_secs_f64().max(0.001);
+                storage.note_down((end - start + 1) as f64 / secs, &node);
             }
-            None => None,
-        };
-        struct St {
-            storage: Arc<Storage>,
-            rx: tokio::sync::mpsc::Receiver<Result<Bytes, String>>,
-            cipher: BlobCipher,
-            buf: Vec<u8>,
-            index: u64,
-            e: Entry,
-            start: u64,
-            end: u64,
-            last: u64,
-            cache: Option<(tokio::fs::File, PathBuf, PathBuf)>,
-            began: Instant,
-            done: bool,
-        }
-        let st = St {
-            cipher: BlobCipher::new(&self.master, &e.blob),
-            storage: self,
-            rx,
-            buf: Vec::new(),
-            index: first,
-            e,
-            start,
-            end,
-            last,
-            cache,
-            began: Instant::now(),
-            done: false,
-        };
-        Ok(futures_util::stream::unfold(st, |mut st| async move {
-            if st.done {
-                return None;
-            }
-            loop {
-                let need = cipher_chunk_len(st.e.size, st.index) as usize;
-                if st.buf.len() >= need {
-                    let chunk: Vec<u8> = st.buf.drain(..need).collect();
-                    let Some(plain) = st.cipher.open(st.index, &chunk) else {
-                        st.done = true;
-                        st.storage.end_fill(&st.e, st.cache.take(), false).await;
-                        return Some((Err(std::io::Error::other("pezzo del video danneggiato")), st));
-                    };
-                    if let Some((f, _, _)) = st.cache.as_mut() {
-                        if f.write_all(&plain).await.is_err() {
-                            st.cache = None;
-                        }
-                    }
-                    let base = st.index * PLAIN_CHUNK;
-                    let from = st.start.saturating_sub(base) as usize;
-                    let to = ((st.end - base) as usize + 1).min(plain.len());
-                    let out = Bytes::copy_from_slice(&plain[from.min(to)..to]);
-                    if st.index == st.last {
-                        st.done = true;
-                        let secs = st.began.elapsed().as_secs_f64().max(0.001);
-                        st.storage.note_down((st.end - st.start + 1) as f64 / secs, &st.e.node);
-                        st.storage.end_fill(&st.e, st.cache.take(), true).await;
-                    }
-                    st.index += 1;
-                    return Some((Ok(out), st));
-                }
-                match st.rx.recv().await {
-                    Some(Ok(b)) => st.buf.extend_from_slice(&b),
-                    Some(Err(m)) => {
-                        st.done = true;
-                        st.storage.end_fill(&st.e, st.cache.take(), false).await;
-                        return Some((Err(std::io::Error::other(m)), st));
-                    }
-                    None => {
-                        st.done = true;
-                        st.storage.end_fill(&st.e, st.cache.take(), false).await;
-                        return Some((Err(std::io::Error::other("trasferimento interrotto")), st));
-                    }
-                }
-            }
+            Ok(Bytes::copy_from_slice(&plain[from.min(to)..to]))
         }))
-    }
-
-    async fn end_fill(&self, e: &Entry, cache: Option<(tokio::fs::File, PathBuf, PathBuf)>, ok: bool) {
-        if let Some((mut f, tmp, dst)) = cache {
-            let ok = ok && f.flush().await.is_ok() && tokio::fs::metadata(&tmp).await.is_ok_and(|m| m.len() == e.size);
-            drop(f);
-            if ok && tokio::fs::rename(&tmp, &dst).await.is_ok() {
-                tracing::info!("archivio: {} di nuovo in cache", dst.display());
-                self.wake();
-            } else {
-                let _ = tokio::fs::remove_file(&tmp).await;
-            }
-        }
-        self.filling.lock().unwrap().remove(&e.blob);
     }
 
     fn note_down(&self, rate: f64, node: &str) {
@@ -455,7 +437,7 @@ impl Storage {
     async fn offload(&self, path: &Path, rel: &str) -> Result<(), String> {
         let meta = tokio::fs::metadata(path).await.map_err(|e| e.to_string())?;
         let size = meta.len();
-        let (node, link) = self.pick_node(size).ok_or("nessun server di archivio con spazio collegato")?;
+        let (node, link) = self.pick_node(size, None).ok_or("nessun server di archivio con spazio collegato")?;
         let blob = uuid::Uuid::new_v4().to_string();
         let cipher = BlobCipher::new(&self.master, &blob);
         let mut file = tokio::fs::File::open(path).await.map_err(|e| e.to_string())?;
@@ -570,30 +552,134 @@ impl Storage {
         out
     }
 
-    async fn evict(&self) {
-        let limit = self.cache_limit();
-        let mut cached: Vec<(u64, String, u64)> = self
+    async fn drop_local_copies(&self) {
+        let archived: Vec<String> = self.index.lock().unwrap().files.keys().cloned().collect();
+        let mut freed = 0u64;
+        for rel in archived {
+            let path = self.data_dir.join(&rel);
+            let Ok(meta) = tokio::fs::metadata(&path).await else { continue };
+            if tokio::fs::remove_file(&path).await.is_ok() {
+                freed += meta.len();
+            }
+        }
+        if freed > 0 {
+            tracing::info!("archivio: tolte le copie locali gia' archiviate ({} MB)", freed / 1_000_000);
+        }
+    }
+
+    async fn move_entry(&self, rel: &str, e: &Entry) -> Result<String, String> {
+        let from = self.links.get(&e.node).ok_or("server di partenza offline")?;
+        let (to, link) = self.pick_node(e.size, Some(&e.node)).ok_or("nessun altro server con spazio collegato")?;
+        let mut rx = from.get(&e.blob, 0, cipher_len(e.size)).await?;
+        let mut hasher = Sha256::new();
+        let sem = Arc::new(tokio::sync::Semaphore::new(PARALLEL_CHUNKS));
+        let mut tasks = tokio::task::JoinSet::new();
+        let began = Instant::now();
+        let mut buf: Vec<u8> = Vec::new();
+        let mut failed: Option<String> = None;
+        'outer: for i in 0..chunks(e.size) {
+            let need = cipher_chunk_len(e.size, i) as usize;
+            while buf.len() < need {
+                match rx.recv().await {
+                    Some(Ok(b)) => buf.extend_from_slice(&b),
+                    Some(Err(m)) => {
+                        failed = Some(m);
+                        break 'outer;
+                    }
+                    None => {
+                        failed = Some("trasferimento interrotto".into());
+                        break 'outer;
+                    }
+                }
+            }
+            let piece: Vec<u8> = buf.drain(..need).collect();
+            hasher.update(&piece);
+            let permit = sem.clone().acquire_owned().await.map_err(|e| e.to_string())?;
+            let (link, blob) = (link.clone(), e.blob.clone());
+            tasks.spawn(async move {
+                let r = link.request(&Request::Put { blob, offset: cipher_offset(i) }, &piece).await;
+                drop(permit);
+                r
+            });
+            while let Some(r) = tasks.try_join_next() {
+                if let Err(err) = r.map_err(|e| e.to_string()).and_then(|r| r.map(|_| ())) {
+                    failed.get_or_insert(err);
+                }
+            }
+            if failed.is_some() {
+                break;
+            }
+        }
+        drop(rx);
+        while let Some(r) = tasks.join_next().await {
+            if let Err(err) = r.map_err(|e| e.to_string()).and_then(|r| r.map(|_| ())) {
+                failed.get_or_insert(err);
+            }
+        }
+        if failed.is_none() && !hex::encode(hasher.finalize()).eq_ignore_ascii_case(&e.sha256) {
+            failed = Some("la copia sul server di partenza e' danneggiata".into());
+        }
+        if let Some(err) = failed {
+            let _ = link.request(&Request::Abort { blob: e.blob.clone() }, &[]).await;
+            return Err(err);
+        }
+        match link.request(&Request::Commit { blob: e.blob.clone(), size: cipher_len(e.size), sha256: e.sha256.clone() }, &[]).await {
+            Ok(NodeResponse::Ok) => {}
+            Ok(other) => return Err(format!("risposta inattesa: {other:?}")),
+            Err(err) => return Err(err),
+        }
+        let secs = began.elapsed().as_secs_f64().max(0.001);
+        link.up_rate.store((e.size as f64 / secs) as u64, std::sync::atomic::Ordering::Relaxed);
+        let mut idx = self.index.lock().unwrap();
+        match idx.files.get_mut(rel) {
+            Some(cur) if cur.blob == e.blob && cur.node == e.node => {
+                cur.node = to.clone();
+                idx.deletes.push((e.node.clone(), e.blob.clone()));
+            }
+            _ => {
+                idx.deletes.push((to.clone(), e.blob.clone()));
+            }
+        }
+        drop(idx);
+        self.save_index();
+        Ok(to)
+    }
+
+    async fn drain(&self) {
+        let nodes = self.nodes();
+        let draining: Vec<&NodeCfg> = nodes.iter().filter(|n| n.draining).collect();
+        if draining.is_empty() {
+            return;
+        }
+        let name = |id: &str| nodes.iter().find(|n| n.id == id).map(|n| n.name.clone()).unwrap_or_default();
+        let todo: Vec<(String, Entry)> = self
             .index
             .lock()
             .unwrap()
             .files
             .iter()
-            .filter_map(|(rel, e)| {
-                let size = std::fs::metadata(self.data_dir.join(rel)).ok()?.len();
-                Some((e.last_access.max(e.stored_at), rel.clone(), size))
-            })
+            .filter(|(_, e)| draining.iter().any(|n| n.id == e.node))
+            .map(|(k, e)| (k.clone(), e.clone()))
             .collect();
-        let mut total: u64 = cached.iter().map(|c| c.2).sum();
-        cached.sort();
-        for (_, rel, size) in cached {
-            if total <= limit {
-                break;
+        for (rel, e) in todo {
+            if self.links.get(&e.node).is_none() {
+                continue;
             }
-            if tokio::fs::remove_file(self.data_dir.join(&rel)).await.is_ok() {
-                total -= size;
+            self.activity.lock().unwrap().current = Some(rel.clone());
+            match self.move_entry(&rel, &e).await {
+                Ok(to) => {
+                    tracing::info!("archivio: {rel} spostato da {} a {} ({} MB)", name(&e.node), name(&to), e.size / 1_000_000);
+                    self.activity.lock().unwrap().last_error = None;
+                }
+                Err(err) => {
+                    tracing::warn!("archivio: {rel} non spostato da {}: {err}", name(&e.node));
+                    self.activity.lock().unwrap().last_error = Some(format!("{rel}: {err}"));
+                    break;
+                }
             }
         }
-        self.activity.lock().unwrap().cache_bytes = total;
+        self.activity.lock().unwrap().current = None;
+        self.run_deletes().await;
     }
 
     async fn run_deletes(&self) {
@@ -620,6 +706,7 @@ impl Storage {
         loop {
             let _ = tokio::time::timeout(Duration::from_secs(60), self.wake.notified()).await;
             self.run_deletes().await;
+            self.drain().await;
             let rush = self.rush.swap(false, std::sync::atomic::Ordering::Relaxed);
             let this = self.clone();
             let st2 = st.clone();
@@ -638,7 +725,7 @@ impl Storage {
             }
             for (path, size) in pending {
                 let Some(rel) = self.rel(&path) else { continue };
-                if self.pick_node(size).is_none() {
+                if self.pick_node(size, None).is_none() {
                     break;
                 }
                 self.activity.lock().unwrap().current = Some(rel.clone());
@@ -658,10 +745,10 @@ impl Storage {
                     }
                 }
                 self.activity.lock().unwrap().current = None;
-                self.evict().await;
+                self.drop_local_copies().await;
             }
             self.activity.lock().unwrap().current = None;
-            self.evict().await;
+            self.drop_local_copies().await;
             self.save_index();
         }
     }
@@ -684,6 +771,25 @@ mod tests {
         let key2 = s.rotate_key(&node.id).unwrap();
         assert!(s.node_for_key(&key).is_none());
         assert!(s.node_for_key(&key2).is_some());
+    }
+
+    #[test]
+    fn a_node_is_removed_only_when_empty() {
+        let dir = tempfile::tempdir().unwrap();
+        let s = Storage::open(dir.path()).unwrap();
+        let (node, _) = s.add_node("casa");
+        s.index.lock().unwrap().files.insert(
+            "matches/a/p/video.mp4".into(),
+            Entry { node: node.id.clone(), blob: "1".into(), size: 1, sha256: String::new(), stored_at: 0, last_access: 0 },
+        );
+        assert!(s.remove_node(&node.id).is_err(), "ha ancora video");
+        assert!(s.update_node(&node.id, Some("nas"), None, Some(true)));
+        assert!(s.nodes()[0].draining);
+        assert!(s.pick_node(1, None).is_none(), "un server da svuotare non riceve video nuovi");
+        s.forget_dir(&dir.path().join("matches/a"));
+        s.remove_node(&node.id).unwrap();
+        assert!(s.nodes().is_empty());
+        assert!(s.index.lock().unwrap().deletes.is_empty());
     }
 
     #[test]

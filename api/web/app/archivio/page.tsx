@@ -13,7 +13,7 @@ export default async function ArchivioPage() {
       <div className="pagehead">
         <h1>Archivio</h1>
         <p className="muted">
-          I video si spostano cifrati sui server di archivio; qui resta una cache dei più recenti e dei più guardati.
+          I video si spostano cifrati sui server di archivio e da lì vengono trasmessi passando dal server centrale, senza copie locali.
         </p>
       </div>
       <StorageAdmin initial={status} />

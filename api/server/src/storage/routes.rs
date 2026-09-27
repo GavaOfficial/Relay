@@ -20,7 +20,7 @@ fn is_admin(st: &AppState, user: &str) -> bool {
     list.split([',', '\n']).map(str::trim).any(|a| !a.is_empty() && a == user)
 }
 
-fn admin(st: &AppState, user: &str) -> Result<(), AppError> {
+pub(crate) fn admin(st: &AppState, user: &str) -> Result<(), AppError> {
     if is_admin(st, user) {
         Ok(())
     } else {
@@ -47,6 +47,7 @@ pub async fn status(State(st): St, AuthUser(user): AuthUser) -> Result<Json<serd
                 "id": n.id,
                 "name": n.name,
                 "limit": n.limit,
+                "draining": n.draining,
                 "created_at": n.created_at,
                 "online": link.as_ref().is_some_and(|l| l.online()),
                 "connections": link.as_ref().map(|l| l.connections()).unwrap_or(0),
@@ -64,7 +65,6 @@ pub async fn status(State(st): St, AuthUser(user): AuthUser) -> Result<Json<serd
     let activity = s.activity.lock().unwrap().clone();
     Ok(Json(serde_json::json!({
         "nodes": nodes,
-        "cache_limit": s.cache_limit(),
         "activity": activity,
     })))
 }
@@ -87,6 +87,8 @@ pub struct NodePatch {
     name: Option<String>,
     #[serde(default, with = "double_option")]
     limit: Option<Option<u64>>,
+    #[serde(default)]
+    draining: Option<bool>,
 }
 
 mod double_option {
@@ -102,9 +104,15 @@ pub async fn update_node(State(st): St, AuthUser(user): AuthUser, Path(id): Path
         Some(n) => Some(relay_common::clean_name(&n).ok_or(AppError::BadRequest("nome non valido"))?),
         None => None,
     };
-    if !st.storage.update_node(&id, name.as_deref(), p.limit) {
+    if !st.storage.update_node(&id, name.as_deref(), p.limit, p.draining) {
         return Err(AppError::NotFound);
     }
+    Ok(axum::http::StatusCode::NO_CONTENT)
+}
+
+pub async fn remove_node(State(st): St, AuthUser(user): AuthUser, Path(id): Path<String>) -> Result<impl IntoResponse, AppError> {
+    admin(&st, &user)?;
+    st.storage.remove_node(&id)?;
     Ok(axum::http::StatusCode::NO_CONTENT)
 }
 
@@ -112,17 +120,6 @@ pub async fn rotate_key(State(st): St, AuthUser(user): AuthUser, Path(id): Path<
     admin(&st, &user)?;
     let key = st.storage.rotate_key(&id).ok_or(AppError::NotFound)?;
     Ok(Json(serde_json::json!({ "key": key })))
-}
-
-#[derive(Deserialize)]
-pub struct CacheInput {
-    limit: u64,
-}
-
-pub async fn set_cache(State(st): St, AuthUser(user): AuthUser, Json(c): Json<CacheInput>) -> Result<impl IntoResponse, AppError> {
-    admin(&st, &user)?;
-    st.storage.set_cache_limit(c.limit);
-    Ok(axum::http::StatusCode::NO_CONTENT)
 }
 
 pub async fn migrate(State(st): St, AuthUser(user): AuthUser) -> Result<impl IntoResponse, AppError> {

@@ -38,9 +38,8 @@ pub fn app(state: Arc<AppState>) -> Router {
         .route("/api/storage/admin", get(storage::routes::am_admin))
         .route("/api/storage/status", get(storage::routes::status))
         .route("/api/storage/nodes", post(storage::routes::add_node))
-        .route("/api/storage/nodes/{id}", axum::routing::patch(storage::routes::update_node))
+        .route("/api/storage/nodes/{id}", axum::routing::patch(storage::routes::update_node).delete(storage::routes::remove_node))
         .route("/api/storage/nodes/{id}/key", post(storage::routes::rotate_key))
-        .route("/api/storage/cache", axum::routing::put(storage::routes::set_cache))
         .route("/api/storage/migrate", post(storage::routes::migrate))
         .route(
             "/api/matches",
