@@ -1,4 +1,9 @@
-use std::{path::PathBuf, process::Stdio, time::Duration};
+use std::{
+    path::PathBuf,
+    process::Stdio,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
 use anyhow::{bail, Context, Result};
 use relay_capture::ipc::{self, EncoderChoice, Event, RecordConfig, Source};
@@ -28,11 +33,13 @@ pub struct ObsCaptureConfig {
     pub start_segment: u64,
     pub generation: u32,
     pub audio: AudioChoice,
+    pub segment_secs: u32,
 }
 
 pub struct ObsCapture {
     child: Child,
     reader: JoinHandle<()>,
+    first_frame: Arc<Mutex<Option<f64>>>,
 }
 
 impl ObsCapture {
@@ -62,7 +69,7 @@ impl ObsCapture {
             mic: cfg.audio.mic,
             mic_gain: cfg.audio.mic_gain,
             start_segment: cfg.start_segment,
-            segment_secs: relay_common::SEGMENT_SECONDS,
+            segment_secs: cfg.segment_secs,
             output_height: 1080,
         };
         std::fs::create_dir_all(&cfg.dir)?;
@@ -84,6 +91,8 @@ impl ObsCapture {
             .spawn()
             .with_context(|| format!("avvio di {}", cfg.exe.display()))?;
         let stdout = child.stdout.take().context("relay-capture senza uscita")?;
+        let first_frame = Arc::new(Mutex::new(None));
+        let first_frame_w = first_frame.clone();
         let reader = tokio::spawn(async move {
             let mut lines = BufReader::new(stdout).lines();
             while let Ok(Some(line)) = lines.next_line().await {
@@ -92,8 +101,11 @@ impl ObsCapture {
                 }
                 match ipc::decode::<Event>(&line) {
                     Ok(Event::Started {
-                        encoder, source, ..
+                        encoder,
+                        source,
+                        first_frame_unix_secs,
                     }) => {
+                        *first_frame_w.lock().unwrap() = Some(first_frame_unix_secs);
                         tracing::info!(
                             "relay-capture avviato: encoder {encoder}, sorgente {source}"
                         )
@@ -109,7 +121,15 @@ impl ObsCapture {
                 }
             }
         });
-        Ok(Self { child, reader })
+        Ok(Self {
+            child,
+            reader,
+            first_frame,
+        })
+    }
+
+    pub fn first_frame_unix_secs(&self) -> Option<f64> {
+        *self.first_frame.lock().unwrap()
     }
 
     pub async fn wait(&mut self) -> Result<std::process::ExitStatus> {

@@ -72,6 +72,10 @@ pub struct Settings {
     pub audio_mic: bool,
 
     pub audio_mic_gain: f32,
+
+    pub fnf_autorecord: bool,
+
+    pub fnf_mic: bool,
 }
 
 impl Default for Settings {
@@ -93,6 +97,8 @@ impl Default for Settings {
             audio_game: true,
             audio_mic: false,
             audio_mic_gain: crate::audio::DEFAULT_MIC_GAIN,
+            fnf_autorecord: true,
+            fnf_mic: false,
         }
     }
 }

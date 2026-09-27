@@ -541,7 +541,7 @@ fn desired_source(sel: &WindowSel, outputs: &[(u32, u32, u32)]) -> WindowSel {
 
 enum ActiveCapture {
     Ffmpeg(Capture),
-    Obs(ObsCapture),
+    Obs(Box<ObsCapture>),
 }
 
 impl ActiveCapture {
@@ -797,8 +797,9 @@ async fn record_flow(
                 start_segment,
                 generation,
                 audio: audio_choice,
+                segment_secs: SEGMENT_SECONDS,
             })
-            .map(ActiveCapture::Obs);
+            .map(|c| ActiveCapture::Obs(Box::new(c)));
         }
         let window = match source {
             WindowSel::Monitor(o) => WindowSel::Monitor(
