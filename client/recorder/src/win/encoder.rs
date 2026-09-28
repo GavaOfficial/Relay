@@ -395,7 +395,7 @@ impl H264 {
         };
 
         unsafe {
-            mft.ProcessMessage(MFT_MESSAGE_COMMAND_FLUSH, 0)?;
+            let _ = mft.ProcessMessage(MFT_MESSAGE_COMMAND_FLUSH, 0);
             mft.ProcessMessage(MFT_MESSAGE_NOTIFY_BEGIN_STREAMING, 0)?;
             mft.ProcessMessage(MFT_MESSAGE_NOTIFY_START_OF_STREAM, 0)?;
         }
