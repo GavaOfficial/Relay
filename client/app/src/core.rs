@@ -417,28 +417,6 @@ impl Core {
         Ok(compat)
     }
 
-    async fn install_obs(&self, base: &std::path::Path) -> Result<(), String> {
-        self.capture.lock().unwrap().stage = "obs";
-        let cancel = relay_capture::install::Canceller::new();
-        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-        let base2 = base.to_path_buf();
-        let handle = tokio::task::spawn_blocking(move || {
-            crate::capture::install_obs(&base2, &cancel, &mut |p| {
-                let _ = tx.send(p.clone());
-            })
-        });
-        while let Some(p) = rx.recv().await {
-            let mut c = self.capture.lock().unwrap();
-            c.percent = p.percent;
-            c.groups = p
-                .groups
-                .iter()
-                .map(|g| json!({ "id": g.id, "label": g.label, "percent": g.percent, "done": g.done }))
-                .collect();
-        }
-        handle.await.map_err(|e| e.to_string())?
-    }
-
     pub async fn ensure_capture(&self) {
         {
             let mut c = self.capture.lock().unwrap();
@@ -454,7 +432,9 @@ impl Core {
             let installed = crate::capture::exe_installed_version(&base);
             match crate::capture::fetch_latest(&self.http, &server).await {
                 Ok(Some(rel)) => {
-                    let newer = installed.as_deref().is_none_or(|v| crate::updater::is_newer(v, &rel.version));
+                    let newer = installed
+                        .as_deref()
+                        .is_none_or(|v| crate::updater::is_newer(v, &rel.version));
                     if newer {
                         {
                             let mut c = self.capture.lock().unwrap();
@@ -463,25 +443,21 @@ impl Core {
                         }
                         let total = rel.size.max(1);
                         let progress = |done: u64, _| {
-                            self.capture.lock().unwrap().percent = (done as f64 / total as f64) as f32;
+                            self.capture.lock().unwrap().percent =
+                                (done as f64 / total as f64) as f32;
                         };
-                        crate::capture::install_exe(&self.http, &server, &rel, &base, &progress).await?;
+                        crate::capture::install_exe(&self.http, &server, &rel, &base, &progress)
+                            .await?;
                     }
                 }
-                Ok(None) if installed.is_none() => return Err("il server non ha ancora relay-capture da scaricare".into()),
+                Ok(None) if installed.is_none() => {
+                    return Err("il server non ha ancora relay-capture da scaricare".into())
+                }
                 Ok(None) => {}
                 Err(e) if installed.is_none() => return Err(e),
                 Err(_) => {}
             }
-            let mut compat = self.check_capture(&base).await?;
-            if !compat.ok && compat.fallback.is_some() && !crate::capture::obs_ready(&base) {
-                tracing::warn!(
-                    "relay-capture: il motore di Relay non funziona su questo PC ({}): scarico OBS come riserva",
-                    compat.fallback.as_deref().unwrap_or("")
-                );
-                self.install_obs(&base).await?;
-                compat = self.check_capture(&base).await?;
-            }
+            let compat = self.check_capture(&base).await?;
             let ok = compat.ok;
             let err = compat.error.clone();
             self.capture.lock().unwrap().compat = Some(compat);

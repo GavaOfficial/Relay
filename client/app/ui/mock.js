@@ -37,11 +37,6 @@
   };
   const install = new URLSearchParams(location.search).get('install');
   if (install) {
-    const groups = () => [
-      { id: 'engine', label: 'Motore di cattura', percent: 0, done: false },
-      { id: 'encoders', label: 'Codifica video e audio', percent: 0, done: false },
-      { id: 'games', label: 'Aggancio ai giochi', percent: 0, done: false },
-    ];
     st.capture = { state: 'installing', stage: 'exe', percent: 0, groups: [], error: null, compat: null };
     let step = 0;
     const tick = setInterval(() => {
@@ -50,18 +45,9 @@
         st.capture.percent = step / 60;
       } else if (step <= 80) {
         st.capture.stage = 'check';
-      } else if (install === 'obs' && step <= 180) {
-        if (st.capture.stage !== 'obs') {
-          st.capture.stage = 'obs';
-          st.capture.groups = groups();
-        }
-        st.capture.groups.forEach((g, i) => { g.percent = Math.max(0, Math.min(100, step - 80 - i * 20)); g.done = g.percent >= 100; });
-      } else if (install === 'obs' && step <= 200) {
-        st.capture.stage = 'check';
-        st.capture.groups = [];
       } else {
         clearInterval(tick);
-        st.capture = { state: 'ready', stage: 'check', percent: 1, groups: [], error: null, compat: { ok: true, best_encoder: 'nvenc' } };
+        st.capture = { state: 'ready', stage: 'check', percent: 1, groups: [], error: null, compat: { ok: true, best_encoder: 'nvenc', yellow_border: false } };
       }
       push();
     }, 400);

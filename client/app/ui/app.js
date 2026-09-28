@@ -224,7 +224,6 @@ function installStageLabel(c) {
   if (c.state === 'error') return 'Non riesco a preparare la registrazione';
   if (c.stage === 'exe') return 'Scarico il programma di registrazione';
   if (c.stage === 'check') return 'Controllo che questo PC riesca a registrare';
-  if (c.stage === 'obs') return 'Scarico i componenti di riserva per registrare su questo PC';
   return 'Scarico i componenti per registrare';
 }
 
@@ -235,26 +234,21 @@ function encoderLabel(id) {
 function captureInfo() {
   const c = snap && snap.capture && snap.capture.compat;
   if (!c || !c.ok) return null;
-  const engine = c.engine === 'obs' ? 'OBS (riserva)' : 'Relay';
   return h('div', null,
-    h('p', { class: 'hint', text: 'Motore di registrazione: ' + engine + (c.best_encoder ? ', codifica con ' + encoderLabel(c.best_encoder) : '') + '.' }),
+    c.best_encoder && h('p', { class: 'hint', text: 'Codifica con ' + encoderLabel(c.best_encoder) + '.' }),
     c.yellow_border && h('p', { class: 'hint warn', text: 'Su questa versione di Windows compare un bordo giallo attorno al gioco mentre registra: lo disegna Windows e non finisce nel video.' }));
 }
 
 function renderInstall() {
   region('v-install', JSON.stringify(snap.capture), () => {
     const c = snap.capture;
-    const groups = c.stage === 'obs' ? c.groups || [] : [];
     const compat = c.compat;
     return [
       h('div', { class: 'hero-login' },
         h('div', { class: 'bigdot', 'aria-hidden': 'true' }),
         h('h1', { text: 'Relay' }),
         h('p', { text: installStageLabel(c) }),
-        c.stage !== 'obs' && c.state !== 'error' && h('div', { class: 'bar' }, h('i', { style: 'width:' + Math.round((c.percent || 0) * 100) + '%' })),
-        groups.map((g) => h('div', { class: 'instgroup' },
-          h('div', { class: 'row' }, h('span', { class: 'small', text: g.label }), h('span', { class: 'small muted', text: Math.round(g.percent) + '%' })),
-          h('div', { class: 'bar' }, h('i', { style: 'width:' + Math.round(g.percent) + '%' })))),
+        c.state !== 'error' && h('div', { class: 'bar' }, h('i', { style: 'width:' + Math.round((c.percent || 0) * 100) + '%' })),
         compat && !compat.ok && h('p', { class: 'err', role: 'alert', text: compat.error || 'Questo PC non e’ compatibile con la registrazione.' }),
         c.state === 'error' && !compat && h('p', { class: 'err', role: 'alert', text: c.error }),
         c.state === 'error' && h('button', { class: 'btn primary lg', 'data-act': 'retryCapture', text: 'Riprova' }),

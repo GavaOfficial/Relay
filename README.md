@@ -13,7 +13,7 @@ Ogni giocatore registra la propria finestra di gioco (video e audio del gioco, m
 | `api/web` | Sito (Next.js): elenco delle partite, replay sincronizzato, download dell'app |
 | `client/agent` | Libreria e riga di comando che registrano e caricano (Rust, ffmpeg) |
 | `client/recorder` | Motore di registrazione nostro: cattura di Windows (WGC), codifica con Media Foundation, audio WASAPI, pezzi MPEG-TS/HLS (Rust) |
-| `client/capture` | `relay-capture.exe`: registra con `client/recorder` e, se sul PC non funziona, passa da solo a OBS |
+| `client/capture` | `relay-capture.exe`: riga di comando che registra con `client/recorder` |
 | `client/app` | App desktop per Windows (Tauri): creare una partita, entrare, scegliere la finestra, aggiornarsi da sola |
 | `deploy` | Esempi di configurazione (systemd, nginx, docker) e script di pubblicazione dell'app |
 

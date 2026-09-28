@@ -136,7 +136,7 @@ def main() -> int:
     ap.add_argument("--no-app", action="store_true", help="non pubblicare l'app")
     ap.add_argument("--ffmpeg", default=None, help="ffmpeg.exe da pubblicare (viene impacchettato in uno zip)")
     ap.add_argument("--ffmpeg-version", default=None)
-    ap.add_argument("--capture", default=None, help="relay-capture.exe (cargo build --release -p relay-capture --features obs) da pubblicare")
+    ap.add_argument("--capture", default=None, help="relay-capture.exe (cargo build --release -p relay-capture) da pubblicare")
     ap.add_argument("--capture-version", default=None)
     ap.add_argument("--storage", default=None, help="relay-storage per Linux x86_64 (deploy/build-storage.ps1) da pubblicare")
     ap.add_argument("--storage-version", default=None)

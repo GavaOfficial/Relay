@@ -1,21 +1,14 @@
-#[cfg(feature = "obs")]
-mod obs;
-
 use std::{
     io::BufRead,
-    path::{Path, PathBuf},
     sync::{mpsc, Arc},
     thread,
     time::Duration,
 };
 
-use anyhow::Result;
-use relay_capture::{
-    fallback,
-    ipc::{
-        self, legacy_encoder_id, playlist_generation, EncoderChoice, Event, MonitorInfo,
-        RecordConfig, Source, WindowInfo, ENGINE_OBS, ENGINE_RELAY,
-    },
+use anyhow::{bail, Result};
+use relay_capture::ipc::{
+    self, playlist_generation, EncoderChoice, Event, MonitorInfo, RecordConfig, Source, WindowInfo,
+    ENGINE_RELAY,
 };
 use relay_recorder::{Config, EncoderPref, EventSink, FrameCheck, Target};
 
@@ -28,11 +21,6 @@ pub fn emit(ev: &Event) {
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
-    let engine = args
-        .iter()
-        .position(|a| a == "--engine")
-        .and_then(|i| args.get(i + 1))
-        .cloned();
     if args.iter().any(|a| a == "--encoders") {
         for line in relay_recorder::check_encoders() {
             println!("{line}");
@@ -40,16 +28,14 @@ fn main() {
         std::process::exit(0);
     }
     let result = if args.iter().any(|a| a == "--probe") {
-        probe(engine.as_deref())
+        probe()
     } else if let Some(i) = args.iter().position(|a| a == "--config") {
         let path = args.get(i + 1).expect("--config richiede un percorso");
         let text = std::fs::read_to_string(path).expect("configurazione non leggibile");
         let cfg: RecordConfig = serde_json::from_str(&text).expect("configurazione non valida");
-        record(cfg, engine.as_deref())
+        record(cfg)
     } else {
-        eprintln!(
-            "uso: relay-capture --probe | --encoders | --config <file.json> [--engine relay|obs]"
-        );
+        eprintln!("uso: relay-capture --probe | --encoders | --config <file.json>");
         std::process::exit(2);
     };
 
@@ -62,179 +48,37 @@ fn main() {
     }
 }
 
-fn runtime_dir() -> PathBuf {
-    std::env::current_exe()
-        .ok()
-        .and_then(|p| p.parent().map(Path::to_path_buf))
-        .unwrap_or_else(|| PathBuf::from("."))
-}
-
-fn version() -> &'static str {
-    env!("CARGO_PKG_VERSION")
-}
-
-fn use_relay(dir: &Path, engine: Option<&str>) -> bool {
-    match engine {
-        Some(ENGINE_OBS) => false,
-        Some(ENGINE_RELAY) => true,
-        _ => match fallback::obs_reason(dir, version()) {
-            Some(reason) => {
-                emit(&Event::Warning(format!(
-                    "su questo PC registro con OBS: il motore di Relay ha dato errore {} volte di fila (l'ultima: {reason})",
-                    fallback::STRIKES
-                )));
-                false
-            }
-            None => {
-                let strikes = fallback::strikes(dir, version());
-                if strikes > 0 {
-                    emit(&Event::Warning(format!(
-                        "motore di Relay, con {strikes} errori recenti su {}",
-                        fallback::STRIKES
-                    )));
-                }
-                true
-            }
-        },
+fn probe() -> Result<()> {
+    let p = relay_recorder::probe()?;
+    emit(&Event::Ready {
+        obs_version: String::new(),
+        engine: ENGINE_RELAY.into(),
+    });
+    for r in &p.rejected {
+        emit(&Event::Warning(format!("encoder scartato: {r}")));
     }
-}
-
-fn strike(dir: &Path, reason: &str) -> String {
-    let n = fallback::strike(dir, version(), reason);
-    if n >= fallback::STRIKES {
-        format!(
-            "{reason} ({n} errori di fila: su questo PC uso OBS fino al prossimo aggiornamento)"
-        )
-    } else {
-        format!("{reason} (errore {n} di {})", fallback::STRIKES)
-    }
-}
-
-fn give_up_relay(dir: &Path, reason: String) {
-    let reason = strike(dir, &reason);
-    emit(&Event::Fallback { reason });
-}
-
-fn probe(engine: Option<&str>) -> Result<()> {
-    let dir = runtime_dir();
-    if use_relay(&dir, engine) {
-        match relay_recorder::probe() {
-            Ok(p) => {
-                emit(&Event::Ready {
-                    obs_version: String::new(),
-                    engine: ENGINE_RELAY.into(),
-                });
-                for r in &p.rejected {
-                    emit(&Event::Warning(format!("encoder scartato: {r}")));
-                }
-                let mut encoders = p.encoders.clone();
-                encoders.extend(
-                    p.encoders
-                        .iter()
-                        .filter_map(|e| legacy_encoder_id(e))
-                        .map(String::from),
-                );
-                emit(&Event::Probed {
-                    encoders,
-                    monitors: p
-                        .monitors
-                        .iter()
-                        .map(|m| MonitorInfo {
-                            index: m.index,
-                            width: m.width,
-                            height: m.height,
-                        })
-                        .collect(),
-                    windows: p
-                        .windows
-                        .iter()
-                        .map(|w| WindowInfo {
-                            exe: w.exe.clone(),
-                            title: w.title.clone(),
-                        })
-                        .collect(),
-                    best: Some(p.best),
-                    yellow_border: p.yellow_border,
-                });
-                return Ok(());
-            }
-            Err(e) => give_up_relay(&dir, format!("{e:#}")),
-        }
-    }
-    obs_probe(&dir)
-}
-
-#[cfg(feature = "obs")]
-fn obs_probe(dir: &Path) -> Result<()> {
-    if !relay_capture::install::is_ready(dir) {
-        anyhow::bail!("serve OBS come riserva ma non e' ancora installato");
-    }
-    enter_obs(dir)?;
-    obs::probe()
-}
-
-#[cfg(not(feature = "obs"))]
-fn obs_probe(_dir: &Path) -> Result<()> {
-    anyhow::bail!(
-        "il motore di Relay non funziona su questo PC e questo relay-capture non include OBS"
-    )
-}
-
-enum Failure {
-    Fallback(String),
-    Broken(anyhow::Error),
-}
-
-fn record(cfg: RecordConfig, engine: Option<&str>) -> Result<()> {
-    let dir = runtime_dir();
-    if use_relay(&dir, engine) {
-        match record_relay(&cfg, &dir) {
-            Ok(()) => return Ok(()),
-            Err(Failure::Broken(e)) => {
-                let why = strike(&dir, &format!("errore durante la registrazione: {e:#}"));
-                emit(&Event::Warning(format!("motore di Relay: {why}")));
-                return Err(e);
-            }
-            Err(Failure::Fallback(reason)) => give_up_relay(&dir, reason),
-        }
-    }
-    record_obs(cfg, &dir)
-}
-
-#[cfg(feature = "obs")]
-fn record_obs(cfg: RecordConfig, dir: &Path) -> Result<()> {
-    if !relay_capture::install::is_ready(dir) {
-        emit(&Event::Warning(
-            "scarico OBS per registrare come riserva".into(),
-        ));
-        let mut last = -10.0f32;
-        relay_capture::install::install(
-            dir,
-            &relay_capture::install::Canceller::new(),
-            &mut |p| {
-                if p.percent - last >= 10.0 {
-                    last = p.percent;
-                    emit(&Event::Warning(format!("scarico OBS: {:.0}%", p.percent)));
-                }
-            },
-        )?;
-    }
-    enter_obs(dir)?;
-    obs::record(cfg)
-}
-
-#[cfg(not(feature = "obs"))]
-fn record_obs(_cfg: RecordConfig, _dir: &Path) -> Result<()> {
-    anyhow::bail!(
-        "il motore di Relay non funziona su questo PC e questo relay-capture non include OBS"
-    )
-}
-
-#[cfg(feature = "obs")]
-fn enter_obs(dir: &Path) -> Result<()> {
-    let bin = relay_capture::install::spawn_dir(dir);
-    std::fs::create_dir_all(&bin)?;
-    std::env::set_current_dir(&bin)?;
+    emit(&Event::Probed {
+        encoders: p.encoders.clone(),
+        monitors: p
+            .monitors
+            .iter()
+            .map(|m| MonitorInfo {
+                index: m.index,
+                width: m.width,
+                height: m.height,
+            })
+            .collect(),
+        windows: p
+            .windows
+            .iter()
+            .map(|w| WindowInfo {
+                exe: w.exe.clone(),
+                title: w.title.clone(),
+            })
+            .collect(),
+        best: Some(p.best),
+        yellow_border: p.yellow_border,
+    });
     Ok(())
 }
 
@@ -321,24 +165,15 @@ fn commands() -> mpsc::Receiver<Line> {
     rx
 }
 
-fn record_relay(cfg: &RecordConfig, dir: &Path) -> std::result::Result<(), Failure> {
+fn record(cfg: RecordConfig) -> Result<()> {
     let sink: EventSink = Arc::new(forward);
-    let prepared = relay_recorder::prepare(recorder_config(cfg), sink)
-        .map_err(|e| Failure::Fallback(format!("{e:#}")))?;
-    let mut struck = false;
+    let prepared = relay_recorder::prepare(recorder_config(&cfg), sink)?;
     match prepared.wait_frames(FIRST_FRAMES) {
         FrameCheck::Frames => {}
         FrameCheck::Waiting(why) => emit(&Event::Warning(why)),
         FrameCheck::Broken(why) => {
-            if fallback::strikes(dir, version()) + 1 >= fallback::STRIKES {
-                prepared.abort();
-                return Err(Failure::Fallback(why));
-            }
-            let why = strike(dir, &why);
-            struck = true;
-            emit(&Event::Warning(format!(
-                "{why}: continuo con il motore di Relay e aspetto le immagini"
-            )));
+            prepared.abort();
+            bail!(why);
         }
     }
     let recorder = prepared.start();
@@ -351,17 +186,10 @@ fn record_relay(cfg: &RecordConfig, dir: &Path) -> std::result::Result<(), Failu
         }
         if let Some(why) = recorder.failure() {
             let _ = recorder.stop();
-            return Err(Failure::Broken(anyhow::anyhow!(why)));
+            bail!(why);
         }
     }
-    let frames = recorder.captured_frames();
-    recorder.stop().map_err(Failure::Broken)?;
-    if frames > 0 {
-        fallback::succeeded(dir, version());
-    } else if !struck {
-        let why = strike(dir, "nessuna immagine per tutta la registrazione");
-        emit(&Event::Warning(format!("motore di Relay: {why}")));
-    }
+    recorder.stop()?;
     emit(&Event::Stopped);
     Ok(())
 }
