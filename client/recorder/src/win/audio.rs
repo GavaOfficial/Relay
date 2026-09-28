@@ -38,9 +38,37 @@ struct Input {
     gain: f32,
 }
 
+pub struct GameAudio {
+    ring: Ring,
+    pid: u32,
+    stop: Arc<AtomicBool>,
+}
+
+impl GameAudio {
+    pub fn pid(&self) -> u32 {
+        self.pid
+    }
+
+    pub fn retarget(&mut self, pid: u32) -> Result<(), String> {
+        let stop = Arc::new(AtomicBool::new(false));
+        spawn_into(Kind::Process(pid), &self.ring, &stop)?;
+        self.stop.store(true, Ordering::Relaxed);
+        self.stop = stop;
+        self.pid = pid;
+        Ok(())
+    }
+}
+
+impl Drop for GameAudio {
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::Relaxed);
+    }
+}
+
 pub struct Inputs {
     inputs: Vec<Input>,
     stop: Arc<AtomicBool>,
+    game: Option<GameAudio>,
 }
 
 impl Drop for Inputs {
@@ -58,9 +86,21 @@ impl Inputs {
     ) -> Self {
         let stop = Arc::new(AtomicBool::new(false));
         let mut inputs = Vec::new();
+        let mut game = None;
         if let Some(pid) = game_pid {
-            match spawn(Kind::Process(pid), &stop) {
-                Ok(ring) => inputs.push(Input { ring, gain: 1.0 }),
+            let game_stop = Arc::new(AtomicBool::new(false));
+            match spawn(Kind::Process(pid), &game_stop) {
+                Ok(ring) => {
+                    inputs.push(Input {
+                        ring: ring.clone(),
+                        gain: 1.0,
+                    });
+                    game = Some(GameAudio {
+                        ring,
+                        pid,
+                        stop: game_stop,
+                    });
+                }
                 Err(e) => {
                     warn(format!(
                         "audio del solo gioco non disponibile ({e}): registro l'audio di tutto il sistema"
@@ -86,11 +126,15 @@ impl Inputs {
                 Err(e) => warn(format!("microfono non disponibile ({e})")),
             }
         }
-        Self { inputs, stop }
+        Self { inputs, stop, game }
     }
 
     pub fn is_empty(&self) -> bool {
         self.inputs.is_empty()
+    }
+
+    pub fn take_game(&mut self) -> Option<GameAudio> {
+        self.game.take()
     }
 
     pub fn run(
@@ -176,6 +220,11 @@ impl Inputs {
 
 fn spawn(kind: Kind, stop: &Arc<AtomicBool>) -> Result<Ring, String> {
     let ring: Ring = Ring::default();
+    spawn_into(kind, &ring, stop)?;
+    Ok(ring)
+}
+
+fn spawn_into(kind: Kind, ring: &Ring, stop: &Arc<AtomicBool>) -> Result<(), String> {
     let (tx, rx) = mpsc::channel::<Result<(), String>>();
     let (r, s) = (ring.clone(), stop.clone());
     thread::Builder::new()
@@ -187,9 +236,8 @@ fn spawn(kind: Kind, stop: &Arc<AtomicBool>) -> Result<Ring, String> {
         })
         .map_err(|e| e.to_string())?;
     match rx.recv_timeout(Duration::from_secs(4)) {
-        Ok(Ok(())) => Ok(ring),
+        Ok(Ok(())) | Err(mpsc::RecvTimeoutError::Timeout) => Ok(()),
         Ok(Err(e)) => Err(e),
-        Err(mpsc::RecvTimeoutError::Timeout) => Ok(ring),
         Err(mpsc::RecvTimeoutError::Disconnected) => Err("cattura interrotta".into()),
     }
 }

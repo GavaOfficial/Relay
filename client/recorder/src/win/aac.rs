@@ -200,3 +200,86 @@ impl AacEncoder {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::process::Command;
+
+    use super::*;
+    use crate::{aac::to_adts, mix::to_bytes};
+
+    const CLICK_AT: usize = AUDIO_RATE as usize;
+    const FIRST_SAMPLE: u64 = 480_000;
+
+    #[test]
+    fn a_click_is_heard_at_its_own_time() {
+        let ffmpeg = Command::new("ffmpeg")
+            .arg("-version")
+            .output()
+            .is_ok_and(|o| o.status.success());
+        if !ffmpeg {
+            eprintln!("ffmpeg non trovato: test saltato");
+            return;
+        }
+        super::super::com_init();
+        super::super::encoder::startup();
+        let mut encoder = match AacEncoder::open() {
+            Ok(e) => e,
+            Err(e) => {
+                eprintln!("encoder AAC di Windows non disponibile ({e:#}): test saltato");
+                return;
+            }
+        };
+        let mut pcm = vec![0i16; 3 * AUDIO_RATE as usize * CHANNELS];
+        for i in 0..24 {
+            for c in 0..CHANNELS {
+                pcm[(CLICK_AT + i) * CHANNELS + c] = if i % 2 == 0 { 30_000 } else { -30_000 };
+            }
+        }
+        let mut frames = Vec::new();
+        for (i, chunk) in pcm.chunks(480 * CHANNELS).enumerate() {
+            encoder
+                .encode(&to_bytes(chunk), FIRST_SAMPLE + i as u64 * 480, &mut frames)
+                .unwrap();
+        }
+        assert!(!frames.is_empty(), "l'encoder non ha prodotto audio");
+        let start = frames[0].sample;
+        let adts: Vec<u8> = frames
+            .iter()
+            .flat_map(|f| to_adts(&f.data, AUDIO_RATE, CHANNELS as u8))
+            .collect();
+        let path = std::env::temp_dir().join(format!("relay-click-{}.aac", std::process::id()));
+        std::fs::write(&path, adts).unwrap();
+        let decoded = Command::new("ffmpeg")
+            .args(["-v", "error", "-f", "aac", "-i"])
+            .arg(&path)
+            .args(["-f", "s16le", "-ac", "1", "-ar", "48000", "-"])
+            .output()
+            .unwrap();
+        let _ = std::fs::remove_file(&path);
+        assert!(
+            decoded.status.success(),
+            "{}",
+            String::from_utf8_lossy(&decoded.stderr)
+        );
+        let loudest = decoded
+            .stdout
+            .chunks_exact(2)
+            .map(|b| i16::from_le_bytes([b[0], b[1]]).unsigned_abs())
+            .enumerate()
+            .max_by_key(|(_, v)| *v)
+            .map(|(i, _)| i)
+            .unwrap();
+        let heard = start as i64 + loudest as i64;
+        let offset = heard - (FIRST_SAMPLE as i64 + CLICK_AT as i64);
+        eprintln!(
+            "ritardo dell'audio dopo codifica e decodifica: {offset} campioni ({:.2} ms)",
+            offset as f64 * 1000.0 / AUDIO_RATE as f64
+        );
+        assert!(
+            offset.abs() <= 48,
+            "il click si sente {offset} campioni ({:.1} ms) fuori tempo: va compensato il ritardo dell'encoder",
+            offset as f64 * 1000.0 / AUDIO_RATE as f64
+        );
+    }
+}

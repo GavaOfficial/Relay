@@ -72,6 +72,7 @@ pub fn probe() -> Result<()> {
         monitors,
         windows,
         best: None,
+        yellow_border: false,
     });
     std::process::exit(0);
 }

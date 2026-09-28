@@ -16,11 +16,11 @@ use windows::Win32::{
 };
 
 use super::{
-    audio::Inputs,
+    audio::{GameAudio, Inputs},
     capture::{self, Source},
     convert::Converter,
     device::{self, Gpu},
-    encoder::{self, Candidate, Encoded, H264},
+    encoder::{self, Candidate, Encoded, Kind, H264},
     window::{self, Found},
     Unsync,
 };
@@ -179,6 +179,10 @@ impl Recorder {
         let _ = self.tx.send(Cmd::Fit);
     }
 
+    pub fn captured_frames(&self) -> u64 {
+        self.health.lock().unwrap().frames
+    }
+
     pub fn failure(&self) -> Option<String> {
         let h = self.health.lock().unwrap();
         match (&h.error, h.finished) {
@@ -209,15 +213,18 @@ impl Drop for Recorder {
     }
 }
 
-pub fn choose_encoder(
-    pref: EncoderPref,
-    size: (u32, u32),
-    fps: u32,
-    kbps: u32,
-    warn: &dyn Fn(String),
-) -> Result<(Gpu, Candidate, Vec<String>)> {
+pub struct Choice {
+    pub gpu: Gpu,
+    pub candidate: Candidate,
+    pub names: Vec<String>,
+    pub rejected: Vec<String>,
+}
+
+type Slot = (Option<usize>, Candidate);
+
+fn options() -> (Vec<device::Adapter>, Vec<Slot>) {
     let adapters = device::adapters();
-    let mut hardware: Vec<(Option<usize>, Candidate)> = Vec::new();
+    let mut hardware: Vec<Slot> = Vec::new();
     for (i, a) in adapters.iter().enumerate() {
         for c in encoder::hardware(a.luid, a.vendor) {
             hardware.push((Some(i), c));
@@ -231,6 +238,26 @@ pub fn choose_encoder(
             .into_iter()
             .map(|c| (default_adapter, c)),
     );
+    (adapters, options)
+}
+
+fn describe(adapters: &[device::Adapter], adapter: Option<usize>, candidate: &Candidate) -> String {
+    format!(
+        "{} ({} su {})",
+        candidate.kind.name(),
+        candidate.label,
+        adapter.map_or("scheda predefinita", |i| adapters[i].name.as_str())
+    )
+}
+
+pub fn choose_encoder(
+    pref: EncoderPref,
+    size: (u32, u32),
+    fps: u32,
+    kbps: u32,
+    warn: &dyn Fn(String),
+) -> Result<Choice> {
+    let (adapters, options) = options();
     let mut names: Vec<String> = Vec::new();
     for (_, c) in &options {
         let n = c.kind.name().to_string();
@@ -249,29 +276,66 @@ pub fn choose_encoder(
         }
         order.extend(rest);
     }
-    let mut errors = Vec::new();
+    let mut rejected = Vec::new();
+    let mut hardware_without_keyframes = false;
     for (adapter, candidate) in order {
+        let who = describe(&adapters, adapter, &candidate);
         let gpu = match device::create(adapter.map(|i| &adapters[i])) {
             Ok(g) => g,
             Err(e) => {
-                errors.push(format!("{}: {e:#}", candidate.kind.name()));
+                rejected.push(format!("{who}: {e:#}"));
                 continue;
             }
         };
         match self_test(&candidate, &gpu, size, fps, kbps) {
-            Ok(()) => return Ok((gpu, candidate, names)),
-            Err(e) => errors.push(format!(
-                "{} ({} su {}): {e:#}",
-                candidate.kind.name(),
-                candidate.label,
-                adapter.map_or("scheda predefinita", |i| adapters[i].name.as_str())
-            )),
+            Ok(Verdict::Good) => {
+                if candidate.kind == Kind::Software
+                    && hardware_without_keyframes
+                    && pref != EncoderPref::Software
+                {
+                    bail!(
+                        "l'encoder della scheda video non mette i fotogrammi chiave dove servono e resterebbe solo la codifica sul processore: {}",
+                        rejected.join("; ")
+                    );
+                }
+                return Ok(Choice {
+                    gpu,
+                    candidate,
+                    names,
+                    rejected,
+                });
+            }
+            Ok(Verdict::BadKeyframes(why)) => {
+                hardware_without_keyframes |= candidate.kind != Kind::Software;
+                rejected.push(format!("{who}: {why}"));
+            }
+            Err(e) => rejected.push(format!("{who}: {e:#}")),
         }
     }
-    if errors.is_empty() {
+    if rejected.is_empty() {
         bail!("nessun encoder H.264 di Windows trovato");
     }
-    bail!("nessun encoder H.264 funzionante: {}", errors.join("; "))
+    bail!("nessun encoder H.264 funzionante: {}", rejected.join("; "))
+}
+
+pub fn check_all(size: (u32, u32), fps: u32, kbps: u32) -> Vec<String> {
+    let (adapters, options) = options();
+    if options.is_empty() {
+        return vec!["nessun encoder H.264 di Windows trovato".into()];
+    }
+    options
+        .into_iter()
+        .map(|(adapter, candidate)| {
+            let who = describe(&adapters, adapter, &candidate);
+            let verdict = device::create(adapter.map(|i| &adapters[i]))
+                .and_then(|gpu| self_test(&candidate, &gpu, size, fps, kbps));
+            match verdict {
+                Ok(Verdict::Good) => format!("{who}: ok"),
+                Ok(Verdict::BadKeyframes(why)) => format!("{who}: {why}"),
+                Err(e) => format!("{who}: {e:#}"),
+            }
+        })
+        .collect()
 }
 
 fn next_frame(enc: &mut H264, out: &mut Vec<Encoded>) -> Result<Option<encoder::Frame>> {
@@ -285,14 +349,22 @@ fn next_frame(enc: &mut H264, out: &mut Vec<Encoded>) -> Result<Option<encoder::
     Ok(None)
 }
 
+pub enum Verdict {
+    Good,
+    BadKeyframes(String),
+}
+
+const TEST_GOP: u64 = 5;
+const TEST_FRAMES: u64 = 12;
+
 pub fn self_test(
     candidate: &Candidate,
     gpu: &Gpu,
     size: (u32, u32),
     fps: u32,
     kbps: u32,
-) -> Result<()> {
-    let mut enc = H264::open(candidate, gpu, size, fps, kbps, fps)?;
+) -> Result<Verdict> {
+    let mut enc = H264::open(candidate, gpu, size, fps, kbps, TEST_GOP as u32)?;
     let mut conv = Converter::new(gpu, size, fps)?;
     let line = Timeline {
         fps,
@@ -301,23 +373,51 @@ pub fn self_test(
         start_segment: 0,
     };
     let mut out = Vec::new();
-    for k in 0..4u64 {
+    for k in 0..TEST_FRAMES {
         let frame = next_frame(&mut enc, &mut out)?.context("l'encoder non accetta immagini")?;
         conv.convert(None, &frame.texture, frame.slice)?;
         let duration = line.sample_time_100ns(k + 1) - line.sample_time_100ns(k);
-        enc.encode(frame, line.sample_time_100ns(k), duration, k == 0, &mut out)?;
+        enc.encode(
+            frame,
+            line.sample_time_100ns(k),
+            duration,
+            k.is_multiple_of(TEST_GOP),
+            &mut out,
+        )?;
     }
     enc.drain(&mut out)?;
+    if out.is_empty() {
+        bail!("l'encoder non ha prodotto video");
+    }
     let mut units = AccessUnits::default();
     if let Some(h) = &enc.sequence_header {
         units.remember(h);
     }
-    let first = out.first().context("l'encoder non ha prodotto video")?;
-    let (_, keyframe) = units.prepare(&first.data);
-    if !keyframe {
-        bail!("il primo fotogramma dell'encoder non e' un fotogramma chiave");
+    let times: Vec<Option<u64>> = out
+        .iter()
+        .map(|e| e.time.map(|t| line.frame_from_100ns(t)))
+        .collect();
+    let by_time = times.iter().all(|t| t.is_some_and(|f| f < TEST_FRAMES))
+        && times.windows(2).all(|w| w[0] < w[1]);
+    let mut keyframes = std::collections::HashMap::new();
+    for (i, e) in out.iter().enumerate() {
+        let frame = if by_time { times[i].unwrap() } else { i as u64 };
+        let (_, key) = units.prepare(&e.data);
+        keyframes.insert(frame, key);
     }
-    Ok(())
+    let missing: Vec<String> = (0..TEST_FRAMES)
+        .step_by(TEST_GOP as usize)
+        .filter(|k| keyframes.get(k) != Some(&true))
+        .map(|k| k.to_string())
+        .collect();
+    if missing.is_empty() {
+        Ok(Verdict::Good)
+    } else {
+        Ok(Verdict::BadKeyframes(format!(
+            "fotogrammi chiave IDR mancanti dove richiesti (fotogrammi {} su {TEST_FRAMES})",
+            missing.join(", ")
+        )))
+    }
 }
 
 struct Engine {
@@ -330,6 +430,8 @@ struct Engine {
     window: Option<Found>,
     window_source: Option<Source>,
     window_since: Instant,
+    window_frames: u64,
+    fullscreen_at_frame: bool,
     monitor_source: Option<Source>,
     fixed_monitor: bool,
     using_monitor: bool,
@@ -338,6 +440,7 @@ struct Engine {
     base: (u32, u32),
     canvas: (u32, u32),
     audio: Option<Inputs>,
+    game_audio: Option<GameAudio>,
     warned: HashSet<&'static str>,
 }
 
@@ -371,10 +474,17 @@ impl Engine {
             .unwrap_or((1920, 1080));
         let canvas = layout::canvas(base, cfg.output_height);
         let warn_events = events.clone();
-        let (gpu, candidate, _) =
-            choose_encoder(cfg.encoder, canvas, cfg.fps, cfg.bitrate_kbps, &|m| {
-                warn_events(Event::Warning(m))
-            })?;
+        let Choice {
+            gpu,
+            candidate,
+            rejected,
+            ..
+        } = choose_encoder(cfg.encoder, canvas, cfg.fps, cfg.bitrate_kbps, &|m| {
+            warn_events(Event::Warning(m))
+        })?;
+        for r in rejected {
+            events(Event::Warning(format!("encoder scartato: {r}")));
+        }
 
         let mut engine = Self {
             cfg,
@@ -386,6 +496,8 @@ impl Engine {
             window: None,
             window_source: None,
             window_since: Instant::now(),
+            window_frames: 0,
+            fullscreen_at_frame: false,
             monitor_source: None,
             fixed_monitor,
             using_monitor: fixed_monitor,
@@ -394,12 +506,15 @@ impl Engine {
             base,
             canvas,
             audio: None,
+            game_audio: None,
             warned: HashSet::new(),
         };
 
         if fixed_monitor {
             let m = monitor.context("nessuno schermo trovato")?;
-            engine.monitor_source = Some(Source::monitor(&engine.gpu, m.handle)?);
+            let source = Source::monitor(&engine.gpu, m.handle)?;
+            engine.note_border(&source);
+            engine.monitor_source = Some(source);
         } else if let Some(f) = found {
             engine.attach_window(f);
         } else {
@@ -424,15 +539,37 @@ impl Engine {
             engine.warn_once("system-audio", why.into());
         }
         let ev = engine.events.clone();
-        let inputs = Inputs::start(
+        let mut inputs = Inputs::start(
             game_pid,
             wants_game && game_pid.is_none(),
             engine.cfg.mic_gain,
             &|m| ev(Event::Warning(m)),
         );
+        engine.game_audio = inputs.take_game();
         engine.audio = Some(inputs);
         engine.maintain();
         Ok(engine)
+    }
+
+    fn follow_game_audio(&mut self) {
+        let Some(game) = self.game_audio.as_mut() else {
+            return;
+        };
+        let pid = match self.cfg.game_audio.as_deref() {
+            Some(exe) if !exe.is_empty() => window::find(exe).map(|w| w.pid),
+            _ => self.window.as_ref().map(|w| w.pid),
+        };
+        let Some(pid) = pid.filter(|p| *p != game.pid()) else {
+            return;
+        };
+        match game.retarget(pid) {
+            Ok(()) => self.emit(Event::Warning(
+                "il gioco e' ripartito: riaggancio il suo audio".into(),
+            )),
+            Err(e) => self.emit(Event::Warning(format!(
+                "audio del gioco ripartito non riagganciato: {e}"
+            ))),
+        }
     }
 
     fn emit(&self, e: Event) {
@@ -445,9 +582,21 @@ impl Engine {
         }
     }
 
+    fn note_border(&mut self, source: &Source) {
+        if source.border {
+            self.warn_once(
+                "border",
+                "su questa versione di Windows compare un bordo giallo attorno al gioco mentre registra: lo disegna Windows e non finisce nel video (da Windows 11 non c'e' piu')".into(),
+            );
+        }
+    }
+
     fn attach_window(&mut self, found: Found) {
+        self.window_frames = 0;
+        self.fullscreen_at_frame = false;
         match Source::window(&self.gpu, found.handle) {
             Ok(s) => {
+                self.note_border(&s);
                 self.window_source = Some(s);
                 self.window = Some(found);
                 self.window_since = Instant::now();
@@ -490,25 +639,32 @@ impl Engine {
                 if let Some(found) = self.exe.as_deref().and_then(window::find) {
                     self.attach_window(found);
                     self.emit(Event::SourceChanged("game".into()));
+                    self.follow_game_audio();
                 }
             }
             if let Some(w) = self.window.as_ref().map(|w| w.handle) {
+                let fullscreen = window::covers_monitor(w);
+                let frames = self.window_source.as_ref().map_or(0, |s| s.frames());
+                if frames > self.window_frames {
+                    self.window_frames = frames;
+                    self.fullscreen_at_frame = fullscreen;
+                }
                 let stale = match self.window_source.as_ref().and_then(|s| s.last_frame()) {
                     Some(t) => now.duration_since(t) > WINDOW_STALE,
                     None => now.duration_since(self.window_since) > WINDOW_STALE,
                 };
-                let in_front = !window::is_minimized(w)
-                    && window::is_foreground(w)
-                    && window::covers_monitor(w);
-                let want_monitor = stale && in_front;
+                let dark = self.window_frames == 0 || !self.fullscreen_at_frame;
+                let in_front = fullscreen && !window::is_minimized(w) && window::is_foreground(w);
+                let want_monitor = stale && dark && in_front;
                 if want_monitor && self.monitor_source.is_none() {
                     let handle = window::monitor_of(w);
                     match Source::monitor(&self.gpu, handle) {
                         Ok(s) => {
+                            self.note_border(&s);
                             self.monitor_source = Some(s);
                             self.warn_once(
                                 "fullscreen",
-                                "la finestra del gioco non manda immagini (schermo intero esclusivo?): registro lo schermo su cui gira".into(),
+                                "a schermo intero la finestra del gioco non manda immagini (schermo intero esclusivo?): registro lo schermo su cui gira".into(),
                             );
                         }
                         Err(e) => self.warn_once(
@@ -654,6 +810,8 @@ impl Engine {
             started: false,
             resized: None,
             dropped: 0,
+            key_pending: false,
+            late_warned: false,
         };
         run.remember_headers();
 
@@ -701,6 +859,7 @@ impl Engine {
                         .as_secs_f64()
                         * self.cfg.fps as f64) as u64;
                     run.dropped += now_k.saturating_sub(k);
+                    run.key_pending = true;
                     self.warn_once(
                         "behind",
                         "il PC e' rimasto indietro: salto qualche fotogramma".into(),
@@ -763,6 +922,8 @@ struct Run {
     started: bool,
     resized: Option<(u32, u32)>,
     dropped: u64,
+    key_pending: bool,
+    late_warned: bool,
 }
 
 impl Run {
@@ -781,9 +942,12 @@ impl Run {
         candidate: &Candidate,
         events: &EventSink,
     ) -> Result<()> {
+        let per_segment = self.timeline.frames_per_segment();
+        let boundary = (k - self.gen_start).is_multiple_of(per_segment);
         let enc = self.enc.as_mut().unwrap();
         let Some(frame) = next_frame(enc, &mut self.encoded)? else {
             self.dropped += 1;
+            self.key_pending |= boundary;
             return self.flush();
         };
         self.conv.convert(
@@ -791,12 +955,12 @@ impl Run {
             &frame.texture,
             frame.slice,
         )?;
-        let per_segment = self.timeline.frames_per_segment();
-        let keyframe = (k - self.gen_start).is_multiple_of(per_segment);
+        let keyframe = boundary || self.key_pending;
         let time = self.timeline.sample_time_100ns(k);
         let duration = self.timeline.sample_time_100ns(k + 1) - time;
         let enc = self.enc.as_mut().unwrap();
         enc.encode(frame, time, duration, keyframe, &mut self.encoded)?;
+        self.key_pending = false;
         self.submitted.push_back(k);
         if !self.started {
             self.started = true;
@@ -814,7 +978,15 @@ impl Run {
                 });
             }
         }
-        self.flush()
+        self.flush()?;
+        let late = self.writer.as_ref().map_or(0, |w| w.late_keyframes());
+        if late > 0 && !self.late_warned {
+            self.late_warned = true;
+            events(Event::Warning(
+                "l'encoder non ha messo il fotogramma chiave all'inizio di un pezzo: quel pezzo sara' piu' lungo".into(),
+            ));
+        }
+        Ok(())
     }
 
     fn flush(&mut self) -> Result<()> {

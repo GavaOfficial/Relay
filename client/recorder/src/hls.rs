@@ -150,6 +150,10 @@ impl SegmentWriter {
         self.open.as_ref().map_or(self.next_index, |o| o.index + 1)
     }
 
+    pub fn late_keyframes(&self) -> u64 {
+        self.late_keyframes
+    }
+
     fn drain(&mut self, force: bool) -> io::Result<()> {
         let newest = self.newest_video.max(self.newest_audio).unwrap_or(0);
         loop {

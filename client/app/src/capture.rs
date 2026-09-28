@@ -84,6 +84,7 @@ pub struct Compat {
     pub obs_version: Option<String>,
     pub engine: Option<String>,
     pub fallback: Option<String>,
+    pub yellow_border: bool,
 
     pub best_encoder: Option<String>,
     pub hardware_encoder: bool,
@@ -212,6 +213,7 @@ pub async fn check_compat(base: &Path) -> Compat {
         obs_version: None,
         engine: None,
         fallback,
+        yellow_border: false,
         best_encoder: None,
         hardware_encoder: false,
         monitors: 0,
@@ -232,6 +234,7 @@ fn read_probe(text: &str) -> Compat {
     let mut fallback = None;
     let mut encoders: Vec<String> = Vec::new();
     let mut best = None;
+    let mut yellow_border = false;
     let mut monitors = 0usize;
     for line in text.lines() {
         match relay_capture::ipc::decode::<Event>(line) {
@@ -246,11 +249,13 @@ fn read_probe(text: &str) -> Compat {
                 encoders: e,
                 monitors: m,
                 best: b,
+                yellow_border: y,
                 ..
             }) => {
                 encoders = e;
                 monitors = m.len();
                 best = b;
+                yellow_border = y;
             }
             Ok(Event::Fallback { reason }) => fallback = Some(reason),
             _ => {}
@@ -273,6 +278,7 @@ fn read_probe(text: &str) -> Compat {
         obs_version,
         engine,
         fallback,
+        yellow_border,
         error: pick
             .is_none()
             .then(|| "nessun encoder video funzionante su questo PC".into()),
@@ -291,7 +297,7 @@ mod tests {
         let text = concat!(
             r#"{"Ready":{"obs_version":"","engine":"relay"}}"#,
             "\n",
-            r#"{"Probed":{"encoders":["nvenc","software","obs_nvenc_h264_tex","obs_x264"],"monitors":[{"index":0,"width":1920,"height":1080}],"windows":[],"best":"nvenc"}}"#,
+            r#"{"Probed":{"encoders":["nvenc","software","obs_nvenc_h264_tex","obs_x264"],"monitors":[{"index":0,"width":1920,"height":1080}],"windows":[],"best":"nvenc","yellow_border":true}}"#,
             "\n"
         );
         let c = read_probe(text);
@@ -299,6 +305,7 @@ mod tests {
         assert_eq!(c.engine.as_deref(), Some("relay"));
         assert_eq!(c.best_encoder.as_deref(), Some("nvenc"));
         assert!(c.hardware_encoder);
+        assert!(c.yellow_border);
         assert_eq!(c.monitors, 1);
         assert_eq!(c.obs_version, None);
     }

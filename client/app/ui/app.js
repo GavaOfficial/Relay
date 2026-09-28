@@ -8,7 +8,7 @@ const PRESETS = [
 ];
 const ENCODERS = [
   ['auto', 'Automatico'], ['nvenc', 'NVIDIA (nvenc)'], ['amf', 'AMD (amf)'],
-  ['qsv', 'Intel (qsv)'], ['x264', 'Software (x264)'],
+  ['qsv', 'Intel (qsv)'], ['x264', 'Processore (software)'],
 ];
 const STATUS_MATCH = { waiting: 'In attesa', recording: 'In registrazione', done: 'Completata' };
 
@@ -230,6 +230,15 @@ function installStageLabel(c) {
 
 function encoderLabel(id) {
   return { nvenc: 'scheda NVIDIA', amf: 'scheda AMD', qsv: 'grafica Intel', x264: 'processore', software: 'processore' }[id] || id;
+}
+
+function captureInfo() {
+  const c = snap && snap.capture && snap.capture.compat;
+  if (!c || !c.ok) return null;
+  const engine = c.engine === 'obs' ? 'OBS (riserva)' : 'Relay';
+  return h('div', null,
+    h('p', { class: 'hint', text: 'Motore di registrazione: ' + engine + (c.best_encoder ? ', codifica con ' + encoderLabel(c.best_encoder) : '') + '.' }),
+    c.yellow_border && h('p', { class: 'hint warn', text: 'Su questa versione di Windows compare un bordo giallo attorno al gioco mentre registra: lo disegna Windows e non finisce nel video.' }));
 }
 
 function renderInstall() {
@@ -960,7 +969,8 @@ function buildSettings() {
               h('label', { class: 'switch' }, h('input', { type: 'checkbox', 'data-f': 'limit_auto', 'data-k': 'limit_auto', checked: autoLimit }), h('span', { class: 'track' }), h('span', { text: 'Auto' })),
               h('input', { type: 'number', min: '100', class: 'grow', 'data-f': 'limit_kbps', 'data-k': 'limit', value: autoLimit ? '' : String(s.limit_kbps), disabled: autoLimit, placeholder: 'Auto', 'aria-label': 'Limite upload in kbit/s' })),
             autoLimit && h('p', { class: 'hint', text: 'Auto = metà dell’upload misurato.' })),
-          field('Encoder', h('select', { 'data-f': 'encoder', 'data-k': 'encoder' }, ENCODERS.map(([v, t]) => h('option', { value: v, text: t, selected: s.encoder === v }))))))),
+          field('Encoder', h('select', { 'data-f': 'encoder', 'data-k': 'encoder' }, ENCODERS.map(([v, t]) => h('option', { value: v, text: t, selected: s.encoder === v })))),
+          captureInfo()))),
     h('div', { class: 'sec' },
       h('div', { class: 'label', text: 'Integrazioni' }),
       h('button', { class: 'navrow', 'data-act': 'openConnectors' },

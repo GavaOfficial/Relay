@@ -105,6 +105,8 @@ pub struct WindowInfo {
 pub struct Probe {
     pub encoders: Vec<String>,
     pub best: String,
+    pub rejected: Vec<String>,
+    pub yellow_border: bool,
     pub monitors: Vec<MonitorInfo>,
     pub windows: Vec<WindowInfo>,
 }
@@ -137,6 +139,16 @@ pub fn prepare(_cfg: Config, _events: EventSink) -> anyhow::Result<Prepared> {
 #[cfg(windows)]
 pub fn probe() -> anyhow::Result<Probe> {
     win::probe::run()
+}
+
+#[cfg(windows)]
+pub fn check_encoders() -> Vec<String> {
+    win::probe::encoders()
+}
+
+#[cfg(not(windows))]
+pub fn check_encoders() -> Vec<String> {
+    vec![UNSUPPORTED.into()]
 }
 
 #[cfg(not(windows))]
@@ -174,6 +186,13 @@ impl Recorder {
     pub fn fit_window(&self) {
         #[cfg(windows)]
         self.0.fit_window();
+        #[cfg(not(windows))]
+        match self.0 {}
+    }
+
+    pub fn captured_frames(&self) -> u64 {
+        #[cfg(windows)]
+        return self.0.captured_frames();
         #[cfg(not(windows))]
         match self.0 {}
     }

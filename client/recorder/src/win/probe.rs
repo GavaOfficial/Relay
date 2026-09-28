@@ -5,7 +5,11 @@ use std::{
 
 use anyhow::{bail, Context, Result};
 
-use super::{capture, encoder, engine::choose_encoder, window};
+use super::{
+    capture, encoder,
+    engine::{check_all, choose_encoder, Choice},
+    window,
+};
 use crate::{EncoderPref, MonitorInfo, Probe, WindowInfo};
 
 pub fn run() -> Result<Probe> {
@@ -15,6 +19,19 @@ pub fn run() -> Result<Probe> {
         .context("avvio del controllo")?
         .join()
         .unwrap_or_else(|_| bail!("il controllo del PC si e' interrotto"))
+}
+
+pub fn encoders() -> Vec<String> {
+    thread::Builder::new()
+        .name("relay-encoders".into())
+        .spawn(|| {
+            super::com_init();
+            encoder::startup();
+            check_all((1920, 1080), 60, 6000)
+        })
+        .ok()
+        .and_then(|t| t.join().ok())
+        .unwrap_or_else(|| vec!["controllo degli encoder interrotto".into()])
 }
 
 fn probe() -> Result<Probe> {
@@ -31,8 +48,12 @@ fn probe() -> Result<Probe> {
         .first()
         .context("nessuno schermo collegato")?
         .clone();
-    let (gpu, candidate, encoders) =
-        choose_encoder(EncoderPref::Auto, (1280, 720), 30, 2500, &|_| {})?;
+    let Choice {
+        gpu,
+        candidate,
+        names,
+        rejected,
+    } = choose_encoder(EncoderPref::Auto, (1280, 720), 30, 2500, &|_| {})?;
     let source = capture::Source::monitor(&gpu, first.handle)?;
     let deadline = Instant::now() + Duration::from_secs(3);
     while source.frames() == 0 {
@@ -41,10 +62,13 @@ fn probe() -> Result<Probe> {
         }
         thread::sleep(Duration::from_millis(50));
     }
+    let yellow_border = source.border;
     drop(source);
     Ok(Probe {
-        encoders,
+        encoders: names,
         best: candidate.kind.name().into(),
+        rejected,
+        yellow_border,
         monitors: monitors
             .into_iter()
             .map(|m| MonitorInfo {

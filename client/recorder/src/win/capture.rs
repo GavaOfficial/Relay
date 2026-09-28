@@ -1,7 +1,7 @@
 use std::{
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc, Mutex,
+        Arc, Mutex, OnceLock,
     },
     time::Instant,
 };
@@ -11,7 +11,10 @@ use windows::{
     core::{IInspectable, Interface, Ref},
     Foundation::TypedEventHandler,
     Graphics::{
-        Capture::{Direct3D11CaptureFramePool, GraphicsCaptureItem, GraphicsCaptureSession},
+        Capture::{
+            Direct3D11CaptureFramePool, GraphicsCaptureAccess, GraphicsCaptureAccessKind,
+            GraphicsCaptureItem, GraphicsCaptureSession,
+        },
         DirectX::{Direct3D11::IDirect3DDevice, DirectXPixelFormat},
         SizeInt32,
     },
@@ -46,10 +49,27 @@ pub struct Source {
     session: GraphicsCaptureSession,
     pub latest: Arc<Mutex<Latest>>,
     closed: Arc<AtomicBool>,
+    pub border: bool,
 }
 
 pub fn supported() -> bool {
     GraphicsCaptureSession::IsSupported().unwrap_or(false)
+}
+
+fn ask_borderless() {
+    static ASKED: OnceLock<()> = OnceLock::new();
+    ASKED.get_or_init(|| {
+        if let Ok(op) =
+            GraphicsCaptureAccess::RequestAccessAsync(GraphicsCaptureAccessKind::Borderless)
+        {
+            let _ = op.join();
+        }
+    });
+}
+
+fn hide_border(session: &GraphicsCaptureSession) -> bool {
+    ask_borderless();
+    session.SetIsBorderRequired(false).is_ok() && session.IsBorderRequired() == Ok(false)
 }
 
 fn direct3d(gpu: &Gpu) -> Result<IDirect3DDevice> {
@@ -81,7 +101,7 @@ impl Source {
         let d3d = Unsync(d3d);
         let session = pool.CreateCaptureSession(&item)?;
         let _ = session.SetIsCursorCaptureEnabled(false);
-        let _ = session.SetIsBorderRequired(false);
+        let border = !hide_border(&session);
 
         let latest = Arc::new(Mutex::new(Latest::default()));
         let closed = Arc::new(AtomicBool::new(false));
@@ -146,6 +166,7 @@ impl Source {
             session,
             latest,
             closed,
+            border,
         })
     }
 

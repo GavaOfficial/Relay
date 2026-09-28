@@ -95,6 +95,8 @@ pub enum Event {
         windows: Vec<WindowInfo>,
         #[serde(default)]
         best: Option<String>,
+        #[serde(default)]
+        yellow_border: bool,
     },
     Started {
         encoder: String,
