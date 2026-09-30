@@ -335,6 +335,39 @@ pub fn check_all(size: (u32, u32), fps: u32, kbps: u32) -> Vec<String> {
         .collect()
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Pick {
+    Hook,
+    Wgc,
+    Monitor,
+    Hold,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+struct SourceState {
+    hook_fresh: bool,
+    hook_ever: bool,
+    hook_starting: bool,
+    wgc_fresh: bool,
+    monitor_allowed: bool,
+}
+
+fn choose_source(s: SourceState) -> Pick {
+    if s.hook_fresh {
+        Pick::Hook
+    } else if s.wgc_fresh {
+        Pick::Wgc
+    } else if s.hook_ever {
+        Pick::Hook
+    } else if s.hook_starting {
+        Pick::Hold
+    } else if s.monitor_allowed {
+        Pick::Monitor
+    } else {
+        Pick::Hold
+    }
+}
+
 fn live_frame(scheduled: u64, current: u64) -> u64 {
     scheduled.max(current)
 }
@@ -684,23 +717,29 @@ impl Engine {
                         && s.last_frame()
                             .is_some_and(|t| now.saturating_duration_since(t) < WINDOW_STALE)
                 });
-                let use_hook = hook_ready;
-                if self.using_hook != use_hook {
-                    self.using_hook = use_hook;
-                    self.emit(Event::SourceChanged(
-                        if use_hook { "hook" } else { "game" }.into(),
-                    ));
-                }
-                let hook_starting = self
-                    .hook_since
-                    .is_some_and(|t| now.saturating_duration_since(t) < Duration::from_secs(2))
-                    && self.hook_source.as_ref().is_some_and(|s| !s.closed());
-                if !use_hook && !hook_starting && !minimized && self.hook_source.is_some() {
+                let hook_alive = self.hook_source.as_ref().is_some_and(|s| !s.closed());
+                if self.hook_source.is_some() && !hook_alive {
                     self.hook_source = None;
+                    self.hook_since = None;
                     self.warn_once(
-                        "hook-no-frames",
-                        "aggancio GPU senza immagini recenti: passo a WGC finestra".into(),
+                        "hook-closed",
+                        "l'aggancio nel gioco si e' chiuso: uso la cattura di Windows".into(),
                     );
+                }
+                let hook_ever =
+                    hook_alive && self.hook_source.as_ref().is_some_and(|s| s.frames() > 0);
+                let hook_starting = hook_alive
+                    && !hook_ever
+                    && self
+                        .hook_since
+                        .is_some_and(|t| now.saturating_duration_since(t) < Duration::from_secs(2));
+                if !hook_ready && !hook_starting && self.window_source.is_none() {
+                    if hook_ever {
+                        self.warn_once(
+                            "hook-stalled",
+                            "il gioco non presenta immagini (caricamento?): tengo l'ultima e controllo la cattura della finestra".into(),
+                        );
+                    }
                     self.attach_wgc();
                 }
                 let stale = match self.window_source.as_ref().and_then(|s| s.last_frame()) {
@@ -708,7 +747,21 @@ impl Engine {
                     None => now.saturating_duration_since(self.window_since) > WINDOW_STALE,
                 };
                 let in_front = fullscreen && !minimized && window::is_foreground(w);
-                let want_monitor = !use_hook && !hook_starting && stale && in_front;
+                let pick = choose_source(SourceState {
+                    hook_fresh: hook_ready,
+                    hook_ever,
+                    hook_starting,
+                    wgc_fresh: self.window_source.is_some() && !stale,
+                    monitor_allowed: stale && in_front,
+                });
+                let use_hook = pick == Pick::Hook;
+                if self.using_hook != use_hook {
+                    self.using_hook = use_hook;
+                    self.emit(Event::SourceChanged(
+                        if use_hook { "hook" } else { "game" }.into(),
+                    ));
+                }
+                let want_monitor = pick == Pick::Monitor;
                 if want_monitor && self.monitor_handle != Some(window::monitor_of(w)) {
                     let handle = window::monitor_of(w);
                     self.monitor_source = None;
@@ -1190,7 +1243,51 @@ impl Run {
 
 #[cfg(test)]
 mod recovery_tests {
-    use super::live_frame;
+    use super::{choose_source, live_frame, Pick, SourceState};
+
+    #[test]
+    fn a_loading_stall_keeps_the_hook_instead_of_recording_the_desktop() {
+        let stalled = SourceState {
+            hook_ever: true,
+            monitor_allowed: true,
+            ..Default::default()
+        };
+        assert_eq!(choose_source(stalled), Pick::Hook);
+    }
+
+    #[test]
+    fn fresh_hook_frames_win_and_a_live_window_beats_a_stalled_hook() {
+        let fresh = SourceState {
+            hook_fresh: true,
+            hook_ever: true,
+            wgc_fresh: true,
+            ..Default::default()
+        };
+        assert_eq!(choose_source(fresh), Pick::Hook);
+        let window_only = SourceState {
+            hook_ever: true,
+            wgc_fresh: true,
+            ..Default::default()
+        };
+        assert_eq!(choose_source(window_only), Pick::Wgc);
+    }
+
+    #[test]
+    fn the_screen_is_only_a_last_resort_when_the_hook_never_worked() {
+        let never = SourceState {
+            monitor_allowed: true,
+            ..Default::default()
+        };
+        assert_eq!(choose_source(never), Pick::Monitor);
+        let starting = SourceState {
+            hook_starting: true,
+            monitor_allowed: true,
+            ..Default::default()
+        };
+        assert_eq!(choose_source(starting), Pick::Hold);
+        assert_eq!(choose_source(SourceState::default()), Pick::Hold);
+    }
+
     #[test]
     fn resumes_live_after_stall_without_catchup_burst() {
         assert_eq!(live_frame(420, 1260), 1260);
