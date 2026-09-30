@@ -41,7 +41,11 @@ fn exes(dir: &Path) -> Vec<PathBuf> {
         .flatten()
         .map(|e| e.path())
         .filter(|p| {
-            let n = p.file_name().unwrap_or_default().to_string_lossy().to_lowercase();
+            let n = p
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_lowercase();
             n.ends_with(".exe") && !n.contains("crash") && !n.starts_with("unins")
         })
         .collect()
@@ -52,7 +56,9 @@ pub fn is_kade_exe(data: &[u8]) -> bool {
 }
 
 fn detect(dir: &Path) -> bool {
-    exes(dir).iter().any(|exe| std::fs::read(exe).is_ok_and(|d| is_kade_exe(&d)))
+    exes(dir)
+        .iter()
+        .any(|exe| std::fs::read(exe).is_ok_and(|d| is_kade_exe(&d)))
 }
 
 fn song_dirs(game_dir: &Path) -> Vec<(String, PathBuf)> {
@@ -109,7 +115,11 @@ fn save_files(game_dir: &Path) -> Vec<PathBuf> {
         .collect();
     let mut out = Vec::new();
     for company in std::fs::read_dir(&appdata).into_iter().flatten().flatten() {
-        for game in std::fs::read_dir(company.path()).into_iter().flatten().flatten() {
+        for game in std::fs::read_dir(company.path())
+            .into_iter()
+            .flatten()
+            .flatten()
+        {
             if !titles.contains(&game.file_name().to_string_lossy().to_lowercase()) {
                 continue;
             }
@@ -144,7 +154,14 @@ fn script_for(game_dir: &Path, saves: &[PathBuf], id: &str) -> String {
         .iter()
         .map(|p| format!("[[{}]]", p.to_string_lossy().replace('\\', "/")))
         .collect();
-    let length = ogg_duration_ms(&game_dir.join("assets").join("songs").join(id).join("Inst.ogg")).unwrap_or(0);
+    let length = ogg_duration_ms(
+        &game_dir
+            .join("assets")
+            .join("songs")
+            .join(id)
+            .join("Inst.ogg"),
+    )
+    .unwrap_or(0);
     SCRIPT
         .replace("--[[RELAY_SAVES]]", &saves.join(", "))
         .replace("--[[RELAY_LENGTH]]0", &length.to_string())
@@ -153,7 +170,9 @@ fn script_for(game_dir: &Path, saves: &[PathBuf], id: &str) -> String {
 fn install(game_dir: &Path) -> Result<(), String> {
     let songs = song_dirs(game_dir);
     if songs.is_empty() {
-        return Err("Non trovo le canzoni della mod (assets/data): Relay non puo' collegarla.".into());
+        return Err(
+            "Non trovo le canzoni della mod (assets/data): Relay non puo' collegarla.".into(),
+        );
     }
     let saves = save_files(game_dir);
     for (id, dir) in songs {
@@ -166,7 +185,8 @@ fn install(game_dir: &Path) -> Result<(), String> {
             }
             _ => {}
         }
-        write_if_changed(&path, &script).map_err(|e| format!("non riesco a installare lo script di Relay: {e}"))?;
+        write_if_changed(&path, &script)
+            .map_err(|e| format!("non riesco a installare lo script di Relay: {e}"))?;
     }
     std::fs::create_dir_all(game_dir.join("relay")).map_err(|e| e.to_string())
 }
@@ -223,7 +243,9 @@ fn title(id: &str) -> String {
         .filter(|w| !w.is_empty())
         .map(|w| {
             let mut c = w.chars();
-            c.next().map(|f| f.to_uppercase().chain(c).collect::<String>()).unwrap_or_default()
+            c.next()
+                .map(|f| f.to_uppercase().chain(c).collect::<String>())
+                .unwrap_or_default()
         })
         .collect::<Vec<_>>()
         .join(" ")
@@ -240,7 +262,10 @@ pub(crate) fn build_catalog(game_dir: &Path) -> Option<(String, Built)> {
             .map(|v| v["song"].clone())
             .find(Value::is_object)
             .unwrap_or(Value::Null);
-        let display = song["song"].as_str().map(|s| s.replace('-', " ")).filter(|s| !s.trim().is_empty());
+        let display = song["song"]
+            .as_str()
+            .map(|s| s.replace('-', " "))
+            .filter(|s| !s.trim().is_empty());
         tracks.push(json!({
             "id": id,
             "name": display.unwrap_or_else(|| title(&id)),
@@ -258,7 +283,14 @@ pub(crate) fn build_catalog(game_dir: &Path) -> Option<(String, Built)> {
         "albums": [],
         "tracks": tracks,
     });
-    Some((name, Built { catalog, assets: Vec::new(), aliases }))
+    Some((
+        name,
+        Built {
+            catalog,
+            assets: Vec::new(),
+            aliases,
+        },
+    ))
 }
 
 async fn sync_catalog(core: &Arc<Core>, game_dir: &Path) {
@@ -307,10 +339,16 @@ mod tests {
         let game = tempfile::tempdir().unwrap();
         let g = game.path();
         write(g.join("Indie Cross.exe"), "..ModchartState..");
-        write(g.join("assets/data/snake-eyes/snake-eyes.json"), r#"{"song":{"song":"Snake-Eyes","bpm":154}}"#);
+        write(
+            g.join("assets/data/snake-eyes/snake-eyes.json"),
+            r#"{"song":{"song":"Snake-Eyes","bpm":154}}"#,
+        );
         write(g.join("assets/data/snake-eyes/snake-eyes-hard.json"), "{}");
         write(g.join("assets/data/snake-eyes/snake-eyes-easy.json"), "{}");
-        write(g.join("assets/data/bad-time/bad-time-hard.json"), r#"{"song":{"song":"Bad-Time","bpm":150}}"#);
+        write(
+            g.join("assets/data/bad-time/bad-time-hard.json"),
+            r#"{"song":{"song":"Bad-Time","bpm":150}}"#,
+        );
         write(g.join("assets/data/empty/readme.txt"), "");
         write(g.join("assets/data/modchart.lua"), "print()");
 
@@ -318,7 +356,11 @@ mod tests {
         let (name, built) = build_catalog(g).unwrap();
         assert_eq!(name, "Indie Cross");
         let t = &built.catalog["tracks"];
-        assert_eq!(t.as_array().unwrap().len(), 2, "solo le cartelle con un chart");
+        assert_eq!(
+            t.as_array().unwrap().len(),
+            2,
+            "solo le cartelle con un chart"
+        );
         assert_eq!(t[0]["id"], "bad-time");
         assert_eq!(t[0]["difficulties"], json!(["Hard"]));
         assert_eq!(t[1]["name"], "Snake Eyes");
@@ -332,12 +374,25 @@ mod tests {
         let g = game.path();
         write(g.join("assets/data/a/a.json"), "{}");
         write(g.join("assets/data/b/b-hard.json"), "{}");
-        write(g.join("assets/data/b/modchart.lua"), "function start(song) end");
+        write(
+            g.join("assets/data/b/modchart.lua"),
+            "function start(song) end",
+        );
         install(g).unwrap();
-        assert!(std::fs::read_to_string(g.join("assets/data/a/modchart.lua")).unwrap().starts_with(MARKER));
-        assert_eq!(std::fs::read_to_string(g.join("assets/data/b/modchart.lua")).unwrap(), "function start(song) end");
+        assert!(
+            std::fs::read_to_string(g.join("assets/data/a/modchart.lua"))
+                .unwrap()
+                .starts_with(MARKER)
+        );
+        assert_eq!(
+            std::fs::read_to_string(g.join("assets/data/b/modchart.lua")).unwrap(),
+            "function start(song) end"
+        );
         uninstall(g);
         assert!(!g.join("assets/data/a/modchart.lua").exists());
-        assert!(g.join("assets/data/b/modchart.lua").exists(), "il modchart della mod resta");
+        assert!(
+            g.join("assets/data/b/modchart.lua").exists(),
+            "il modchart della mod resta"
+        );
     }
 }

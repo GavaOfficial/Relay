@@ -1,4 +1,8 @@
-use super::{device::Gpu, window::Handle, timing::{self, Stage}};
+use super::{
+    device::Gpu,
+    timing::{self, Stage},
+    window::Handle,
+};
 use anyhow::{ensure, Context, Result};
 use relay_hook_protocol::{
     ipc::{Channel, Handle as Process},
@@ -179,7 +183,7 @@ impl Source {
     }
     fn poll_gpu(&self, l: &mut Latest, h: &relay_hook_protocol::Header) -> Result<()> {
         let size = (h.width, h.height);
-        let identity=(h.texture_epoch,h.texture_handle,h.api);
+        let identity = (h.texture_epoch, h.texture_handle, h.api);
         if !l.shared.iter().any(|s| s.0 == identity) {
             let mut duplicate = std::ptr::null_mut();
             ensure!(
@@ -222,7 +226,9 @@ impl Source {
                     .device
                     .CreateTexture2D(&desc, None, Some(&mut owned))
             }?;
-            if l.shared.len() == 3 { l.shared.remove(0); }
+            if l.shared.len() == 3 {
+                l.shared.remove(0);
+            }
             l.texture = owned;
             l.size = size;
             l.shared.push((identity, shared, mutex));

@@ -54,7 +54,9 @@ pub fn find_game() -> Option<String> {
 
 fn install(game_dir: &Path) -> Result<(), String> {
     if !is_game_dir(game_dir) {
-        return Err("Non e' la cartella di Geometry Dash: scegli quella con GeometryDash.exe.".into());
+        return Err(
+            "Non e' la cartella di Geometry Dash: scegli quella con GeometryDash.exe.".into(),
+        );
     }
     if !game_dir.join("Geode.dll").is_file() {
         return Err("Geode non e' installato: installalo da geode-sdk.org e poi riprova.".into());
@@ -101,7 +103,11 @@ fn start_tail(core: &Arc<Core>) {
     if STARTED.set(()).is_err() {
         return;
     }
-    tauri::async_runtime::spawn(crate::fnf::tail_events(core.clone(), events_path(core), Some(folder)));
+    tauri::async_runtime::spawn(crate::fnf::tail_events(
+        core.clone(),
+        events_path(core),
+        Some(folder),
+    ));
 }
 
 #[derive(Default, serde::Serialize, serde::Deserialize)]
@@ -146,7 +152,10 @@ pub fn observe(core: &Arc<Core>, ev: &SongEvent) {
     let Some(data) = ev.data.clone() else {
         return;
     };
-    let section = ev.mod_folder.clone().unwrap_or_else(|| "Livelli online".into());
+    let section = ev
+        .mod_folder
+        .clone()
+        .unwrap_or_else(|| "Livelli online".into());
     let mode = ev.difficulty.clone().unwrap_or_else(|| "classic".into());
     let core = core.clone();
     tauri::async_runtime::spawn(async move {
@@ -158,9 +167,14 @@ pub fn observe(core: &Arc<Core>, ev: &SongEvent) {
             .unwrap_or_default();
         if let Some(track) = track_for(&data["level"], &mode) {
             let id = track["id"].as_str().unwrap_or_default().to_string();
-            known.sections.entry(section.clone()).or_default().insert(id, track);
+            known
+                .sections
+                .entry(section.clone())
+                .or_default()
+                .insert(id, track);
             let tracks: Vec<Value> = known.sections[&section].values().cloned().collect();
-            let body = json!({ "mod_name": section, "catalog": { "title": section, "tracks": tracks } });
+            let body =
+                json!({ "mod_name": section, "catalog": { "title": section, "tracks": tracks } });
             let fingerprint = body.to_string();
             if known.uploaded.get(&section) != Some(&fingerprint) {
                 match core.call(Method::PUT, "/api/gd/catalog", Some(body)).await {
@@ -174,7 +188,10 @@ pub fn observe(core: &Arc<Core>, ev: &SongEvent) {
         }
         let profile = data["profile"].clone();
         if profile.is_object() && known.profile.as_ref() != Some(&profile) {
-            if let Ok(r) = core.call(Method::PUT, "/api/gd/profile", Some(profile.clone())).await {
+            if let Ok(r) = core
+                .call(Method::PUT, "/api/gd/profile", Some(profile.clone()))
+                .await
+            {
                 if r.status().is_success() {
                     known.profile = Some(profile);
                 }
@@ -193,7 +210,12 @@ pub fn result_text(data: Option<&Value>, platformer: bool) -> String {
     if d["completed"].as_bool() == Some(true) {
         if platformer {
             let ms = d["time_ms"].as_i64().unwrap_or(0).max(0);
-            return format!("{}:{:02}.{:02}", ms / 60_000, (ms / 1000) % 60, (ms % 1000) / 10);
+            return format!(
+                "{}:{:02}.{:02}",
+                ms / 60_000,
+                (ms / 1000) % 60,
+                (ms % 1000) / 10
+            );
         }
         return match d["coins"].as_i64().unwrap_or(0) {
             0 => "completato".into(),
@@ -224,14 +246,30 @@ mod tests {
 
     #[test]
     fn results_read_like_the_game() {
-        assert_eq!(result_text(Some(&json!({"percent": 82, "completed": false})), false), "82%");
-        assert_eq!(result_text(Some(&json!({"percent": 100, "completed": true, "coins": 3})), false), "completato con 3 monete");
-        assert_eq!(result_text(Some(&json!({"completed": true, "time_ms": 83456})), true), "1:23.45");
+        assert_eq!(
+            result_text(Some(&json!({"percent": 82, "completed": false})), false),
+            "82%"
+        );
+        assert_eq!(
+            result_text(
+                Some(&json!({"percent": 100, "completed": true, "coins": 3})),
+                false
+            ),
+            "completato con 3 monete"
+        );
+        assert_eq!(
+            result_text(Some(&json!({"completed": true, "time_ms": 83456})), true),
+            "1:23.45"
+        );
     }
 
     #[test]
     fn a_level_becomes_a_catalog_track() {
-        let t = track_for(&json!({"id": 1, "name": "Stereo Madness", "creator": "", "stars": 1}), "classic").unwrap();
+        let t = track_for(
+            &json!({"id": 1, "name": "Stereo Madness", "creator": "", "stars": 1}),
+            "classic",
+        )
+        .unwrap();
         assert_eq!(t["id"], "1");
         assert_eq!(t["artist"], Value::Null);
         assert_eq!(t["extra"]["stars"], 1);

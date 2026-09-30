@@ -29,7 +29,9 @@ impl BlobCipher {
     }
 
     pub fn open(&self, index: u64, cipher: &[u8]) -> Option<Vec<u8>> {
-        self.0.decrypt(Nonce::from_slice(&Self::nonce(index)), cipher).ok()
+        self.0
+            .decrypt(Nonce::from_slice(&Self::nonce(index)), cipher)
+            .ok()
     }
 }
 
@@ -58,8 +60,18 @@ mod tests {
         assert_eq!(sealed.len(), 4 + TAG_LEN as usize);
         assert_eq!(a.open(3, &sealed).as_deref(), Some(&b"ciao"[..]));
         assert!(a.open(4, &sealed).is_none(), "pezzo spostato");
-        assert!(BlobCipher::new(&master, "blob-b").open(3, &sealed).is_none(), "altro blob");
-        assert!(BlobCipher::new(&[8u8; 32], "blob-a").open(3, &sealed).is_none(), "altra chiave");
+        assert!(
+            BlobCipher::new(&master, "blob-b")
+                .open(3, &sealed)
+                .is_none(),
+            "altro blob"
+        );
+        assert!(
+            BlobCipher::new(&[8u8; 32], "blob-a")
+                .open(3, &sealed)
+                .is_none(),
+            "altra chiave"
+        );
     }
 
     #[test]

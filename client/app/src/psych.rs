@@ -18,8 +18,22 @@ const NMV_SCRIPT: &str = include_str!("nmv_script.hx.txt");
 const NMV_SCRIPT_NAME: &str = "relay-integration.hx";
 const CHECK_EVERY: Duration = Duration::from_secs(60);
 const NOT_MODS: &[&str] = &[
-    "characters", "custom_events", "custom_notetypes", "data", "songs", "music", "sounds", "shaders",
-    "videos", "images", "stages", "weeks", "fonts", "scripts", "achievements", "backgrounds",
+    "characters",
+    "custom_events",
+    "custom_notetypes",
+    "data",
+    "songs",
+    "music",
+    "sounds",
+    "shaders",
+    "videos",
+    "images",
+    "stages",
+    "weeks",
+    "fonts",
+    "scripts",
+    "achievements",
+    "backgrounds",
 ];
 
 fn folders_path(base: &Path, kind: Kind) -> PathBuf {
@@ -48,7 +62,11 @@ fn exes(dir: &Path) -> Vec<PathBuf> {
         .flatten()
         .map(|e| e.path())
         .filter(|p| {
-            let n = p.file_name().unwrap_or_default().to_string_lossy().to_lowercase();
+            let n = p
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_lowercase();
             n.ends_with(".exe") && !n.contains("crash") && !n.starts_with("unins")
         })
         .collect()
@@ -88,7 +106,10 @@ fn detect(dir: &Path) -> Option<Kind> {
         if contains(&data, b"funkin.states.PlayState") {
             return Some(Kind::Nmv);
         }
-        if [&b"FunkinLua"[..], b"psychEngineVersion", b"PsychEngine"].iter().any(|m| contains(&data, m)) {
+        if [&b"FunkinLua"[..], b"psychEngineVersion", b"PsychEngine"]
+            .iter()
+            .any(|m| contains(&data, m))
+        {
             return Some(Kind::Psych);
         }
     }
@@ -96,7 +117,8 @@ fn detect(dir: &Path) -> Option<Kind> {
 }
 
 fn kind_of(dir: &Path) -> Option<Kind> {
-    static CACHE: OnceLock<Mutex<std::collections::HashMap<PathBuf, Option<Kind>>>> = OnceLock::new();
+    static CACHE: OnceLock<Mutex<std::collections::HashMap<PathBuf, Option<Kind>>>> =
+        OnceLock::new();
     let cache = CACHE.get_or_init(Default::default);
     if let Some(k) = cache.lock().unwrap().get(dir) {
         return *k;
@@ -123,29 +145,45 @@ fn global_scripts(dir: &Path) -> bool {
         return *v;
     }
     let exes = exes(dir);
-    let v = exes.is_empty() || exes.iter().any(|e| std::fs::read(e).is_ok_and(|d| contains(&d, b"scripts/")));
+    let v = exes.is_empty()
+        || exes
+            .iter()
+            .any(|e| std::fs::read(e).is_ok_and(|d| contains(&d, b"scripts/")));
     cache.lock().unwrap().insert(dir.to_path_buf(), v);
     v
 }
 
 const SONG_BEGIN: &str = "-- RELAY-INTEGRATION-BEGIN";
 const SONG_END: &str = "-- RELAY-INTEGRATION-END";
-const SONG_COPY: &str = "-- RELAY-COPY: copia dello script della canzone con in fondo quello di Relay";
+const SONG_COPY: &str =
+    "-- RELAY-COPY: copia dello script della canzone con in fondo quello di Relay";
 
 fn song_ids(game_dir: &Path) -> Vec<String> {
     let mut ids = std::collections::BTreeSet::new();
     for root in [game_dir.join("assets"), game_dir.join("mods")] {
-        for f in std::fs::read_dir(root.join("data").join("songData")).into_iter().flatten().flatten() {
+        for f in std::fs::read_dir(root.join("data").join("songData"))
+            .into_iter()
+            .flatten()
+            .flatten()
+        {
             if f.path().is_dir() {
                 ids.insert(f.file_name().to_string_lossy().to_lowercase());
             }
         }
-        for f in std::fs::read_dir(root.join("data")).into_iter().flatten().flatten() {
+        for f in std::fs::read_dir(root.join("data"))
+            .into_iter()
+            .flatten()
+            .flatten()
+        {
             let id = f.file_name().to_string_lossy().to_lowercase();
-            let chart = std::fs::read_dir(f.path()).into_iter().flatten().flatten().any(|c| {
-                let n = c.file_name().to_string_lossy().to_lowercase();
-                n.ends_with(".json") && n.starts_with(&id)
-            });
+            let chart = std::fs::read_dir(f.path())
+                .into_iter()
+                .flatten()
+                .flatten()
+                .any(|c| {
+                    let n = c.file_name().to_string_lossy().to_lowercase();
+                    n.ends_with(".json") && n.starts_with(&id)
+                });
             if f.path().is_dir() && chart && id != "songdata" {
                 ids.insert(id);
             }
@@ -156,28 +194,52 @@ fn song_ids(game_dir: &Path) -> Vec<String> {
 
 fn strip_block(text: &str) -> String {
     match (text.find(SONG_BEGIN), text.find(SONG_END)) {
-        (Some(a), Some(b)) if b > a => format!("{}{}", &text[..a], &text[b + SONG_END.len()..]).trim_end().to_string(),
+        (Some(a), Some(b)) if b > a => format!("{}{}", &text[..a], &text[b + SONG_END.len()..])
+            .trim_end()
+            .to_string(),
         _ => text.to_string(),
     }
 }
 
 fn install_song_scripts(game_dir: &Path) -> std::io::Result<()> {
     for id in song_ids(game_dir) {
-        let target = game_dir.join("mods").join("data").join("songData").join(&id).join("script.lua");
-        let original = std::fs::read_to_string(game_dir.join("assets").join("data").join("songData").join(&id).join("script.lua")).ok();
+        let target = game_dir
+            .join("mods")
+            .join("data")
+            .join("songData")
+            .join(&id)
+            .join("script.lua");
+        let original = std::fs::read_to_string(
+            game_dir
+                .join("assets")
+                .join("data")
+                .join("songData")
+                .join(&id)
+                .join("script.lua"),
+        )
+        .ok();
         let base = match std::fs::read_to_string(&target) {
-            Ok(t) if t.starts_with(SONG_COPY) => format!("{SONG_COPY}
-{}", original.clone().unwrap_or_default()),
+            Ok(t) if t.starts_with(SONG_COPY) => format!(
+                "{SONG_COPY}
+{}",
+                original.clone().unwrap_or_default()
+            ),
             Ok(t) => strip_block(&t),
-            Err(_) => format!("{SONG_COPY}
-{}", original.unwrap_or_default()),
+            Err(_) => format!(
+                "{SONG_COPY}
+{}",
+                original.unwrap_or_default()
+            ),
         };
-        let text = format!("{}
+        let text = format!(
+            "{}
 
 {SONG_BEGIN}
 {SCRIPT}
 {SONG_END}
-", base.trim_end());
+",
+            base.trim_end()
+        );
         write_if_changed(&target, &text)?;
     }
     Ok(())
@@ -187,13 +249,19 @@ fn uninstall_song_scripts(game_dir: &Path) {
     let root = game_dir.join("mods").join("data").join("songData");
     for dir in std::fs::read_dir(&root).into_iter().flatten().flatten() {
         let path = dir.path().join("script.lua");
-        let Ok(text) = std::fs::read_to_string(&path) else { continue };
+        let Ok(text) = std::fs::read_to_string(&path) else {
+            continue;
+        };
         if text.starts_with(SONG_COPY) {
             let _ = std::fs::remove_file(&path);
             let _ = std::fs::remove_dir(dir.path());
         } else if text.contains(SONG_BEGIN) {
-            let _ = std::fs::write(&path, strip_block(&text) + "
-");
+            let _ = std::fs::write(
+                &path,
+                strip_block(&text)
+                    + "
+",
+            );
         }
     }
 }
@@ -258,7 +326,9 @@ pub fn add_folder(core: &Arc<Core>, kind: Kind, folder: String) -> Result<Vec<St
     save_folders(&base, kind, &folders)?;
     crate::funkin::start_tail(core, &folder);
     let core = core.clone();
-    tauri::async_runtime::spawn(async move { sync_catalogs(&core, Path::new(&folder), kind).await });
+    tauri::async_runtime::spawn(
+        async move { sync_catalogs(&core, Path::new(&folder), kind).await },
+    );
     Ok(folders)
 }
 
@@ -416,10 +486,19 @@ fn week_files(dir: &Path) -> Vec<PathBuf> {
         .filter(|p| p.extension().is_some_and(|x| x == "json"))
         .collect();
     let order: Vec<String> = std::fs::read_to_string(dir.join("weekList.txt"))
-        .map(|t| t.lines().map(|l| l.trim().to_lowercase()).filter(|l| !l.is_empty()).collect())
+        .map(|t| {
+            t.lines()
+                .map(|l| l.trim().to_lowercase())
+                .filter(|l| !l.is_empty())
+                .collect()
+        })
         .unwrap_or_default();
     files.sort_by_key(|p| {
-        let stem = p.file_stem().unwrap_or_default().to_string_lossy().to_lowercase();
+        let stem = p
+            .file_stem()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_lowercase();
         let pos = order.iter().position(|o| *o == stem).unwrap_or(usize::MAX);
         (pos, crate::funkin::natural_key(&stem))
     });
@@ -442,10 +521,17 @@ fn chart_info(roots: &[PathBuf], id: &str) -> (Option<f64>, Vec<String>) {
         v.sort_by_key(|p| p.file_name().map(|n| n.len()));
         v
     };
-    if let Some(dir) = roots.iter().map(|r| r.join("songs").join(id).join("data")).find(|p| p.is_dir()) {
+    if let Some(dir) = roots
+        .iter()
+        .map(|r| r.join("songs").join(id).join("data"))
+        .find(|p| p.is_dir())
+    {
         let charts: Vec<PathBuf> = jsons(&dir)
             .into_iter()
-            .filter(|p| !p.file_stem().is_some_and(|s| s.eq_ignore_ascii_case("events")))
+            .filter(|p| {
+                !p.file_stem()
+                    .is_some_and(|s| s.eq_ignore_ascii_case("events"))
+            })
             .collect();
         let diffs = charts
             .iter()
@@ -457,12 +543,22 @@ fn chart_info(roots: &[PathBuf], id: &str) -> (Option<f64>, Vec<String>) {
             .collect();
         return (charts.iter().find_map(bpm_of), diffs);
     }
-    let Some(dir) = roots.iter().map(|r| r.join("data").join(id)).find(|p| p.is_dir()) else {
+    let Some(dir) = roots
+        .iter()
+        .map(|r| r.join("data").join(id))
+        .find(|p| p.is_dir())
+    else {
         return (None, Vec::new());
     };
     let charts: Vec<PathBuf> = jsons(&dir)
         .into_iter()
-        .filter(|p| p.file_name().unwrap_or_default().to_string_lossy().to_lowercase().starts_with(id))
+        .filter(|p| {
+            p.file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_lowercase()
+                .starts_with(id)
+        })
         .collect();
     (charts.iter().find_map(bpm_of), Vec::new())
 }
@@ -482,9 +578,10 @@ fn logo_frame(roots: &[PathBuf]) -> Option<PathBuf> {
     }
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     std::hash::Hash::hash(&png, &mut hasher);
-    let out = std::env::temp_dir()
-        .join("relay-assets")
-        .join(format!("logo-{:016x}.png", std::hash::Hasher::finish(&hasher)));
+    let out = std::env::temp_dir().join("relay-assets").join(format!(
+        "logo-{:016x}.png",
+        std::hash::Hasher::finish(&hasher)
+    ));
     std::fs::create_dir_all(out.parent()?).ok()?;
     img.crop_imm(x, y, w, h).save(&out).ok()?;
     Some(out)
@@ -492,7 +589,11 @@ fn logo_frame(roots: &[PathBuf]) -> Option<PathBuf> {
 
 fn color_hex(v: &Value) -> Option<String> {
     let a = v.as_array()?;
-    let c = |i: usize| a.get(i).and_then(|x| x.as_f64()).map(|x| x.clamp(0.0, 255.0) as u8);
+    let c = |i: usize| {
+        a.get(i)
+            .and_then(|x| x.as_f64())
+            .map(|x| x.clamp(0.0, 255.0) as u8)
+    };
     Some(format!("#{:02x}{:02x}{:02x}", c(0)?, c(1)?, c(2)?))
 }
 
@@ -532,11 +633,18 @@ fn build_catalog(src: &Source) -> Option<Built> {
     let mut sections: Vec<String> = Vec::new();
     for dir in &src.weeks {
         for file in week_files(dir) {
-            let stem = file.file_stem().unwrap_or_default().to_string_lossy().into_owned();
+            let stem = file
+                .file_stem()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .into_owned();
             if !seen_weeks.insert(stem.to_lowercase()) {
                 continue;
             }
-            let Some(week) = std::fs::read_to_string(&file).ok().and_then(|t| lenient_json(&t)) else {
+            let Some(week) = std::fs::read_to_string(&file)
+                .ok()
+                .and_then(|t| lenient_json(&t))
+            else {
                 continue;
             };
             if week["hideFreeplay"].as_bool() == Some(true) {
@@ -548,7 +656,12 @@ fn build_catalog(src: &Source) -> Option<Built> {
             }
             let week_difficulties: Option<Vec<String>> = week["difficulties"]
                 .as_str()
-                .map(|d| d.split(',').map(|x| x.trim().to_string()).filter(|x| !x.is_empty()).collect())
+                .map(|d| {
+                    d.split(',')
+                        .map(|x| x.trim().to_string())
+                        .filter(|x| !x.is_empty())
+                        .collect()
+                })
                 .filter(|d: &Vec<String>| !d.is_empty());
             let section = week["section"].as_str().map(str::to_string);
             if let Some(s) = &section {
@@ -556,11 +669,20 @@ fn build_catalog(src: &Source) -> Option<Built> {
                     sections.push(s.clone());
                 }
             }
-            let art = find(&src.roots, &Path::new("images").join("storymenu").join(format!("{stem}.png")))
-                .and_then(|p| add_asset(format!("week-{}.png", asset_slug(&stem)), p, &mut assets));
+            let art = find(
+                &src.roots,
+                &Path::new("images")
+                    .join("storymenu")
+                    .join(format!("{stem}.png")),
+            )
+            .and_then(|p| add_asset(format!("week-{}.png", asset_slug(&stem)), p, &mut assets));
             let story = week["storyName"].as_str().unwrap_or("").trim();
             let week_name = week["weekName"].as_str().unwrap_or("").trim();
-            let name =[story, week_name].into_iter().find(|n| !n.is_empty()).unwrap_or(&stem).to_string();
+            let name = [story, week_name]
+                .into_iter()
+                .find(|n| !n.is_empty())
+                .unwrap_or(&stem)
+                .to_string();
             albums.push(json!({
                 "id": stem,
                 "name": name,
@@ -579,7 +701,9 @@ fn build_catalog(src: &Source) -> Option<Built> {
                     let dir = Path::new("images").join("icons");
                     find(&src.roots, &dir.join(format!("icon-{icon}.png")))
                         .or_else(|| find(&src.roots, &dir.join(format!("{icon}.png"))))
-                        .and_then(|p| add_asset(format!("hi-{}.png", asset_slug(icon)), p, &mut assets))
+                        .and_then(|p| {
+                            add_asset(format!("hi-{}.png", asset_slug(icon)), p, &mut assets)
+                        })
                 });
                 let (bpm, chart_diffs) = chart_info(&src.roots, &id);
                 let difficulties = week_difficulties
@@ -587,8 +711,14 @@ fn build_catalog(src: &Source) -> Option<Built> {
                     .or(Some(chart_diffs).filter(|d| !d.is_empty()))
                     .unwrap_or_else(|| vec!["Easy".into(), "Normal".into(), "Hard".into()]);
                 let portrait = song[3].as_str().and_then(|p| {
-                    let path = Path::new("images").join("menu").join("freeplay").join("portraits").join(format!("{p}.png"));
-                    find(&src.roots, &path).and_then(|f| add_asset(format!("portrait-{}.png", asset_slug(p)), f, &mut assets))
+                    let path = Path::new("images")
+                        .join("menu")
+                        .join("freeplay")
+                        .join("portraits")
+                        .join(format!("{p}.png"));
+                    find(&src.roots, &path).and_then(|f| {
+                        add_asset(format!("portrait-{}.png", asset_slug(p)), f, &mut assets)
+                    })
                 });
                 let composers = song[4].as_str().map(str::trim).filter(|c| !c.is_empty());
                 let mut extra = serde_json::Map::new();
@@ -617,7 +747,11 @@ fn build_catalog(src: &Source) -> Option<Built> {
             }
         }
     }
-    let pack = src.pack.as_ref().and_then(|p| std::fs::read_to_string(p).ok()).and_then(|t| lenient_json(&t));
+    let pack = src
+        .pack
+        .as_ref()
+        .and_then(|p| std::fs::read_to_string(p).ok())
+        .and_then(|t| lenient_json(&t));
     let icon = src.pack.as_ref().map(|p| p.with_file_name("pack.png"));
     let logo = logo_frame(&src.roots).and_then(|p| add_asset("logo.png".into(), p, &mut assets));
     let has_icon = icon
@@ -663,7 +797,11 @@ fn build_catalog(src: &Source) -> Option<Built> {
         "tracks": tracks,
         "extra": if catalog_extra.is_empty() { Value::Null } else { Value::Object(catalog_extra) },
     });
-    Some(Built { catalog, assets, aliases: src.aliases.clone() })
+    Some(Built {
+        catalog,
+        assets,
+        aliases: src.aliases.clone(),
+    })
 }
 
 async fn sync_catalogs(core: &Arc<Core>, game_dir: &Path, kind: Kind) {
@@ -692,7 +830,11 @@ pub fn spawn(core: Arc<Core>) {
         loop {
             let all: Vec<(Kind, String)> = [Kind::Psych, Kind::Nmv]
                 .into_iter()
-                .flat_map(|k| list_folders(&core.data_dir(), k).into_iter().map(move |f| (k, f)))
+                .flat_map(|k| {
+                    list_folders(&core.data_dir(), k)
+                        .into_iter()
+                        .map(move |f| (k, f))
+                })
                 .collect();
             for (kind, folder) in all {
                 let dir = PathBuf::from(&folder);
@@ -727,19 +869,32 @@ mod tests {
         write(g.join("Mario.exe"), "..FunkinLua..psychEngineVersion..");
         write(g.join("mods/readme.txt"), "");
         write(g.join("assets/data/alone/alone-hard.json"), "{}");
-        write(g.join("assets/data/songData/alone/script.lua"), "function onEndSong() return Function_Stop end
-");
+        write(
+            g.join("assets/data/songData/alone/script.lua"),
+            "function onEndSong() return Function_Stop end
+",
+        );
         write(g.join("assets/data/unbeatable/unbeatable.json"), "{}");
         assert!(!global_scripts(g));
         install(g, Kind::Psych).unwrap();
         let alone = std::fs::read_to_string(g.join("mods/data/songData/alone/script.lua")).unwrap();
         assert!(alone.starts_with(SONG_COPY));
-        assert!(alone.contains("function onEndSong() return Function_Stop end"), "lo script della canzone resta");
+        assert!(
+            alone.contains("function onEndSong() return Function_Stop end"),
+            "lo script della canzone resta"
+        );
         assert!(alone.contains(SONG_BEGIN) && alone.contains("relayPrev"));
-        assert!(g.join("mods/data/songData/unbeatable/script.lua").exists(), "anche le canzoni senza script");
+        assert!(
+            g.join("mods/data/songData/unbeatable/script.lua").exists(),
+            "anche le canzoni senza script"
+        );
         install(g, Kind::Psych).unwrap();
         let again = std::fs::read_to_string(g.join("mods/data/songData/alone/script.lua")).unwrap();
-        assert_eq!(again.matches(SONG_BEGIN).count(), 1, "reinstallare non duplica");
+        assert_eq!(
+            again.matches(SONG_BEGIN).count(),
+            1,
+            "reinstallare non duplica"
+        );
         uninstall(g);
         assert!(!g.join("mods/data/songData/alone/script.lua").exists());
         assert!(g.join("assets/data/songData/alone/script.lua").exists());
@@ -750,15 +905,21 @@ mod tests {
         let game = tempfile::tempdir().unwrap();
         let g = game.path();
         write(g.join("Old.exe"), "psychEngineVersion");
-        write(g.join("mods/data/songData/x/script.lua"), "print('mia')
-");
+        write(
+            g.join("mods/data/songData/x/script.lua"),
+            "print('mia')
+",
+        );
         write(g.join("assets/data/x/x.json"), "{}");
         install(g, Kind::Psych).unwrap();
         let t = std::fs::read_to_string(g.join("mods/data/songData/x/script.lua")).unwrap();
         assert!(t.starts_with("print('mia')") && t.contains(SONG_BEGIN));
         uninstall(g);
-        assert_eq!(std::fs::read_to_string(g.join("mods/data/songData/x/script.lua")).unwrap(), "print('mia')
-");
+        assert_eq!(
+            std::fs::read_to_string(g.join("mods/data/songData/x/script.lua")).unwrap(),
+            "print('mia')
+"
+        );
     }
 
     #[test]
@@ -777,7 +938,8 @@ mod tests {
 
     #[test]
     fn pack_json_with_real_newlines_is_read() {
-        let v = lenient_json("{\n \"name\": \"Crafted\",\n \"description\": \"riga 1\nriga 2\"\n}").unwrap();
+        let v = lenient_json("{\n \"name\": \"Crafted\",\n \"description\": \"riga 1\nriga 2\"\n}")
+            .unwrap();
         assert_eq!(v["description"], "riga 1\nriga 2");
     }
 
@@ -790,25 +952,49 @@ mod tests {
             r#"{"songs":[["Yuh","fuegoyeah",[255,105,0]],["Pizza Time","dad",[0,0,0]]],
                 "storyName":"Yeah Man","weekName":"Week 1","difficulties":"Hard"}"#,
         );
-        write(g.join("mods/weeks/secret.json"), r#"{"songs":[["Hidden","dad",[0,0,0]]],"hideFreeplay":true}"#);
+        write(
+            g.join("mods/weeks/secret.json"),
+            r#"{"songs":[["Hidden","dad",[0,0,0]]],"hideFreeplay":true}"#,
+        );
         write(g.join("mods/images/icons/icon-fuegoyeah.png"), "png");
         write(g.join("assets/shared/images/icons/icon-dad.png"), "png");
         write(g.join("mods/images/storymenu/weekman.png"), "png");
-        write(g.join("mods/data/yuh/yuh-hard.json"), r#"{"song":{"bpm":150}}"#);
-        write(g.join("mods/data/credits.txt"), "Team\nFuego::fuego::Musicista::https://x.com/f::FF0000\n");
-        write(g.join("mods/Inner Mod/pack.json"), "{\"name\": \"Inner\", \"description\": \"a\nb\"}");
+        write(
+            g.join("mods/data/yuh/yuh-hard.json"),
+            r#"{"song":{"bpm":150}}"#,
+        );
+        write(
+            g.join("mods/data/credits.txt"),
+            "Team\nFuego::fuego::Musicista::https://x.com/f::FF0000\n",
+        );
+        write(
+            g.join("mods/Inner Mod/pack.json"),
+            "{\"name\": \"Inner\", \"description\": \"a\nb\"}",
+        );
         write(g.join("mods/Off Mod/pack.json"), "{\"name\": \"Off\"}");
         write(g.join("modsList.txt"), "Inner Mod|1\nOff Mod|0\n");
 
         let all = sources(g, Kind::Psych);
         let names: Vec<&str> = all.iter().map(|s| s.name.as_str()).collect();
-        assert_eq!(names[1..], ["Inner"], "nome da pack.json; le mod disattivate restano fuori");
-        assert_eq!(all[1].aliases, ["Inner Mod"], "la cartella resta come vecchio nome");
+        assert_eq!(
+            names[1..],
+            ["Inner"],
+            "nome da pack.json; le mod disattivate restano fuori"
+        );
+        assert_eq!(
+            all[1].aliases,
+            ["Inner Mod"],
+            "la cartella resta come vecchio nome"
+        );
         assert_eq!(mod_identity(g, Kind::Psych, "Inner Mod").0, "Inner");
 
         let top = build_catalog(&all[0]).unwrap();
         let c = &top.catalog;
-        assert_eq!(c["albums"].as_array().unwrap().len(), 1, "la settimana nascosta resta fuori");
+        assert_eq!(
+            c["albums"].as_array().unwrap().len(),
+            1,
+            "la settimana nascosta resta fuori"
+        );
         assert_eq!(c["albums"][0]["name"], "Yeah Man");
         assert_eq!(c["albums"][0]["art"], "week-weekman.png");
         assert_eq!(c["tracks"][0]["id"], "yuh");
@@ -816,7 +1002,10 @@ mod tests {
         assert_eq!(c["tracks"][0]["color"], "#ff6900");
         assert_eq!(c["tracks"][0]["icon"], "hi-fuegoyeah.png");
         assert_eq!(c["tracks"][1]["id"], "pizza-time");
-        assert_eq!(c["tracks"][1]["icon"], "hi-dad.png", "icona presa dagli asset del gioco");
+        assert_eq!(
+            c["tracks"][1]["icon"], "hi-dad.png",
+            "icona presa dagli asset del gioco"
+        );
         assert_eq!(c["tracks"][0]["difficulties"], json!(["Hard"]));
         assert_eq!(c["contributors"][0]["name"], "Fuego");
         assert_eq!(c["contributors"][0]["role"], "Musicista");

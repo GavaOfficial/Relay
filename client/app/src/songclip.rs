@@ -120,7 +120,11 @@ pub async fn handle(core: &Arc<Core>, ev: SongEvent) {
                 }
             }
             let (generation, first_frame) = match st.session.as_mut() {
-                Some(session) => session.capture.fit_window().await.map_or((0, None), |(g, f)| (g, Some(f))),
+                Some(session) => session
+                    .capture
+                    .fit_window()
+                    .await
+                    .map_or((0, None), |(g, f)| (g, Some(f))),
                 None => (0, None),
             };
             tracing::info!("registro la canzone {} ({})", target.song, target.mod_name);
@@ -140,13 +144,15 @@ pub async fn handle(core: &Arc<Core>, ev: SongEvent) {
                 },
                 mod_name: target.mod_name,
                 aliases: target.aliases,
-                song_id: ev
-                    .song_id
-                    .clone()
-                    .or_else(|| (ev.is_psych() || ev.is_nmv()).then(|| crate::psych::song_path(&target.song))),
+                song_id: ev.song_id.clone().or_else(|| {
+                    (ev.is_psych() || ev.is_nmv()).then(|| crate::psych::song_path(&target.song))
+                }),
                 song: target.song,
                 difficulty: ev.difficulty.clone().unwrap_or_else(|| "normal".into()),
-                variation: ev.variation.clone().filter(|v| !v.is_empty() && v != "default"),
+                variation: ev
+                    .variation
+                    .clone()
+                    .filter(|v| !v.is_empty() && v != "default"),
                 loaded_at: ev.sent_at,
                 start_ms: None,
                 generation,
@@ -184,7 +190,10 @@ pub async fn handle(core: &Arc<Core>, ev: SongEvent) {
                 );
                 return;
             };
-            let tail = match (run.engine, ev.data.as_ref().and_then(|d| d["completed"].as_bool())) {
+            let tail = match (
+                run.engine,
+                ev.data.as_ref().and_then(|d| d["completed"].as_bool()),
+            ) {
                 ("gd", Some(true)) => 2500.0,
                 ("gd", _) => 800.0,
                 _ => 0.0,
@@ -229,7 +238,10 @@ fn spawn_finish(st: &mut State, e: Ending, end_ms: f64) {
         return;
     };
     let dir = session.dir.clone();
-    let first_frame = e.run.first_frame.or_else(|| session.capture.first_frame_unix_secs());
+    let first_frame = e
+        .run
+        .first_frame
+        .or_else(|| session.capture.first_frame_unix_secs());
     let id = st.next_id;
     st.next_id += 1;
     st.pending.push((
@@ -240,7 +252,16 @@ fn spawn_finish(st: &mut State, e: Ending, end_ms: f64) {
         },
     ));
     tokio::spawn(async move {
-        finish(&e.core, &dir, first_frame, &e.run, e.start_ms, end_ms, &e.ev).await;
+        finish(
+            &e.core,
+            &dir,
+            first_frame,
+            &e.run,
+            e.start_ms,
+            end_ms,
+            &e.ev,
+        )
+        .await;
         let mut st = state().lock().await;
         st.pending.retain(|(p, _)| *p != id);
     });
@@ -275,7 +296,10 @@ fn target_for(core: &Arc<Core>, ev: &SongEvent) -> Option<Target> {
         let song = ev.song_name.clone().filter(|s| !s.trim().is_empty())?;
         return Some(Target {
             exe: "GeometryDash.exe".into(),
-            mod_name: ev.mod_folder.clone().unwrap_or_else(|| "Livelli online".into()),
+            mod_name: ev
+                .mod_folder
+                .clone()
+                .unwrap_or_else(|| "Livelli online".into()),
             aliases: Vec::new(),
             song,
         });
@@ -296,7 +320,11 @@ fn target_for(core: &Arc<Core>, ev: &SongEvent) -> Option<Target> {
         let folder = ev.game_dir.clone()?;
         let exe = running_exe_in(Path::new(&folder))?;
         let song = ev.song_name.clone().filter(|s| !s.trim().is_empty())?;
-        let kind = if ev.is_nmv() { crate::psych::Kind::Nmv } else { crate::psych::Kind::Psych };
+        let kind = if ev.is_nmv() {
+            crate::psych::Kind::Nmv
+        } else {
+            crate::psych::Kind::Psych
+        };
         let (mod_name, aliases) = crate::psych::mod_identity(
             Path::new(&folder),
             kind,
@@ -432,8 +460,13 @@ fn watch_focus(core: Arc<Core>) {
                 refreshed = Instant::now();
             }
             let now = relay_agent::windows::foreground();
-            let was_game = last.as_ref().is_some_and(|l| games.iter().any(|g| g.eq_ignore_ascii_case(&l.0)));
-            let still_game = now.as_ref().is_some_and(|n| last.as_ref().is_some_and(|l| n.0.eq_ignore_ascii_case(&l.0)));
+            let was_game = last
+                .as_ref()
+                .is_some_and(|l| games.iter().any(|g| g.eq_ignore_ascii_case(&l.0)));
+            let still_game = now.as_ref().is_some_and(|n| {
+                last.as_ref()
+                    .is_some_and(|l| n.0.eq_ignore_ascii_case(&l.0))
+            });
             if was_game && !still_game {
                 let (exe, class, title) = now.clone().unwrap_or_default();
                 tracing::info!(
@@ -460,7 +493,8 @@ pub fn watch(core: Arc<Core>) {
             }
             let open = tokio::task::spawn_blocking(move || {
                 let windows = relay_agent::windows::list_windows();
-                exes.into_iter().find(|e| windows.iter().any(|w| w.exe.eq_ignore_ascii_case(e)))
+                exes.into_iter()
+                    .find(|e| windows.iter().any(|w| w.exe.eq_ignore_ascii_case(e)))
             })
             .await
             .ok()
@@ -543,7 +577,9 @@ async fn cleanup(st: &mut State) {
         - 10_000.0;
     for (generation, first_frame) in generations {
         let keep_from = keep_from_ms / 1000.0 - first_frame;
-        let playlist = session.dir.join(relay_agent::hls::playlist_name(generation));
+        let playlist = session
+            .dir
+            .join(relay_agent::hls::playlist_name(generation));
         let Ok(text) = tokio::fs::read_to_string(&playlist).await else {
             continue;
         };
@@ -600,7 +636,13 @@ struct RawClip {
     duration: f64,
 }
 
-async fn raw_clip(dir: &Path, generation: u32, first_frame: f64, start_ms: f64, end_ms: f64) -> Result<RawClip, String> {
+async fn raw_clip(
+    dir: &Path,
+    generation: u32,
+    first_frame: f64,
+    start_ms: f64,
+    end_ms: f64,
+) -> Result<RawClip, String> {
     let from = start_ms / 1000.0 - first_frame;
     let to = end_ms / 1000.0 - first_frame;
     let playlist = dir.join(relay_agent::hls::playlist_name(generation));
@@ -624,7 +666,11 @@ async fn raw_clip(dir: &Path, generation: u32, first_frame: f64, start_ms: f64, 
             .map_err(|e| format!("pezzo {} non leggibile: {e}", seg.name))?;
         bytes.extend_from_slice(&data);
     }
-    Ok(RawClip { bytes, offset, duration: (to - from).max(1.0) })
+    Ok(RawClip {
+        bytes,
+        offset,
+        duration: (to - from).max(1.0),
+    })
 }
 
 fn running_exe_in(folder: &Path) -> Option<String> {
@@ -685,7 +731,10 @@ async fn finish(
                         format!(
                             "{}: {}. La clip e' sul sito, in Giochi.",
                             run.song,
-                            crate::gd::result_text(ev.data.as_ref(), run.difficulty == "platformer")
+                            crate::gd::result_text(
+                                ev.data.as_ref(),
+                                run.difficulty == "platformer"
+                            )
                         )
                     } else {
                         format!(
@@ -739,7 +788,8 @@ async fn save_record(
         url.query_pairs_mut().append_pair("variation", v);
     }
     if !run.aliases.is_empty() {
-        url.query_pairs_mut().append_pair("aliases", &run.aliases.join("|"));
+        url.query_pairs_mut()
+            .append_pair("aliases", &run.aliases.join("|"));
     }
     let best: Value = core
         .json(
@@ -806,7 +856,6 @@ async fn save_record(
 #[cfg(test)]
 mod tests {
     use super::*;
-
 
     #[test]
     fn scores_use_italian_thousands_separator() {

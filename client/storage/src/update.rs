@@ -16,7 +16,9 @@ struct Release {
 }
 
 fn parse(v: &str) -> Vec<u64> {
-    v.split('.').map(|p| p.trim().parse().unwrap_or(0)).collect()
+    v.split('.')
+        .map(|p| p.trim().parse().unwrap_or(0))
+        .collect()
 }
 
 pub fn newer(latest: &str, current: &str) -> bool {
@@ -24,15 +26,28 @@ pub fn newer(latest: &str, current: &str) -> bool {
 }
 
 pub fn signature_ok(pubkey_hex: &str, version: &str, sha256: &str, signature_hex: &str) -> bool {
-    let (Ok(pk), Ok(sig)) = (hex::decode(pubkey_hex), hex::decode(signature_hex)) else { return false };
-    let (Ok(pk), Ok(sig)) = (<[u8; 32]>::try_from(pk.as_slice()), <[u8; 64]>::try_from(sig.as_slice())) else { return false };
-    let Ok(key) = VerifyingKey::from_bytes(&pk) else { return false };
+    let (Ok(pk), Ok(sig)) = (hex::decode(pubkey_hex), hex::decode(signature_hex)) else {
+        return false;
+    };
+    let (Ok(pk), Ok(sig)) = (
+        <[u8; 32]>::try_from(pk.as_slice()),
+        <[u8; 64]>::try_from(sig.as_slice()),
+    ) else {
+        return false;
+    };
+    let Ok(key) = VerifyingKey::from_bytes(&pk) else {
+        return false;
+    };
     let msg = format!("{KIND}|{version}|{}", sha256.to_ascii_lowercase());
-    key.verify(msg.as_bytes(), &Signature::from_bytes(&sig)).is_ok()
+    key.verify(msg.as_bytes(), &Signature::from_bytes(&sig))
+        .is_ok()
 }
 
 async fn check(server: &str) -> Result<bool, String> {
-    let client = reqwest::Client::builder().timeout(Duration::from_secs(600)).build().map_err(|e| e.to_string())?;
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(600))
+        .build()
+        .map_err(|e| e.to_string())?;
     let rel: Release = client
         .get(format!("{server}/api/app/storage/latest"))
         .send()
@@ -47,7 +62,10 @@ async fn check(server: &str) -> Result<bool, String> {
         return Ok(false);
     }
     if !signature_ok(PUBKEY_HEX, &rel.version, &rel.sha256, &rel.signature) {
-        return Err(format!("la versione {} non ha una firma valida: la ignoro", rel.version));
+        return Err(format!(
+            "la versione {} non ha una firma valida: la ignoro",
+            rel.version
+        ));
     }
     let bytes = client
         .get(format!("{server}/api/app/storage/download"))
@@ -64,13 +82,19 @@ async fn check(server: &str) -> Result<bool, String> {
     }
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
     let tmp = exe.with_extension("new");
-    tokio::fs::write(&tmp, &bytes).await.map_err(|e| e.to_string())?;
+    tokio::fs::write(&tmp, &bytes)
+        .await
+        .map_err(|e| e.to_string())?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        tokio::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o755)).await.map_err(|e| e.to_string())?;
+        tokio::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o755))
+            .await
+            .map_err(|e| e.to_string())?;
     }
-    tokio::fs::rename(&tmp, &exe).await.map_err(|e| e.to_string())?;
+    tokio::fs::rename(&tmp, &exe)
+        .await
+        .map_err(|e| e.to_string())?;
     tracing::info!("aggiornato alla versione {}: riavvio", rel.version);
     Ok(true)
 }
@@ -102,6 +126,11 @@ mod tests {
     #[test]
     fn a_bad_signature_is_rejected() {
         assert!(!signature_ok(PUBKEY_HEX, "0.3.47", "abcd", ""));
-        assert!(!signature_ok(PUBKEY_HEX, "0.3.47", "abcd", &"00".repeat(64)));
+        assert!(!signature_ok(
+            PUBKEY_HEX,
+            "0.3.47",
+            "abcd",
+            &"00".repeat(64)
+        ));
     }
 }

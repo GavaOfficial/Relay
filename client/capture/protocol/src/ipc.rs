@@ -399,4 +399,3 @@ mod tests {
         assert!(consumer.configure(CPU_ONLY, 60, 0).is_err());
     }
 }
-

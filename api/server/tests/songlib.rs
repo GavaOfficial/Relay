@@ -227,29 +227,67 @@ async fn a_missing_part_or_wrong_size_is_rejected() {
     assert_eq!(v["score"], Value::Null, "un upload fallito non crea record");
 }
 
-async fn funkin_upload(app: &Router, song: &str, variation: Option<&str>, score: i64) -> StatusCode {
+async fn funkin_upload(
+    app: &Router,
+    song: &str,
+    variation: Option<&str>,
+    score: i64,
+) -> StatusCode {
     let id = uuid::Uuid::new_v4();
-    send(app, "PUT", &format!("/api/funkin/uploads/{id}/0"), "ta", false, b"clip".to_vec()).await;
+    send(
+        app,
+        "PUT",
+        &format!("/api/funkin/uploads/{id}/0"),
+        "ta",
+        false,
+        b"clip".to_vec(),
+    )
+    .await;
     let body = json!({
         "mod_name": "Gioco base", "song_id": "bopeebo", "song": song, "difficulty": "hard",
         "variation": variation, "score": score, "duration_ms": 1000, "parts": 1, "size": 4,
     });
-    send(app, "POST", &format!("/api/funkin/uploads/{id}/finish"), "ta", true, body.to_string().into_bytes())
-        .await
-        .0
+    send(
+        app,
+        "POST",
+        &format!("/api/funkin/uploads/{id}/finish"),
+        "ta",
+        true,
+        body.to_string().into_bytes(),
+    )
+    .await
+    .0
 }
 
 #[tokio::test]
 async fn funkin_keeps_a_record_per_variation_apart_from_codename() {
     let (app, _dir) = setup().await;
-    assert_eq!(funkin_upload(&app, "Bopeebo", None, 100).await, StatusCode::CREATED);
-    assert_eq!(funkin_upload(&app, "Bopeebo", Some("default"), 50).await, StatusCode::CONFLICT);
-    assert_eq!(funkin_upload(&app, "Bopeebo", Some("erect"), 50).await, StatusCode::CREATED);
+    assert_eq!(
+        funkin_upload(&app, "Bopeebo", None, 100).await,
+        StatusCode::CREATED
+    );
+    assert_eq!(
+        funkin_upload(&app, "Bopeebo", Some("default"), 50).await,
+        StatusCode::CONFLICT
+    );
+    assert_eq!(
+        funkin_upload(&app, "Bopeebo", Some("erect"), 50).await,
+        StatusCode::CREATED
+    );
 
-    let (_, v) = get_json(&app, "/api/funkin/best?mod_name=Gioco%20base&song=Bopeebo&difficulty=hard&variation=erect", "ta").await;
+    let (_, v) = get_json(
+        &app,
+        "/api/funkin/best?mod_name=Gioco%20base&song=Bopeebo&difficulty=hard&variation=erect",
+        "ta",
+    )
+    .await;
     assert_eq!(v["score"], 50);
     let (_, codename) = get_json(&app, "/api/codename/mods", "ta").await;
-    assert_eq!(codename.as_array().unwrap().len(), 0, "le estensioni hanno dati separati");
+    assert_eq!(
+        codename.as_array().unwrap().len(),
+        0,
+        "le estensioni hanno dati separati"
+    );
 
     let (_, detail) = get_json(&app, "/api/funkin/mods/gioco-base", "ta").await;
     let songs = detail["songs"].as_array().unwrap();
@@ -267,21 +305,64 @@ async fn funkin_catalog_and_images_are_stored_for_the_mod() {
         "tracks": [{ "id": "bopeebo", "name": "Bopeebo", "album": "volume1", "bpm": 100.0,
                      "difficulties": ["easy", "normal", "hard"], "ratings": { "hard": 3 } }]
     }});
-    let (st, _) = send(&app, "PUT", "/api/funkin/catalog", "ta", true, catalog.to_string().into_bytes()).await;
+    let (st, _) = send(
+        &app,
+        "PUT",
+        "/api/funkin/catalog",
+        "ta",
+        true,
+        catalog.to_string().into_bytes(),
+    )
+    .await;
     assert_eq!(st, StatusCode::OK);
 
     let png = b"\x89PNG\r\n\x1a\nresto".to_vec();
-    let (st, _) = send(&app, "PUT", "/api/funkin/mods/gioco-base/assets/icon.png", "ta", false, png.clone()).await;
+    let (st, _) = send(
+        &app,
+        "PUT",
+        "/api/funkin/mods/gioco-base/assets/icon.png",
+        "ta",
+        false,
+        png.clone(),
+    )
+    .await;
     assert_eq!(st, StatusCode::NO_CONTENT);
-    let (st, _) = send(&app, "PUT", "/api/funkin/mods/gioco-base/assets/x.png", "ta", false, b"non png".to_vec()).await;
+    let (st, _) = send(
+        &app,
+        "PUT",
+        "/api/funkin/mods/gioco-base/assets/x.png",
+        "ta",
+        false,
+        b"non png".to_vec(),
+    )
+    .await;
     assert_eq!(st, StatusCode::BAD_REQUEST);
-    let (st, got) = send(&app, "GET", "/api/funkin/mods/gioco-base/assets/icon.png", "ta", false, vec![]).await;
+    let (st, got) = send(
+        &app,
+        "GET",
+        "/api/funkin/mods/gioco-base/assets/icon.png",
+        "ta",
+        false,
+        vec![],
+    )
+    .await;
     assert_eq!((st, got), (StatusCode::OK, png));
-    let (st, _) = send(&app, "GET", "/api/funkin/mods/gioco-base/assets/icon.png", "tb", false, vec![]).await;
+    let (st, _) = send(
+        &app,
+        "GET",
+        "/api/funkin/mods/gioco-base/assets/icon.png",
+        "tb",
+        false,
+        vec![],
+    )
+    .await;
     assert_eq!(st, StatusCode::NOT_FOUND);
 
     let (_, mods) = get_json(&app, "/api/funkin/mods", "ta").await;
-    assert_eq!(mods[0]["key"], "gioco-base", "la mod col catalogo si vede anche senza record");
+    assert_eq!(
+        mods[0]["key"], "gioco-base",
+        "la mod col catalogo si vede anche senza record"
+    );
     assert_eq!(mods[0]["tracks"], 1);
     assert_eq!(mods[0]["songs"], 0);
     assert_eq!(mods[0].get("catalog"), None);
@@ -291,7 +372,11 @@ async fn funkin_catalog_and_images_are_stored_for_the_mod() {
     assert_eq!(c["tracks"][0]["ratings"]["hard"], 3);
     assert_eq!(c["albums"][0]["art"], "album-volume1.png");
     assert_eq!(c["title"], "Friday Night Funkin'");
-    assert_eq!(c["contributors"][0].get("url"), None, "i link non http vengono scartati");
+    assert_eq!(
+        c["contributors"][0].get("url"),
+        None,
+        "i link non http vengono scartati"
+    );
 }
 
 #[tokio::test]
@@ -304,7 +389,15 @@ async fn psych_tracks_keep_icon_and_color() {
             { "id": "bad", "name": "Bad", "icon": "../x.png", "color": "red" }
         ]
     }});
-    let (st, _) = send(&app, "PUT", "/api/psych/catalog", "ta", true, catalog.to_string().into_bytes()).await;
+    let (st, _) = send(
+        &app,
+        "PUT",
+        "/api/psych/catalog",
+        "ta",
+        true,
+        catalog.to_string().into_bytes(),
+    )
+    .await;
     assert_eq!(st, StatusCode::OK);
     let (_, detail) = get_json(&app, "/api/psych/mods/yeahman", "ta").await;
     let t = &detail["mod"]["catalog"]["tracks"];
@@ -327,18 +420,50 @@ async fn a_mod_with_a_new_name_takes_over_its_old_records() {
         "ta",
     )
     .await;
-    assert_eq!(v["score"], 1000, "il record col vecchio nome conta anche col nome nuovo");
+    assert_eq!(
+        v["score"], 1000,
+        "il record col vecchio nome conta anche col nome nuovo"
+    );
 
     let id = uuid::Uuid::new_v4();
-    send(&app, "PUT", &format!("/api/codename/uploads/{id}/0"), "ta", false, b"nuovo".to_vec()).await;
+    send(
+        &app,
+        "PUT",
+        &format!("/api/codename/uploads/{id}/0"),
+        "ta",
+        false,
+        b"nuovo".to_vec(),
+    )
+    .await;
     let body = json!({ "mod_name": "VS Impostor", "aliases": ["VS Impostor V4"], "song": "Sussus Moogus",
         "difficulty": "Hard", "score": 900, "duration_ms": 1, "parts": 1, "size": 5 });
-    let (st, _) = send(&app, "POST", &format!("/api/codename/uploads/{id}/finish"), "ta", true, body.to_string().into_bytes()).await;
-    assert_eq!(st, StatusCode::CONFLICT, "900 non batte il 1000 fatto col vecchio nome");
+    let (st, _) = send(
+        &app,
+        "POST",
+        &format!("/api/codename/uploads/{id}/finish"),
+        "ta",
+        true,
+        body.to_string().into_bytes(),
+    )
+    .await;
+    assert_eq!(
+        st,
+        StatusCode::CONFLICT,
+        "900 non batte il 1000 fatto col vecchio nome"
+    );
 
     let (_, mods) = get_json(&app, "/api/codename/mods", "ta").await;
-    let keys: Vec<&str> = mods.as_array().unwrap().iter().map(|m| m["key"].as_str().unwrap()).collect();
-    assert_eq!(keys, ["vs-impostor"], "la card vecchia confluisce in quella nuova");
+    let keys: Vec<&str> = mods
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|m| m["key"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        keys,
+        ["vs-impostor"],
+        "la card vecchia confluisce in quella nuova"
+    );
     let (_, detail) = get_json(&app, "/api/codename/mods/vs-impostor", "ta").await;
     assert_eq!(detail["songs"][0]["best"]["id"], old["id"]);
 }
@@ -347,11 +472,27 @@ async fn a_mod_with_a_new_name_takes_over_its_old_records() {
 async fn geometry_dash_keeps_attempt_stats_level_info_and_profile() {
     let (app, _dir) = setup().await;
     let id = uuid::Uuid::new_v4();
-    send(&app, "PUT", &format!("/api/gd/uploads/{id}/0"), "ta", false, b"clip".to_vec()).await;
+    send(
+        &app,
+        "PUT",
+        &format!("/api/gd/uploads/{id}/0"),
+        "ta",
+        false,
+        b"clip".to_vec(),
+    )
+    .await;
     let body = json!({ "mod_name": "Livelli principali", "song_id": "1", "song": "Stereo Madness", "difficulty": "classic",
         "score": 82000, "duration_ms": 30000, "parts": 1, "size": 4,
         "extra": { "percent": 82, "coins": 0, "attempt": 12, "time_ms": 30000 } });
-    let (st, clip) = send(&app, "POST", &format!("/api/gd/uploads/{id}/finish"), "ta", true, body.to_string().into_bytes()).await;
+    let (st, clip) = send(
+        &app,
+        "POST",
+        &format!("/api/gd/uploads/{id}/finish"),
+        "ta",
+        true,
+        body.to_string().into_bytes(),
+    )
+    .await;
     assert_eq!(st, StatusCode::CREATED);
     let clip: Value = serde_json::from_slice(&clip).unwrap();
     assert_eq!(clip["extra"]["percent"], 82);
@@ -359,13 +500,29 @@ async fn geometry_dash_keeps_attempt_stats_level_info_and_profile() {
     let catalog = json!({ "mod_name": "Livelli principali", "catalog": { "tracks": [
         { "id": "1", "name": "Stereo Madness", "difficulties": ["classic"], "extra": { "stars": 1, "difficulty": 1, "coins": 3 } }
     ]}});
-    let (st, _) = send(&app, "PUT", "/api/gd/catalog", "ta", true, catalog.to_string().into_bytes()).await;
+    let (st, _) = send(
+        &app,
+        "PUT",
+        "/api/gd/catalog",
+        "ta",
+        true,
+        catalog.to_string().into_bytes(),
+    )
+    .await;
     assert_eq!(st, StatusCode::OK);
     let (_, detail) = get_json(&app, "/api/gd/mods/livelli-principali", "ta").await;
     assert_eq!(detail["mod"]["catalog"]["tracks"][0]["extra"]["coins"], 3);
 
     let profile = json!({ "username": "Gavatech", "stars": 191 });
-    let (st, _) = send(&app, "PUT", "/api/gd/profile", "ta", true, profile.to_string().into_bytes()).await;
+    let (st, _) = send(
+        &app,
+        "PUT",
+        "/api/gd/profile",
+        "ta",
+        true,
+        profile.to_string().into_bytes(),
+    )
+    .await;
     assert_eq!(st, StatusCode::NO_CONTENT);
     let (_, p) = get_json(&app, "/api/gd/profile", "ta").await;
     assert_eq!(p["username"], "Gavatech");

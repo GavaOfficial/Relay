@@ -35,7 +35,9 @@ fn node_of(st: &AppState, headers: &HeaderMap) -> Result<String, AppError> {
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.strip_prefix("Bearer "))
         .ok_or(AppError::Unauthorized)?;
-    st.ops.node_for_key(key.trim()).ok_or(AppError::Unauthorized)
+    st.ops
+        .node_for_key(key.trim())
+        .ok_or(AppError::Unauthorized)
 }
 
 fn stage_name(stage: &str) -> &'static str {
@@ -69,10 +71,16 @@ fn out_path(st: &AppState, q: &Queued, output: &str) -> Option<PathBuf> {
 }
 
 fn tmp_path(st: &AppState, q: &Queued, output: &str) -> PathBuf {
-    st.ops.abs(&q.dir).join(format!(".ops-{}-{output}", q.job.id))
+    st.ops
+        .abs(&q.dir)
+        .join(format!(".ops-{}-{output}", q.job.id))
 }
 
-pub async fn poll(State(st): St, headers: HeaderMap, Json(p): Json<Poll>) -> Result<Response, AppError> {
+pub async fn poll(
+    State(st): St,
+    headers: HeaderMap,
+    Json(p): Json<Poll>,
+) -> Result<Response, AppError> {
     let node = node_of(&st, &headers)?;
     let running = p.running.clone();
     st.ops.see(&node, Some(p));
@@ -96,7 +104,11 @@ pub async fn poll(State(st): St, headers: HeaderMap, Json(p): Json<Poll>) -> Res
     }
 }
 
-pub async fn input(State(st): St, headers: HeaderMap, Path((id, name)): Path<(Uuid, String)>) -> Result<Response, AppError> {
+pub async fn input(
+    State(st): St,
+    headers: HeaderMap,
+    Path((id, name)): Path<(Uuid, String)>,
+) -> Result<Response, AppError> {
     let node = node_of(&st, &headers)?;
     let q = st.ops.leased(&node, id).ok_or(AppError::NotFound)?;
     if !ops::valid_input_name(&name) || !q.job.inputs.iter().any(|i| i.name == name) {
@@ -105,7 +117,12 @@ pub async fn input(State(st): St, headers: HeaderMap, Path((id, name)): Path<(Uu
     crate::routes::serve_file(&st.ops.abs(&q.dir).join(&name), &headers, "", None).await
 }
 
-pub async fn progress(State(st): St, headers: HeaderMap, Path(id): Path<Uuid>, Json(p): Json<Progress>) -> Result<StatusCode, AppError> {
+pub async fn progress(
+    State(st): St,
+    headers: HeaderMap,
+    Path(id): Path<Uuid>,
+    Json(p): Json<Progress>,
+) -> Result<StatusCode, AppError> {
     let node = node_of(&st, &headers)?;
     let q = st.ops.leased(&node, id).ok_or(AppError::NotFound)?;
     st.ops.progress(&node, id, &p.stage, p.pct);
@@ -134,10 +151,21 @@ async fn abort(sink: Sink) {
     }
 }
 
-pub async fn big_state(State(st): St, headers: HeaderMap, Path((id, output)): Path<(Uuid, String)>) -> Result<Json<BigState>, AppError> {
+pub async fn big_state(
+    State(st): St,
+    headers: HeaderMap,
+    Path((id, output)): Path<(Uuid, String)>,
+) -> Result<Json<BigState>, AppError> {
     let node = node_of(&st, &headers)?;
     st.ops.leased(&node, id).ok_or(AppError::NotFound)?;
-    let next = st.ops.bigs.lock().await.get(&(id, output)).map(|b| b.next).unwrap_or(0);
+    let next = st
+        .ops
+        .bigs
+        .lock()
+        .await
+        .get(&(id, output))
+        .map(|b| b.next)
+        .unwrap_or(0);
     Ok(Json(BigState { next }))
 }
 
@@ -164,33 +192,44 @@ pub async fn put_output(
     }
     let key = (id, output.clone());
     let current = st.ops.bigs.lock().await.remove(&key);
-    let mut up = match (pq.part, current) {
-        (0, old) => {
-            if let Some(old) = old {
-                abort(old.sink).await;
+    let mut up =
+        match (pq.part, current) {
+            (0, old) => {
+                if let Some(old) = old {
+                    abort(old.sink).await;
+                }
+                let sink =
+                    if st.storage.has_nodes() {
+                        let (node_id, link) = st.storage.pick_for(pq.size.unwrap_or(0)).ok_or(
+                            AppError::Unavailable("nessun server di archivio con spazio collegato"),
+                        )?;
+                        Sink::Stored {
+                            node: node_id,
+                            link,
+                            blob: Uuid::new_v4().to_string(),
+                            hasher: Sha256::new(),
+                        }
+                    } else {
+                        let tmp = tmp_path(&st, &q, &output);
+                        let file = tokio::fs::File::create(&tmp).await?;
+                        Sink::Local { tmp, file }
+                    };
+                BigUpload {
+                    next: 0,
+                    chunk: 0,
+                    plain: 0,
+                    sink,
+                }
             }
-            let sink = if st.storage.has_nodes() {
-                let (node_id, link) = st
-                    .storage
-                    .pick_for(pq.size.unwrap_or(0))
-                    .ok_or(AppError::Unavailable("nessun server di archivio con spazio collegato"))?;
-                Sink::Stored { node: node_id, link, blob: Uuid::new_v4().to_string(), hasher: Sha256::new() }
-            } else {
-                let tmp = tmp_path(&st, &q, &output);
-                let file = tokio::fs::File::create(&tmp).await?;
-                Sink::Local { tmp, file }
-            };
-            BigUpload { next: 0, chunk: 0, plain: 0, sink }
-        }
-        (part, Some(cur)) if cur.next == part => cur,
-        (_, cur) => {
-            let next = cur.as_ref().map(|c| c.next).unwrap_or(0);
-            if let Some(cur) = cur {
-                st.ops.bigs.lock().await.insert(key, cur);
+            (part, Some(cur)) if cur.next == part => cur,
+            (_, cur) => {
+                let next = cur.as_ref().map(|c| c.next).unwrap_or(0);
+                if let Some(cur) = cur {
+                    st.ops.bigs.lock().await.insert(key, cur);
+                }
+                return Ok((StatusCode::CONFLICT, Json(BigState { next })).into_response());
             }
-            return Ok((StatusCode::CONFLICT, Json(BigState { next })).into_response());
-        }
-    };
+        };
     let res = write_part(&st, &mut up, &body).await;
     match res {
         Ok(()) => {
@@ -202,7 +241,9 @@ pub async fn put_output(
         Err(e) => {
             abort(up.sink).await;
             tracing::warn!("operazioni: invio di {output} interrotto: {e}");
-            Err(AppError::Unavailable("invio al server di archivio non riuscito: riprova"))
+            Err(AppError::Unavailable(
+                "invio al server di archivio non riuscito: riprova",
+            ))
         }
     }
 }
@@ -213,14 +254,20 @@ async fn write_part(st: &AppState, up: &mut BigUpload, body: &[u8]) -> Result<()
             use tokio::io::AsyncWriteExt;
             file.write_all(body).await.map_err(|e| e.to_string())
         }
-        Sink::Stored { link, blob, hasher, .. } => {
+        Sink::Stored {
+            link, blob, hasher, ..
+        } => {
             let cipher = st.storage.cipher(blob);
             let sem = Arc::new(tokio::sync::Semaphore::new(PARALLEL_PUTS));
             let mut tasks = tokio::task::JoinSet::new();
             for piece in body.chunks(PLAIN_CHUNK as usize) {
                 let sealed = cipher.seal(up.chunk, piece);
                 hasher.update(&sealed);
-                let permit = sem.clone().acquire_owned().await.map_err(|e| e.to_string())?;
+                let permit = sem
+                    .clone()
+                    .acquire_owned()
+                    .await
+                    .map_err(|e| e.to_string())?;
                 let (link, blob, offset) = (link.clone(), blob.clone(), cipher_offset(up.chunk));
                 tasks.spawn(async move {
                     let r = link.request(&Request::Put { blob, offset }, &sealed).await;
@@ -240,23 +287,50 @@ async fn write_part(st: &AppState, up: &mut BigUpload, body: &[u8]) -> Result<()
 async fn place(st: &AppState, q: &Queued, output: &str) -> Result<(), String> {
     let path = out_path(st, q, output).ok_or("risultato sconosciuto")?;
     if let Some(parent) = path.parent() {
-        tokio::fs::create_dir_all(parent).await.map_err(|e| e.to_string())?;
+        tokio::fs::create_dir_all(parent)
+            .await
+            .map_err(|e| e.to_string())?;
     }
     if !ops::is_big(output) {
         let tmp = tmp_path(st, q, output);
-        return tokio::fs::rename(&tmp, &path).await.map_err(|_| format!("{output} non ricevuto"));
+        return tokio::fs::rename(&tmp, &path)
+            .await
+            .map_err(|_| format!("{output} non ricevuto"));
     }
-    let up = st.ops.bigs.lock().await.remove(&(q.job.id, output.to_string())).ok_or(format!("{output} non ricevuto"))?;
+    let up = st
+        .ops
+        .bigs
+        .lock()
+        .await
+        .remove(&(q.job.id, output.to_string()))
+        .ok_or(format!("{output} non ricevuto"))?;
     match up.sink {
         Sink::Local { tmp, mut file } => {
             use tokio::io::AsyncWriteExt;
             file.flush().await.map_err(|e| e.to_string())?;
             drop(file);
-            tokio::fs::rename(&tmp, &path).await.map_err(|e| e.to_string())
+            tokio::fs::rename(&tmp, &path)
+                .await
+                .map_err(|e| e.to_string())
         }
-        Sink::Stored { node, link, blob, hasher } => {
+        Sink::Stored {
+            node,
+            link,
+            blob,
+            hasher,
+        } => {
             let sha = hex::encode(hasher.finalize());
-            match link.request(&Request::Commit { blob: blob.clone(), size: cipher_len(up.plain), sha256: sha.clone() }, &[]).await {
+            match link
+                .request(
+                    &Request::Commit {
+                        blob: blob.clone(),
+                        size: cipher_len(up.plain),
+                        sha256: sha.clone(),
+                    },
+                    &[],
+                )
+                .await
+            {
                 Ok(NodeResponse::Ok) => {}
                 Ok(other) => return Err(format!("risposta inattesa dall'archivio: {other:?}")),
                 Err(e) => return Err(e),
@@ -269,7 +343,15 @@ async fn place(st: &AppState, q: &Queued, output: &str) -> Result<(), String> {
 }
 
 async fn cleanup(st: &AppState, q: &Queued) {
-    let keys: Vec<(Uuid, String)> = st.ops.bigs.lock().await.keys().filter(|k| k.0 == q.job.id).cloned().collect();
+    let keys: Vec<(Uuid, String)> = st
+        .ops
+        .bigs
+        .lock()
+        .await
+        .keys()
+        .filter(|k| k.0 == q.job.id)
+        .cloned()
+        .collect();
     for k in keys {
         if let Some(up) = st.ops.bigs.lock().await.remove(&k) {
             abort(up.sink).await;
@@ -286,12 +368,21 @@ async fn cleanup(st: &AppState, q: &Queued) {
     }
 }
 
-pub async fn finish(State(st): St, headers: HeaderMap, Path(id): Path<Uuid>, Json(f): Json<Finish>) -> Result<StatusCode, AppError> {
+pub async fn finish(
+    State(st): St,
+    headers: HeaderMap,
+    Path(id): Path<Uuid>,
+    Json(f): Json<Finish>,
+) -> Result<StatusCode, AppError> {
     let node = node_of(&st, &headers)?;
     let q = st.ops.leased(&node, id).ok_or(AppError::NotFound)?;
     if !f.ok {
         cleanup(&st, &q).await;
-        st.ops.failed(&node, id, f.error.as_deref().unwrap_or("errore sconosciuto"));
+        st.ops.failed(
+            &node,
+            id,
+            f.error.as_deref().unwrap_or("errore sconosciuto"),
+        );
         if let JobKind::Match { match_id, player } = &q.job.kind {
             st.set_processing(*match_id, player, "queue", 0);
         }
@@ -301,7 +392,9 @@ pub async fn finish(State(st): St, headers: HeaderMap, Path(id): Path<Uuid>, Jso
         if let Err(e) = place(&st, &q, output).await {
             cleanup(&st, &q).await;
             st.ops.failed(&node, id, &e);
-            return Err(AppError::Unavailable("risultati non salvati: il lavoro verra' ripetuto"));
+            return Err(AppError::Unavailable(
+                "risultati non salvati: il lavoro verra' ripetuto",
+            ));
         }
     }
     cleanup(&st, &q).await;
@@ -318,7 +411,12 @@ pub async fn finish(State(st): St, headers: HeaderMap, Path(id): Path<Uuid>, Jso
             let clips = st.ops.abs(&q.dir);
             let _ = tokio::fs::remove_file(clips.join(format!("{clip}.src.ts"))).await;
             if let Some(user_dir) = clips.parent() {
-                crate::songlib::clip_processed(user_dir, *clip, f.outputs.iter().any(|o| o == ops::OUT_THUMB)).await;
+                crate::songlib::clip_processed(
+                    user_dir,
+                    *clip,
+                    f.outputs.iter().any(|o| o == ops::OUT_THUMB),
+                )
+                .await;
             }
         }
     }
@@ -326,7 +424,10 @@ pub async fn finish(State(st): St, headers: HeaderMap, Path(id): Path<Uuid>, Jso
     Ok(StatusCode::NO_CONTENT)
 }
 
-pub async fn status(State(st): St, AuthUser(user): AuthUser) -> Result<Json<serde_json::Value>, AppError> {
+pub async fn status(
+    State(st): St,
+    AuthUser(user): AuthUser,
+) -> Result<Json<serde_json::Value>, AppError> {
     admin(&st, &user)?;
     let live = st.ops.live.lock().unwrap().clone();
     let jobs = st.ops.jobs();
@@ -393,18 +494,30 @@ pub struct NodePatch {
     auto: bool,
 }
 
-pub async fn add_node(State(st): St, AuthUser(user): AuthUser, Json(input): Json<NewNode>) -> Result<Json<serde_json::Value>, AppError> {
+pub async fn add_node(
+    State(st): St,
+    AuthUser(user): AuthUser,
+    Json(input): Json<NewNode>,
+) -> Result<Json<serde_json::Value>, AppError> {
     admin(&st, &user)?;
-    let name = relay_common::clean_name(&input.name).ok_or(AppError::BadRequest("nome non valido"))?;
+    let name =
+        relay_common::clean_name(&input.name).ok_or(AppError::BadRequest("nome non valido"))?;
     let first = !st.ops.enabled();
     let (node, key) = st.ops.add_node(&name);
     if first {
         tokio::spawn(crate::finalize::resume_all(st.clone()));
     }
-    Ok(Json(serde_json::json!({ "id": node.id, "name": node.name, "key": key })))
+    Ok(Json(
+        serde_json::json!({ "id": node.id, "name": node.name, "key": key }),
+    ))
 }
 
-pub async fn update_node(State(st): St, AuthUser(user): AuthUser, Path(id): Path<String>, Json(p): Json<NodePatch>) -> Result<StatusCode, AppError> {
+pub async fn update_node(
+    State(st): St,
+    AuthUser(user): AuthUser,
+    Path(id): Path<String>,
+    Json(p): Json<NodePatch>,
+) -> Result<StatusCode, AppError> {
     admin(&st, &user)?;
     if let Some(name) = &p.name {
         let name = relay_common::clean_name(name).ok_or(AppError::BadRequest("nome non valido"))?;
@@ -421,13 +534,21 @@ pub async fn update_node(State(st): St, AuthUser(user): AuthUser, Path(id): Path
     Ok(StatusCode::NO_CONTENT)
 }
 
-pub async fn rotate_key(State(st): St, AuthUser(user): AuthUser, Path(id): Path<String>) -> Result<Json<serde_json::Value>, AppError> {
+pub async fn rotate_key(
+    State(st): St,
+    AuthUser(user): AuthUser,
+    Path(id): Path<String>,
+) -> Result<Json<serde_json::Value>, AppError> {
     admin(&st, &user)?;
     let key = st.ops.rotate_key(&id).ok_or(AppError::NotFound)?;
     Ok(Json(serde_json::json!({ "key": key })))
 }
 
-pub async fn remove_node(State(st): St, AuthUser(user): AuthUser, Path(id): Path<String>) -> Result<StatusCode, AppError> {
+pub async fn remove_node(
+    State(st): St,
+    AuthUser(user): AuthUser,
+    Path(id): Path<String>,
+) -> Result<StatusCode, AppError> {
     admin(&st, &user)?;
     if !st.ops.remove_node(&id) {
         return Err(AppError::NotFound);
@@ -445,7 +566,13 @@ pub async fn retry(State(st): St, AuthUser(user): AuthUser) -> Result<StatusCode
 }
 
 pub async fn install_script() -> impl IntoResponse {
-    ([(header::CONTENT_TYPE, "text/x-shellscript; charset=utf-8"), (header::CACHE_CONTROL, "no-cache")], INSTALL_SH)
+    (
+        [
+            (header::CONTENT_TYPE, "text/x-shellscript; charset=utf-8"),
+            (header::CACHE_CONTROL, "no-cache"),
+        ],
+        INSTALL_SH,
+    )
 }
 
 const INSTALL_SH: &str = include_str!("install.sh");

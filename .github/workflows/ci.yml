@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -24,6 +25,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+          targets: i686-pc-windows-msvc
       - uses: Swatinem/rust-cache@v2
       - uses: FedericoCarboni/setup-ffmpeg@v3
       - name: Formattazione
@@ -34,9 +36,32 @@ jobs:
         run: cargo test --workspace
       - name: Build release
         run: cargo build --workspace --release
+      - name: Aggancio a 32 bit (DLL, iniettore, layer Vulkan)
+        run: |
+          cargo build --release --target i686-pc-windows-msvc -p relay-hook -p relay-inject -p relay-vk-layer
+          cargo test --release --target i686-pc-windows-msvc -p relay-hook-protocol --lib
+      - name: Pacchetto di registrazione
+        shell: pwsh
+        run: |
+          $out = 'dist/capture-runtime'
+          New-Item -ItemType Directory -Force -Path "$out/hooks/x64", "$out/hooks/x86" | Out-Null
+          Copy-Item target/release/relay-capture.exe $out
+          foreach ($f in 'relay_hook.dll', 'relay-inject.exe', 'relay_vk_layer.dll') {
+            Copy-Item "target/release/$f" "$out/hooks/x64"
+            Copy-Item "target/i686-pc-windows-msvc/release/$f" "$out/hooks/x86"
+          }
+          Copy-Item client/capture/vk-layer/relay-vk-layer.json "$out/hooks/x64"
+          Copy-Item client/capture/vk-layer/relay-vk-layer.json "$out/hooks/x86"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: relay-windows
+          path: |
+            target/release/relay-app.exe
+            dist/capture-runtime
+          retention-days: 14
 
   rust-linux:
-    name: Server (Linux)
+    name: Server e programmi Linux
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -45,9 +70,17 @@ jobs:
       - name: ffmpeg
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - name: Test
-        run: cargo test -p relay-common -p relay-server
+        run: cargo test -p relay-common -p relay-server -p relay-storage -p relay-ops
       - name: Build release
-        run: cargo build --release -p relay-server
+        run: cargo build --release -p relay-server -p relay-storage -p relay-ops
+      - uses: actions/upload-artifact@v4
+        with:
+          name: relay-linux
+          path: |
+            target/release/relay-server
+            target/release/relay-storage
+            target/release/relay-ops
+          retention-days: 14
 
   web:
     name: Sito (Next.js)

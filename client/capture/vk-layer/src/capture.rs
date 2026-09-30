@@ -21,8 +21,12 @@ pub struct Capture {
     queue: Option<vk::Queue>,
 }
 impl Capture {
-    pub fn uses_queue(&self,queue:vk::Queue)->bool{self.queue.is_none_or(|q|q==queue)}
-    pub fn supports_family(&self,family:u32)->bool{self.family==family}
+    pub fn uses_queue(&self, queue: vk::Queue) -> bool {
+        self.queue.is_none_or(|q| q == queue)
+    }
+    pub fn supports_family(&self, family: u32) -> bool {
+        self.family == family
+    }
     pub unsafe fn new(s: &Device, info: &SwapInfo, family: u32, luid: u64) -> Result<Self> {
         let mut ids = vk::PhysicalDeviceIDProperties::default();
         let mut props = vk::PhysicalDeviceProperties2::default().push_next(&mut ids);
@@ -64,7 +68,7 @@ impl Capture {
             frames: Vec::new(),
             info: info.clone(),
             family,
-            queue:None,
+            queue: None,
         };
         let handle_type = vk::ExternalMemoryHandleTypeFlags::D3D11_TEXTURE;
         let vk_format = if format == DXGI_FORMAT_B8G8R8A8_UNORM {
@@ -177,8 +181,8 @@ impl Capture {
         waits: &[vk::Semaphore],
         channel: &Channel,
     ) -> Result<Option<vk::Semaphore>> {
-        ensure!(self.uses_queue(queue),"coda di presentazione cambiata");
-        self.queue=Some(queue);
+        ensure!(self.uses_queue(queue), "coda di presentazione cambiata");
+        self.queue = Some(queue);
         for f in &self.frames {
             if !self.device.get_fence_status(f.fence)? {
                 return Ok(None);

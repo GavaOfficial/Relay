@@ -1,4 +1,5 @@
 #![cfg(windows)]
+#![allow(clippy::missing_safety_doc)]
 mod d3d10;
 mod d3d12;
 mod d3d9;

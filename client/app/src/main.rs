@@ -4,13 +4,13 @@ mod capture;
 mod core;
 mod ffmpeg;
 mod fnf;
+mod funkin;
 mod gd;
 mod kade;
 mod modname;
-mod funkin;
+mod overlay;
 mod psych;
 mod scan;
-mod overlay;
 mod songclip;
 mod updater;
 
@@ -215,7 +215,11 @@ fn fnf_folders(core: St) -> Vec<String> {
 #[tauri::command]
 async fn fnf_pick_folder(title: Option<String>) -> Res<Option<String>> {
     let folder = rfd::AsyncFileDialog::new()
-        .set_title(title.as_deref().unwrap_or("Cartella del gioco Codename Engine"))
+        .set_title(
+            title
+                .as_deref()
+                .unwrap_or("Cartella del gioco Codename Engine"),
+        )
         .pick_folder()
         .await;
     Ok(folder.map(|f| f.path().to_string_lossy().into_owned()))

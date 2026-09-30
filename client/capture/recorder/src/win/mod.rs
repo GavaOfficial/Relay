@@ -8,8 +8,8 @@ pub mod engine;
 pub mod hook;
 pub mod probe;
 pub mod source;
-pub mod window;
 pub mod timing;
+pub mod window;
 
 pub struct Unsync<T>(pub T);
 

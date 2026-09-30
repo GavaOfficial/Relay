@@ -40,7 +40,8 @@ pub fn game_version(game_dir: &Path) -> Option<String> {
     text.lines().find_map(|l| {
         let v = l.trim().strip_prefix("## [")?.split(']').next()?.trim();
         let ok = v.split('.').count() == 3
-            && v.split('.').all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_digit()));
+            && v.split('.')
+                .all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_digit()));
         ok.then(|| v.to_string())
     })
 }
@@ -62,7 +63,9 @@ fn is_game_dir(dir: &Path) -> bool {
 
 fn install(game_dir: &Path) -> Result<(), String> {
     if !is_game_dir(game_dir) {
-        return Err("Non sembra la cartella di Friday Night Funkin': scegli quella con Funkin.exe.".into());
+        return Err(
+            "Non sembra la cartella di Friday Night Funkin': scegli quella con Funkin.exe.".into(),
+        );
     }
     let version = game_version(game_dir).unwrap_or_else(|| "0.8.0".into());
     let meta = json!({
@@ -76,7 +79,12 @@ fn install(game_dir: &Path) -> Result<(), String> {
     let dir = game_dir.join("mods").join(MOD_DIR);
     let meta = serde_json::to_string_pretty(&meta).map_err(|e| e.to_string())?;
     write_if_changed(&dir.join("_polymod_meta.json"), &meta)
-        .and_then(|_| write_if_changed(&dir.join("scripts").join("RelayIntegration.hxc"), MODULE_HXC))
+        .and_then(|_| {
+            write_if_changed(
+                &dir.join("scripts").join("RelayIntegration.hxc"),
+                MODULE_HXC,
+            )
+        })
         .and_then(|_| std::fs::create_dir_all(game_dir.join("relay")))
         .map_err(|e| format!("non riesco a installare la mod di Relay: {e}"))
 }
@@ -142,7 +150,10 @@ fn sources(game_dir: &Path) -> Vec<Source> {
         (BASE_GAME.to_string(), "Friday Night Funkin'".to_string())
     } else {
         let folder = crate::modname::folder_name(&game_dir.to_string_lossy());
-        (crate::modname::game_name(game_dir), crate::modname::strip_version(&folder))
+        (
+            crate::modname::game_name(game_dir),
+            crate::modname::strip_version(&folder),
+        )
     };
     let mut out = vec![Source {
         name,
@@ -172,8 +183,8 @@ pub fn mod_for(game_dir: &Path, song_id: &str, variation: Option<&str>) -> (Stri
     sources(game_dir)
         .into_iter()
         .skip(1)
-        .filter(|s| metadata_path(&s.dir, song_id, variation.as_deref()).is_file())
-        .last()
+        .rev()
+        .find(|s| metadata_path(&s.dir, song_id, variation.as_deref()).is_file())
         .map(|s| identity(&s))
         .unwrap_or_else(|| identity(&sources(game_dir)[0]))
 }
@@ -182,7 +193,11 @@ fn identity(src: &Source) -> (String, Vec<String>) {
     let Some(meta) = &src.meta else {
         return (src.name.clone(), Vec::new());
     };
-    let title = meta["title"].as_str().map(str::trim).filter(|t| !t.is_empty()).unwrap_or(&src.name);
+    let title = meta["title"]
+        .as_str()
+        .map(str::trim)
+        .filter(|t| !t.is_empty())
+        .unwrap_or(&src.name);
     let name = crate::modname::strip_version(title);
     let aliases = crate::modname::aliases(&name, &[&src.name]);
     (name, aliases)
@@ -223,7 +238,11 @@ fn song_order(all: &[Source]) -> HashMap<String, (usize, usize)> {
             .filter(|p| p.extension().is_some_and(|x| x == "json"))
             .collect();
         levels.sort_by_key(|p| {
-            let stem = p.file_stem().unwrap_or_default().to_string_lossy().to_lowercase();
+            let stem = p
+                .file_stem()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_lowercase();
             (stem != "tutorial", natural_key(&stem))
         });
         for level in levels {
@@ -250,9 +269,17 @@ fn variation_rank(v: Option<&str>) -> u8 {
 
 fn metadata_files(dir: &Path) -> Vec<(String, Option<String>, PathBuf)> {
     let mut out = Vec::new();
-    for song in std::fs::read_dir(dir.join("data").join("songs")).into_iter().flatten().flatten() {
+    for song in std::fs::read_dir(dir.join("data").join("songs"))
+        .into_iter()
+        .flatten()
+        .flatten()
+    {
         let id = song.file_name().to_string_lossy().into_owned();
-        for file in std::fs::read_dir(song.path()).into_iter().flatten().flatten() {
+        for file in std::fs::read_dir(song.path())
+            .into_iter()
+            .flatten()
+            .flatten()
+        {
             let name = file.file_name().to_string_lossy().into_owned();
             let Some(rest) = name.strip_prefix(&format!("{id}-metadata")) else {
                 continue;
@@ -307,7 +334,12 @@ pub(crate) struct Built {
     pub aliases: Vec<String>,
 }
 
-fn build_catalog(src: &Source, base_dir: &Path, order: &HashMap<String, (usize, usize)>, version: Option<&str>) -> Built {
+fn build_catalog(
+    src: &Source,
+    base_dir: &Path,
+    order: &HashMap<String, (usize, usize)>,
+    version: Option<&str>,
+) -> Built {
     let mut assets = Vec::new();
     let mut tracks: Vec<((usize, usize), u8, String, Value)> = Vec::new();
     for (id, variation, path) in metadata_files(&src.dir) {
@@ -320,12 +352,20 @@ fn build_catalog(src: &Source, base_dir: &Path, order: &HashMap<String, (usize, 
         let play = &meta["playData"];
         let strings = |v: &Value| -> Vec<String> {
             v.as_array()
-                .map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect())
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|x| x.as_str().map(String::from))
+                        .collect()
+                })
                 .unwrap_or_default()
         };
         let ratings: BTreeMap<String, u64> = play["ratings"]
             .as_object()
-            .map(|o| o.iter().filter_map(|(k, v)| Some((k.clone(), v.as_u64()?))).collect())
+            .map(|o| {
+                o.iter()
+                    .filter_map(|(k, v)| Some((k.clone(), v.as_u64()?)))
+                    .collect()
+            })
             .unwrap_or_default();
         let track = json!({
             "id": id,
@@ -353,12 +393,20 @@ fn build_catalog(src: &Source, base_dir: &Path, order: &HashMap<String, (usize, 
         album_ids.sort_by_key(|a| album_rank(a));
     }
     let find = |rel: &Path| -> Option<PathBuf> {
-        [src.dir.join(rel), base_dir.join(rel)].into_iter().find(|p| p.is_file())
+        [src.dir.join(rel), base_dir.join(rel)]
+            .into_iter()
+            .find(|p| p.is_file())
     };
     let mut albums = Vec::new();
     for id in album_ids {
-        let rel = Path::new("data").join("ui").join("freeplay").join("albums").join(format!("{id}.json"));
-        let data = find(&rel).and_then(|p| read_json(&p)).unwrap_or(Value::Null);
+        let rel = Path::new("data")
+            .join("ui")
+            .join("freeplay")
+            .join("albums")
+            .join(format!("{id}.json"));
+        let data = find(&rel)
+            .and_then(|p| read_json(&p))
+            .unwrap_or(Value::Null);
         let art = data["albumArtAsset"]
             .as_str()
             .and_then(|a| find(&Path::new("images").join(format!("{a}.png"))))
@@ -378,8 +426,8 @@ fn build_catalog(src: &Source, base_dir: &Path, order: &HashMap<String, (usize, 
 
     let meta = src.meta.clone().unwrap_or(Value::Null);
     let icon = src.dir.join("_polymod_icon.png");
-    let has_icon = src.meta.is_some()
-        && std::fs::metadata(&icon).is_ok_and(|m| m.len() <= MAX_ASSET_BYTES);
+    let has_icon =
+        src.meta.is_some() && std::fs::metadata(&icon).is_ok_and(|m| m.len() <= MAX_ASSET_BYTES);
     if has_icon {
         assets.push(("icon.png".into(), icon));
     }
@@ -402,7 +450,11 @@ fn build_catalog(src: &Source, base_dir: &Path, order: &HashMap<String, (usize, 
         "albums": albums,
         "tracks": tracks.into_iter().map(|t| t.3).collect::<Vec<_>>(),
     });
-    Built { catalog, assets, aliases: identity(src).1 }
+    Built {
+        catalog,
+        assets,
+        aliases: identity(src).1,
+    }
 }
 
 fn fingerprint(built: &Built) -> String {
@@ -431,9 +483,10 @@ fn sync_lock() -> &'static tokio::sync::Mutex<()> {
 
 async fn sync_catalogs(core: &Arc<Core>, game_dir: &Path) {
     let dir = game_dir.to_path_buf();
-    let primary = list_folders(&core.data_dir()).into_iter().find(|f| is_official(Path::new(f)));
-    let skip_base = is_official(game_dir)
-        && primary.is_some_and(|p| !Path::new(&p).eq(game_dir));
+    let primary = list_folders(&core.data_dir())
+        .into_iter()
+        .find(|f| is_official(Path::new(f)));
+    let skip_base = is_official(game_dir) && primary.is_some_and(|p| !Path::new(&p).eq(game_dir));
     let Ok(builts) = tokio::task::spawn_blocking(move || {
         let all: Vec<Source> = sources(&dir)
             .into_iter()
@@ -445,7 +498,12 @@ async fn sync_catalogs(core: &Arc<Core>, game_dir: &Path) {
         let version = game_version(&dir);
         let base_dir = dir.join("assets");
         all.iter()
-            .map(|s| (identity(s).0, build_catalog(s, &base_dir, &order, version.as_deref())))
+            .map(|s| {
+                (
+                    identity(s).0,
+                    build_catalog(s, &base_dir, &order, version.as_deref()),
+                )
+            })
             .collect::<Vec<_>>()
     })
     .await
@@ -455,7 +513,12 @@ async fn sync_catalogs(core: &Arc<Core>, game_dir: &Path) {
     upload_changed(core, "funkin", game_dir, builts).await;
 }
 
-pub(crate) async fn upload_changed(core: &Arc<Core>, engine: &str, game_dir: &Path, builts: Vec<(String, Built)>) {
+pub(crate) async fn upload_changed(
+    core: &Arc<Core>,
+    engine: &str,
+    game_dir: &Path,
+    builts: Vec<(String, Built)>,
+) {
     let _guard = sync_lock().lock().await;
     let base = core.data_dir();
     let mut done: HashMap<String, String> = std::fs::read_to_string(sync_path(&base))
@@ -492,7 +555,12 @@ pub(crate) async fn upload_changed(core: &Arc<Core>, engine: &str, game_dir: &Pa
     }
 }
 
-async fn upload_catalog(core: &Arc<Core>, engine: &str, name: &str, built: &Built) -> Result<(), String> {
+async fn upload_catalog(
+    core: &Arc<Core>,
+    engine: &str,
+    name: &str,
+    built: &Built,
+) -> Result<(), String> {
     let resp = core
         .call(
             Method::PUT,
@@ -504,11 +572,18 @@ async fn upload_catalog(core: &Arc<Core>, engine: &str, name: &str, built: &Buil
         return Err(format!("catalogo rifiutato ({})", resp.status()));
     }
     let key: Value = resp.json().await.map_err(|e| e.to_string())?;
-    let key = key["key"].as_str().ok_or("risposta senza chiave")?.to_string();
+    let key = key["key"]
+        .as_str()
+        .ok_or("risposta senza chiave")?
+        .to_string();
     for (asset, path) in &built.assets {
         let bytes = tokio::fs::read(path).await.map_err(|e| e.to_string())?;
         let resp = core
-            .call_bytes(Method::PUT, &format!("/api/{engine}/mods/{key}/assets/{asset}"), bytes)
+            .call_bytes(
+                Method::PUT,
+                &format!("/api/{engine}/mods/{key}/assets/{asset}"),
+                bytes,
+            )
             .await?;
         if !resp.status().is_success() {
             tracing::debug!("immagine {asset} di {name} rifiutata ({})", resp.status());
@@ -521,23 +596,45 @@ async fn upload_catalog(core: &Arc<Core>, engine: &str, name: &str, built: &Buil
 const KNOWN_GAMEBANANA: &[(&str, &str, &str)] = &[
     ("nmv", "impostorlegacy", "https://gamebanana.com/mods/55652"),
     ("psych", "mario", "https://gamebanana.com/mods/359554"),
-    ("psych", "pibby-apocalypse", "https://gamebanana.com/wips/73842"),
-    ("psych", "wii-funkin-vs-matt", "https://gamebanana.com/mods/44511"),
-    ("kade", "indie-cross", "https://gamejolt.com/games/indiecross/643540"),
+    (
+        "psych",
+        "pibby-apocalypse",
+        "https://gamebanana.com/wips/73842",
+    ),
+    (
+        "psych",
+        "wii-funkin-vs-matt",
+        "https://gamebanana.com/mods/44511",
+    ),
+    (
+        "kade",
+        "indie-cross",
+        "https://gamejolt.com/games/indiecross/643540",
+    ),
 ];
 
 async fn link_known_gamebanana(core: &Arc<Core>, engine: &str, key: &str) {
-    let Some((_, _, url)) = KNOWN_GAMEBANANA.iter().find(|(e, k, _)| *e == engine && *k == key) else {
+    let Some((_, _, url)) = KNOWN_GAMEBANANA
+        .iter()
+        .find(|(e, k, _)| *e == engine && *k == key)
+    else {
         return;
     };
-    let Ok(detail) = core.json::<Value>(Method::GET, &format!("/api/{engine}/mods/{key}"), None).await else {
+    let Ok(detail) = core
+        .json::<Value>(Method::GET, &format!("/api/{engine}/mods/{key}"), None)
+        .await
+    else {
         return;
     };
     if detail["mod"]["gamebanana_url"].is_string() {
         return;
     }
     match core
-        .call(Method::POST, &format!("/api/{engine}/mods/{key}/gamebanana"), Some(json!({ "url": url })))
+        .call(
+            Method::POST,
+            &format!("/api/{engine}/mods/{key}/gamebanana"),
+            Some(json!({ "url": url })),
+        )
         .await
     {
         Ok(r) if r.status().is_success() => tracing::info!("{key}: collegata a GameBanana ({url})"),
@@ -576,7 +673,9 @@ pub fn spawn(core: Arc<Core>) {
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(Duration::from_secs(5)).await;
         loop {
-            let open = tokio::task::spawn_blocking(game_is_open).await.unwrap_or(true);
+            let open = tokio::task::spawn_blocking(game_is_open)
+                .await
+                .unwrap_or(true);
             for folder in list_folders(&core.data_dir()) {
                 let dir = PathBuf::from(&folder);
                 if let Err(e) = install(&dir) {
@@ -644,14 +743,35 @@ mod tests {
         let g = game.path();
         let meta = r#"{"songName":"Bopeebo","artist":"Kawai Sprite","timeChanges":[{"bpm":100}],
             "playData":{"album":"volume1","difficulties":["easy","hard"],"ratings":{"hard":2}}}"#;
-        write(g.join("assets/data/songs/bopeebo/bopeebo-metadata.json"), meta);
-        write(g.join("assets/data/songs/bopeebo/bopeebo-metadata-erect.json"), meta);
+        write(
+            g.join("assets/data/songs/bopeebo/bopeebo-metadata.json"),
+            meta,
+        );
+        write(
+            g.join("assets/data/songs/bopeebo/bopeebo-metadata-erect.json"),
+            meta,
+        );
         write(g.join("assets/data/songs/test/test-metadata.json"), meta);
-        write(g.join("assets/data/levels/week1.json"), r#"{"songs":["bopeebo"]}"#);
-        write(g.join("assets/data/ui/freeplay/albums/volume1.json"), r#"{"name":"Volume 1","albumArtAsset":"freeplay/albumRoll/volume1"}"#);
-        write(g.join("assets/images/freeplay/albumRoll/volume1.png"), "png");
-        write(g.join("mods/Haniel/_polymod_meta.json"), r#"{"title":"FNF: Haniel","contributors":[{"name":"H"}]}"#);
-        write(g.join("mods/Haniel/data/songs/bopeebo/bopeebo-metadata-haniel.json"), meta);
+        write(
+            g.join("assets/data/levels/week1.json"),
+            r#"{"songs":["bopeebo"]}"#,
+        );
+        write(
+            g.join("assets/data/ui/freeplay/albums/volume1.json"),
+            r#"{"name":"Volume 1","albumArtAsset":"freeplay/albumRoll/volume1"}"#,
+        );
+        write(
+            g.join("assets/images/freeplay/albumRoll/volume1.png"),
+            "png",
+        );
+        write(
+            g.join("mods/Haniel/_polymod_meta.json"),
+            r#"{"title":"FNF: Haniel","contributors":[{"name":"H"}]}"#,
+        );
+        write(
+            g.join("mods/Haniel/data/songs/bopeebo/bopeebo-metadata-haniel.json"),
+            meta,
+        );
         write(g.join("mods/relay-integration/_polymod_meta.json"), "{}");
         write(g.join("Funkin.exe"), "");
 
@@ -668,7 +788,11 @@ mod tests {
         let order = song_order(&all);
         let base = build_catalog(&all[0], &g.join("assets"), &order, Some("0.8.6"));
         let tracks = base.catalog["tracks"].as_array().unwrap();
-        assert_eq!(tracks.len(), 2, "la canzone di prova fuori dalle settimane resta fuori");
+        assert_eq!(
+            tracks.len(),
+            2,
+            "la canzone di prova fuori dalle settimane resta fuori"
+        );
         assert_eq!(tracks[0]["variation"], Value::Null);
         assert_eq!(tracks[1]["variation"], "erect");
         assert_eq!(base.catalog["albums"][0]["art"], "album-volume1.png");
@@ -677,6 +801,10 @@ mod tests {
         let haniel = build_catalog(&all[1], &g.join("assets"), &order, None);
         assert_eq!(haniel.catalog["title"], "FNF: Haniel");
         assert_eq!(haniel.catalog["tracks"][0]["variation"], "haniel");
-        assert_eq!(haniel.assets.len(), 1, "l'album del gioco base usato dalla mod ha la sua copertina");
+        assert_eq!(
+            haniel.assets.len(),
+            1,
+            "l'album del gioco base usato dalla mod ha la sua copertina"
+        );
     }
 }

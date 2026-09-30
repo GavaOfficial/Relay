@@ -6,7 +6,10 @@ pub const BIG_REQUEST: u64 = 32 * crate::storage::PLAIN_CHUNK;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum JobKind {
-    Match { match_id: Uuid, player: String },
+    Match {
+        match_id: Uuid,
+        player: String,
+    },
     Clip {
         engine: String,
         clip: Uuid,
@@ -86,7 +89,9 @@ pub fn valid_input_name(name: &str) -> bool {
     !name.is_empty()
         && name.len() <= 64
         && !name.starts_with('.')
-        && name.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'))
+        && name
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'))
 }
 
 #[cfg(test)]
@@ -97,8 +102,16 @@ mod tests {
     fn jobs_round_trip_as_flat_json() {
         let job = Job {
             id: Uuid::nil(),
-            kind: JobKind::Clip { engine: "psych".into(), clip: Uuid::nil(), offset_secs: 1.5, duration_secs: 90.0 },
-            inputs: vec![InputFile { name: "source.ts".into(), size: 10 }],
+            kind: JobKind::Clip {
+                engine: "psych".into(),
+                clip: Uuid::nil(),
+                offset_secs: 1.5,
+                duration_secs: 90.0,
+            },
+            inputs: vec![InputFile {
+                name: "source.ts".into(),
+                size: 10,
+            }],
             threads: 4,
         };
         let text = serde_json::to_string(&job).unwrap();

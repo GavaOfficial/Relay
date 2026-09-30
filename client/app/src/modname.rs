@@ -6,10 +6,16 @@ pub fn strip_version(name: &str) -> String {
     loop {
         let before = s.clone();
         let t = s.trim_end();
-        if let Some(open) = t.ends_with([']', ')']).then(|| t.rfind(['[', '('])).flatten() {
+        if let Some(open) = t
+            .ends_with([']', ')'])
+            .then(|| t.rfind(['[', '(']))
+            .flatten()
+        {
             let inside = &t[open + 1..t.len() - 1];
             if inside.chars().any(|c| c.is_ascii_digit())
-                && inside.chars().all(|c| c.is_ascii_digit() || matches!(c, '.' | 'v' | 'V' | ' '))
+                && inside
+                    .chars()
+                    .all(|c| c.is_ascii_digit() || matches!(c, '.' | 'v' | 'V' | ' '))
             {
                 s = t[..open].to_string();
             }
@@ -48,9 +54,21 @@ pub fn folder_name(folder: &str) -> String {
 }
 
 fn generic_exe(stem: &str) -> bool {
-    let s: String = stem.to_lowercase().chars().filter(|c| c.is_ascii_alphanumeric()).collect();
+    let s: String = stem
+        .to_lowercase()
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .collect();
     s.contains("engine")
-        || ["fridaynightfunkin", "funkin", "fnf", "game", "nightmarevision", "flixelcrashhandler"].contains(&s.as_str())
+        || [
+            "fridaynightfunkin",
+            "funkin",
+            "fnf",
+            "game",
+            "nightmarevision",
+            "flixelcrashhandler",
+        ]
+        .contains(&s.as_str())
 }
 
 pub fn game_name(folder: &Path) -> String {
@@ -75,7 +93,10 @@ pub fn aliases(name: &str, old: &[&str]) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     for o in old {
         let o = o.trim();
-        if !o.is_empty() && !o.eq_ignore_ascii_case(name) && !out.iter().any(|x| x.eq_ignore_ascii_case(o)) {
+        if !o.is_empty()
+            && !o.eq_ignore_ascii_case(name)
+            && !out.iter().any(|x| x.eq_ignore_ascii_case(o))
+        {
             out.push(o.to_string());
         }
     }
@@ -96,7 +117,10 @@ mod tests {
         assert_eq!(strip_version("d-sides_redux_10"), "d-sides_redux");
         assert_eq!(strip_version("Vs Cord v1.04"), "Vs Cord");
         assert_eq!(strip_version("FNF: Haniel Mix"), "FNF: Haniel Mix");
-        assert_eq!(strip_version("Funkin' on the Heights!"), "Funkin' on the Heights!");
+        assert_eq!(
+            strip_version("Funkin' on the Heights!"),
+            "Funkin' on the Heights!"
+        );
         assert_eq!(strip_version("2hot"), "2hot");
         assert_eq!(strip_version("v2"), "v2", "non resta un nome vuoto");
     }
@@ -112,7 +136,11 @@ mod tests {
         let g = dir.path().join("Vee Funkin V5 Demo");
         std::fs::create_dir_all(&g).unwrap();
         std::fs::write(g.join("PsychEngine.exe"), "").unwrap();
-        assert_eq!(game_name(&g), "Vee Funkin V5 Demo", "exe generico: conta la cartella");
+        assert_eq!(
+            game_name(&g),
+            "Vee Funkin V5 Demo",
+            "exe generico: conta la cartella"
+        );
 
         let g = dir.path().join("CatNap V2").join("bin");
         std::fs::create_dir_all(&g).unwrap();
@@ -122,6 +150,12 @@ mod tests {
 
     #[test]
     fn old_names_are_listed_once() {
-        assert_eq!(aliases("VsRoss", &["VSROSS2.1HOTFIX", "vsross", "", "VSROSS2.1HOTFIX"]), ["VSROSS2.1HOTFIX"]);
+        assert_eq!(
+            aliases(
+                "VsRoss",
+                &["VSROSS2.1HOTFIX", "vsross", "", "VSROSS2.1HOTFIX"]
+            ),
+            ["VSROSS2.1HOTFIX"]
+        );
     }
 }

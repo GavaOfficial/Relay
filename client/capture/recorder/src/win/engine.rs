@@ -339,17 +339,6 @@ fn live_frame(scheduled: u64, current: u64) -> u64 {
     scheduled.max(current)
 }
 
-#[cfg(test)]
-mod recovery_tests {
-    use super::live_frame;
-    #[test]
-    fn resumes_live_after_stall_without_catchup_burst() {
-        assert_eq!(live_frame(420, 1260), 1260);
-        assert_eq!(live_frame(1261, 1261), 1261);
-        assert_eq!(live_frame(1262, 1261), 1262);
-    }
-}
-
 fn next_frame(enc: &mut H264, out: &mut Vec<Encoded>) -> Result<Option<encoder::Frame>> {
     next_frame_wait(enc, out, 25)
 }
@@ -1196,5 +1185,16 @@ impl Run {
             w.finish(None)?;
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod recovery_tests {
+    use super::live_frame;
+    #[test]
+    fn resumes_live_after_stall_without_catchup_burst() {
+        assert_eq!(live_frame(420, 1260), 1260);
+        assert_eq!(live_frame(1261, 1261), 1261);
+        assert_eq!(live_frame(1262, 1261), 1262);
     }
 }

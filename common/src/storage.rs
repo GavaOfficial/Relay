@@ -1,4 +1,3 @@
-
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 pub const TUNNEL_PATH: &str = "/api/storage/tunnel";
@@ -16,11 +15,26 @@ pub const KIND_END: u8 = 5;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case")]
 pub enum Request {
-    Put { blob: String, offset: u64 },
-    Commit { blob: String, size: u64, sha256: String },
-    Get { blob: String, offset: u64, len: u64 },
-    Delete { blob: String },
-    Abort { blob: String },
+    Put {
+        blob: String,
+        offset: u64,
+    },
+    Commit {
+        blob: String,
+        size: u64,
+        sha256: String,
+    },
+    Get {
+        blob: String,
+        offset: u64,
+        len: u64,
+    },
+    Delete {
+        blob: String,
+    },
+    Abort {
+        blob: String,
+    },
     Stat,
 }
 
@@ -77,7 +91,12 @@ impl<'a> Frame<'a> {
         let len = u32::from_le_bytes(bytes.get(9..13)?.try_into().ok()?) as usize;
         let header = bytes.get(13..13 + len)?;
         let payload = bytes.get(13 + len..)?;
-        Some(Self { kind, id, header, payload })
+        Some(Self {
+            kind,
+            id,
+            header,
+            payload,
+        })
     }
 
     pub fn header<H: DeserializeOwned>(&self) -> Option<H> {
@@ -95,16 +114,35 @@ mod tests {
 
     #[test]
     fn frames_round_trip() {
-        let bytes = encode(KIND_REQUEST, 42, &Request::Get { blob: "x".into(), offset: 5, len: 9 }, b"abc");
+        let bytes = encode(
+            KIND_REQUEST,
+            42,
+            &Request::Get {
+                blob: "x".into(),
+                offset: 5,
+                len: 9,
+            },
+            b"abc",
+        );
         let f = Frame::parse(&bytes).unwrap();
         assert_eq!((f.kind, f.id, f.payload), (KIND_REQUEST, 42, &b"abc"[..]));
-        assert_eq!(f.header::<Request>(), Some(Request::Get { blob: "x".into(), offset: 5, len: 9 }));
+        assert_eq!(
+            f.header::<Request>(),
+            Some(Request::Get {
+                blob: "x".into(),
+                offset: 5,
+                len: 9
+            })
+        );
         assert!(Frame::parse(&bytes[..10]).is_none());
     }
 
     #[test]
     fn responses_are_tagged() {
-        let s = serde_json::to_string(&Response::Error { message: "no".into() }).unwrap();
+        let s = serde_json::to_string(&Response::Error {
+            message: "no".into(),
+        })
+        .unwrap();
         assert_eq!(s, r#"{"status":"error","message":"no"}"#);
     }
 

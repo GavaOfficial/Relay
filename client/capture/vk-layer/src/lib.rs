@@ -1,4 +1,5 @@
 #![cfg(windows)]
+#![allow(clippy::missing_safety_doc)]
 #![allow(non_snake_case)]
 mod capture;
 use ash::{vk, vk::Handle};
@@ -51,7 +52,7 @@ struct Device {
     enabled: bool,
     queues: Mutex<HashMap<u64, u32>>,
     chains: Mutex<HashMap<u64, Swapchain>>,
-    retired:Mutex<Vec<capture::Capture>>,
+    retired: Mutex<Vec<capture::Capture>>,
 }
 struct Swapchain {
     window: u64,
@@ -162,8 +163,8 @@ pub unsafe extern "system" fn vkGetInstanceProcAddr(
 }
 unsafe fn device_hook(name: *const i8) -> Option<vk::PFN_vkVoidFunction> {
     Some(match CStr::from_ptr(name).to_bytes() {
-        b"vkDeviceWaitIdle"=>erase(device_idle as vk::PFN_vkDeviceWaitIdle),
-        b"vkQueueWaitIdle"=>erase(queue_idle as vk::PFN_vkQueueWaitIdle),
+        b"vkDeviceWaitIdle" => erase(device_idle as vk::PFN_vkDeviceWaitIdle),
+        b"vkQueueWaitIdle" => erase(queue_idle as vk::PFN_vkQueueWaitIdle),
         b"vkDestroyDevice" => erase(destroy_device as vk::PFN_vkDestroyDevice),
         b"vkGetDeviceQueue" => erase(get_queue as vk::PFN_vkGetDeviceQueue),
         b"vkGetDeviceQueue2" => erase(get_queue2 as vk::PFN_vkGetDeviceQueue2),
@@ -201,7 +202,11 @@ unsafe extern "system" fn create_instance(
     }
     let node = (*link).data;
     let gipa = (*node).gipa;
-    let physical_proc:Option<Gipa>=if (*node).proc==0{None}else{Some(std::mem::transmute::<usize,Gipa>((*node).proc))};
+    let physical_proc: Option<Gipa> = if (*node).proc == 0 {
+        None
+    } else {
+        Some(std::mem::transmute::<usize, Gipa>((*node).proc))
+    };
     (*link).data = (*node).next;
     let Some(f) = gipa(vk::Instance::null(), c"vkCreateInstance".as_ptr()) else {
         return vk::Result::ERROR_INITIALIZATION_FAILED;
@@ -386,7 +391,7 @@ unsafe extern "system" fn create_device(
                     enabled,
                     queues: Mutex::new(HashMap::new()),
                     chains: Mutex::new(HashMap::new()),
-                    retired:Mutex::new(Vec::new()),
+                    retired: Mutex::new(Vec::new()),
                 }),
             );
         }
@@ -400,7 +405,9 @@ unsafe extern "system" fn destroy_device(d: vk::Device, a: *const vk::Allocation
         if let Ok(mut c) = s.chains.lock() {
             c.clear()
         }
-        if let Ok(mut retired)=s.retired.lock(){retired.clear();}
+        if let Ok(mut retired) = s.retired.lock() {
+            retired.clear();
+        }
         s.api.destroy_device(a.as_ref())
     }
 }
@@ -491,27 +498,53 @@ unsafe extern "system" fn create_swapchain(
     }
     result
 }
-unsafe extern "system" fn destroy_swapchain(d:vk::Device,chain:vk::SwapchainKHR,a:*const vk::AllocationCallbacks){
-    if let Some(s)=device(d){
-        let removed=s.chains.lock().ok().and_then(|mut m|m.remove(&chain.as_raw()));
-        if let Some(session)=removed.and_then(|chain|chain.session){
-            if let Ok(mut retired)=s.retired.lock(){retired.push(session.gpu);}else{std::mem::forget(session.gpu);}
+unsafe extern "system" fn destroy_swapchain(
+    d: vk::Device,
+    chain: vk::SwapchainKHR,
+    a: *const vk::AllocationCallbacks,
+) {
+    if let Some(s) = device(d) {
+        let removed = s
+            .chains
+            .lock()
+            .ok()
+            .and_then(|mut m| m.remove(&chain.as_raw()));
+        if let Some(session) = removed.and_then(|chain| chain.session) {
+            if let Ok(mut retired) = s.retired.lock() {
+                retired.push(session.gpu);
+            } else {
+                std::mem::forget(session.gpu);
+            }
         }
-        let f:vk::PFN_vkDestroySwapchainKHR=std::mem::transmute((s.gdpa)(d,c"vkDestroySwapchainKHR".as_ptr()).unwrap());f(d,chain,a);
+        let f: vk::PFN_vkDestroySwapchainKHR =
+            std::mem::transmute((s.gdpa)(d, c"vkDestroySwapchainKHR".as_ptr()).unwrap());
+        f(d, chain, a);
     }
 }
-unsafe extern "system" fn device_idle(d:vk::Device)->vk::Result{
-    let Some(s)=device(d)else{return vk::Result::ERROR_DEVICE_LOST};
-    let mut retired=s.retired.lock().ok();
-    let result=(s.api.fp_v1_0().device_wait_idle)(d);
-    if result==vk::Result::SUCCESS{if let Some(r)=retired.as_mut(){r.clear();}}
+unsafe extern "system" fn device_idle(d: vk::Device) -> vk::Result {
+    let Some(s) = device(d) else {
+        return vk::Result::ERROR_DEVICE_LOST;
+    };
+    let mut retired = s.retired.lock().ok();
+    let result = (s.api.fp_v1_0().device_wait_idle)(d);
+    if result == vk::Result::SUCCESS {
+        if let Some(r) = retired.as_mut() {
+            r.clear();
+        }
+    }
     result
 }
-unsafe extern "system" fn queue_idle(q:vk::Queue)->vk::Result{
-    let Some(s)=device(q)else{return vk::Result::ERROR_DEVICE_LOST};
-    let mut retired=s.retired.lock().ok();
-    let result=(s.api.fp_v1_0().queue_wait_idle)(q);
-    if result==vk::Result::SUCCESS{if let Some(r)=retired.as_mut(){r.retain(|c|!c.uses_queue(q));}}
+unsafe extern "system" fn queue_idle(q: vk::Queue) -> vk::Result {
+    let Some(s) = device(q) else {
+        return vk::Result::ERROR_DEVICE_LOST;
+    };
+    let mut retired = s.retired.lock().ok();
+    let result = (s.api.fp_v1_0().queue_wait_idle)(q);
+    if result == vk::Result::SUCCESS {
+        if let Some(r) = retired.as_mut() {
+            r.retain(|c| !c.uses_queue(q));
+        }
+    }
     result
 }
 unsafe extern "system" fn present(queue: vk::Queue, info: *const vk::PresentInfoKHR) -> vk::Result {
@@ -559,12 +592,19 @@ unsafe extern "system" fn present(queue: vk::Queue, info: *const vk::PresentInfo
                                 return;
                             }
                             if let Some(c) = chain.session.as_mut() {
-                                if c.config.adapter_luid!=config.adapter_luid{channel.stop();return}
+                                if c.config.adapter_luid != config.adapter_luid {
+                                    channel.stop();
+                                    return;
+                                }
                                 c.channel = Some(channel);
                                 c.config = config;
                                 c.due = now;
                             } else {
-                                if s.retired.lock().map_or(true,|r|r.len()>=4){channel.stop();chain.disabled=true;return}
+                                if s.retired.lock().map_or(true, |r| r.len() >= 4) {
+                                    channel.stop();
+                                    chain.disabled = true;
+                                    return;
+                                }
                                 match capture::Capture::new(
                                     &s,
                                     &chain.info,
@@ -596,7 +636,10 @@ unsafe extern "system" fn present(queue: vk::Queue, info: *const vk::PresentInfo
                 let Some(channel) = c.channel.as_ref() else {
                     return;
                 };
-                if !c.gpu.supports_family(family){channel.stop();return}
+                if !c.gpu.supports_family(family) {
+                    channel.stop();
+                    return;
+                }
                 if now < c.due {
                     return;
                 }

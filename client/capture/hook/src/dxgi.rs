@@ -60,8 +60,13 @@ unsafe fn capture(raw: Raw) -> Result<()> {
         return Ok(());
     };
     let now = Instant::now();
-    if now < s.due {return Ok(())}
-    if !s.channel.alive() {s.capture=None;return Ok(())}
+    if now < s.due {
+        return Ok(());
+    }
+    if !s.channel.alive() {
+        s.capture = None;
+        return Ok(());
+    }
     let chain = IDXGISwapChain::from_raw_borrowed(&raw).context("swapchain")?;
     let desc = chain.GetDesc()?;
     if !s.channel.accepts_window(desc.OutputWindow.0 as u64) {
@@ -72,7 +77,11 @@ unsafe fn capture(raw: Raw) -> Result<()> {
     if s.due <= now {
         s.due = now + interval
     }
-    if !s.capture.as_ref().is_some_and(|c| c.chain==raw as usize && matches!(c.kind,Kind::D10(_))) {
+    if !s
+        .capture
+        .as_ref()
+        .is_some_and(|c| c.chain == raw as usize && matches!(c.kind, Kind::D10(_)))
+    {
         if let Ok(source) = chain.GetBuffer::<ID3D11Texture2D>(0) {
             let mut d = D3D11_TEXTURE2D_DESC::default();
             source.GetDesc(&mut d);
@@ -85,10 +94,21 @@ unsafe fn capture(raw: Raw) -> Result<()> {
                 let device: ID3D11Device = source.GetDevice().context("DXGI device11")?;
                 relay_hook_gpu::check_adapter(&device, s.config.adapter_luid)?;
                 let context = device.GetImmediateContext()?;
-                match Sender::new(&device,d.Width,d.Height,d.Format) {
-                    Ok(sender)=>s.capture=Some(Capture{chain:raw as usize,width:d.Width,height:d.Height,format:d.Format,kind:Kind::D11{device,context},sender}),
-                    Err(_) if chain.GetDevice::<ID3D10Device>().is_ok()=>{s.capture=None;},
-                    Err(e)=>return Err(e),
+                match Sender::new(&device, d.Width, d.Height, d.Format) {
+                    Ok(sender) => {
+                        s.capture = Some(Capture {
+                            chain: raw as usize,
+                            width: d.Width,
+                            height: d.Height,
+                            format: d.Format,
+                            kind: Kind::D11 { device, context },
+                            sender,
+                        })
+                    }
+                    Err(_) if chain.GetDevice::<ID3D10Device>().is_ok() => {
+                        s.capture = None;
+                    }
+                    Err(e) => return Err(e),
                 }
             }
             if let Some(Capture {
@@ -159,9 +179,13 @@ unsafe extern "system" fn present(raw: Raw, sync: u32, flags: DXGI_PRESENT) -> H
     }
     let original: unsafe extern "system" fn(Raw, u32, DXGI_PRESENT) -> HRESULT =
         std::mem::transmute(PRESENT.load(Ordering::Acquire));
-    if !nested {super::d3d12::enter(raw as usize);}
+    if !nested {
+        super::d3d12::enter(raw as usize);
+    }
     let r = original(raw, sync, flags);
-    if !nested {super::d3d12::leave();}
+    if !nested {
+        super::d3d12::leave();
+    }
     INSIDE.with(|v| v.set(nested));
     r
 }
@@ -181,9 +205,13 @@ unsafe extern "system" fn present1(
         DXGI_PRESENT,
         *const DXGI_PRESENT_PARAMETERS,
     ) -> HRESULT = std::mem::transmute(PRESENT1.load(Ordering::Acquire));
-    if !nested {super::d3d12::enter(raw as usize);}
+    if !nested {
+        super::d3d12::enter(raw as usize);
+    }
     let r = original(raw, sync, flags, params);
-    if !nested {super::d3d12::leave();}
+    if !nested {
+        super::d3d12::leave();
+    }
     INSIDE.with(|v| v.set(nested));
     r
 }
@@ -205,11 +233,33 @@ unsafe extern "system" fn resize(
         std::mem::transmute(RESIZE.load(Ordering::Acquire));
     original(raw, count, w, h, format, flags)
 }
-unsafe extern "system" fn resize1(raw:Raw,count:u32,w:u32,h:u32,format:DXGI_FORMAT,flags:u32,masks:*const u32,queues:*const Raw)->HRESULT{
-    if let Ok(mut s)=STATE.lock(){if let Some(s)=s.as_mut(){s.capture=None}}
+unsafe extern "system" fn resize1(
+    raw: Raw,
+    count: u32,
+    w: u32,
+    h: u32,
+    format: DXGI_FORMAT,
+    flags: u32,
+    masks: *const u32,
+    queues: *const Raw,
+) -> HRESULT {
+    if let Ok(mut s) = STATE.lock() {
+        if let Some(s) = s.as_mut() {
+            s.capture = None
+        }
+    }
     super::d3d12::reset(raw as usize);
-    let original:unsafe extern "system" fn(Raw,u32,u32,u32,DXGI_FORMAT,u32,*const u32,*const Raw)->HRESULT=std::mem::transmute(RESIZE1.load(Ordering::Acquire));
-    original(raw,count,w,h,format,flags,masks,queues)
+    let original: unsafe extern "system" fn(
+        Raw,
+        u32,
+        u32,
+        u32,
+        DXGI_FORMAT,
+        u32,
+        *const u32,
+        *const Raw,
+    ) -> HRESULT = std::mem::transmute(RESIZE1.load(Ordering::Acquire));
+    original(raw, count, w, h, format, flags, masks, queues)
 }
 pub unsafe fn install(
     address: usize,
@@ -229,7 +279,9 @@ pub fn run(channel: Channel) {
     let Some(config) = channel.snapshot() else {
         return;
     };
-    if config.reserved==relay_hook_protocol::CPU_ONLY{return}
+    if config.reserved == relay_hook_protocol::CPU_ONLY {
+        return;
+    }
     let targets = TARGETS.get_or_init(|| unsafe { discover().unwrap_or_default() });
     if targets.is_empty() {
         return;
@@ -329,7 +381,14 @@ unsafe fn discover() -> Result<Vec<usize>> {
                 &RESIZE,
                 &mut targets,
             );
-            if let Ok(c)=chain.cast::<IDXGISwapChain3>(){install(c.vtable().ResizeBuffers1 as usize,resize1 as _,&RESIZE1,&mut targets);}
+            if let Ok(c) = chain.cast::<IDXGISwapChain3>() {
+                install(
+                    c.vtable().ResizeBuffers1 as usize,
+                    resize1 as _,
+                    &RESIZE1,
+                    &mut targets,
+                );
+            }
             if let Ok(c) = chain.cast::<IDXGISwapChain1>() {
                 install(
                     c.vtable().Present1 as usize,

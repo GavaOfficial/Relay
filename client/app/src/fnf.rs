@@ -244,7 +244,10 @@ async fn on_event(
 pub(crate) async fn tail_events(core: Arc<Core>, path: PathBuf, game_dir: Option<String>) {
     use tokio::io::{AsyncReadExt, AsyncSeekExt};
     let mut offset = match &game_dir {
-        Some(_) => tokio::fs::metadata(&path).await.map(|m| m.len()).unwrap_or(0),
+        Some(_) => tokio::fs::metadata(&path)
+            .await
+            .map(|m| m.len())
+            .unwrap_or(0),
         None => 0,
     };
     let mut pending = String::new();

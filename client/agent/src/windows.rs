@@ -90,8 +90,12 @@ pub fn window_monitor_name(_sel: &WindowSel) -> Option<String> {
 #[cfg(windows)]
 pub fn foreground() -> Option<(String, String, String)> {
     use windows_sys::Win32::Foundation::CloseHandle;
-    use windows_sys::Win32::System::Threading::{OpenProcess, QueryFullProcessImageNameW, PROCESS_QUERY_LIMITED_INFORMATION};
-    use windows_sys::Win32::UI::WindowsAndMessaging::{GetClassNameW, GetForegroundWindow, GetWindowTextW, GetWindowThreadProcessId};
+    use windows_sys::Win32::System::Threading::{
+        OpenProcess, QueryFullProcessImageNameW, PROCESS_QUERY_LIMITED_INFORMATION,
+    };
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        GetClassNameW, GetForegroundWindow, GetWindowTextW, GetWindowThreadProcessId,
+    };
     unsafe {
         let hwnd = GetForegroundWindow();
         if hwnd.is_null() {
@@ -114,7 +118,11 @@ pub fn foreground() -> Option<(String, String, String)> {
         let n = GetClassNameW(hwnd, class.as_mut_ptr(), class.len() as i32).max(0) as usize;
         let mut title = [0u16; 256];
         let t = GetWindowTextW(hwnd, title.as_mut_ptr(), title.len() as i32).max(0) as usize;
-        Some((exe, String::from_utf16_lossy(&class[..n]), String::from_utf16_lossy(&title[..t])))
+        Some((
+            exe,
+            String::from_utf16_lossy(&class[..n]),
+            String::from_utf16_lossy(&title[..t]),
+        ))
     }
 }
 
@@ -128,11 +136,19 @@ pub fn window_client_size(sel: &WindowSel) -> Option<(u32, u32)> {
     use windows_sys::Win32::Foundation::{HWND, RECT};
     use windows_sys::Win32::UI::WindowsAndMessaging::GetClientRect;
     let hwnd = list_raw().into_iter().find(|(w, _)| matches(sel, w))?.1 as HWND;
-    let mut rect = RECT { left: 0, top: 0, right: 0, bottom: 0 };
+    let mut rect = RECT {
+        left: 0,
+        top: 0,
+        right: 0,
+        bottom: 0,
+    };
     if unsafe { GetClientRect(hwnd, &mut rect) } == 0 {
         return None;
     }
-    let (w, h) = ((rect.right - rect.left).max(0) as u32, (rect.bottom - rect.top).max(0) as u32);
+    let (w, h) = (
+        (rect.right - rect.left).max(0) as u32,
+        (rect.bottom - rect.top).max(0) as u32,
+    );
     (w > 0 && h > 0).then_some((w, h))
 }
 

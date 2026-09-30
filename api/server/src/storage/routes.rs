@@ -17,7 +17,9 @@ fn is_admin(st: &AppState, user: &str) -> bool {
         .ok()
         .or_else(|| std::fs::read_to_string(st.data_dir.join("admins.txt")).ok())
         .unwrap_or_default();
-    list.split([',', '\n']).map(str::trim).any(|a| !a.is_empty() && a == user)
+    list.split([',', '\n'])
+        .map(str::trim)
+        .any(|a| !a.is_empty() && a == user)
 }
 
 pub(crate) fn admin(st: &AppState, user: &str) -> Result<(), AppError> {
@@ -32,7 +34,10 @@ pub async fn am_admin(State(st): St, AuthUser(user): AuthUser) -> Json<serde_jso
     Json(serde_json::json!({ "admin": is_admin(&st, &user) }))
 }
 
-pub async fn status(State(st): St, AuthUser(user): AuthUser) -> Result<Json<serde_json::Value>, AppError> {
+pub async fn status(
+    State(st): St,
+    AuthUser(user): AuthUser,
+) -> Result<Json<serde_json::Value>, AppError> {
     admin(&st, &user)?;
     let s = &st.storage;
     let used = s.used_by_node();
@@ -74,11 +79,18 @@ pub struct NewNode {
     name: String,
 }
 
-pub async fn add_node(State(st): St, AuthUser(user): AuthUser, Json(input): Json<NewNode>) -> Result<Json<serde_json::Value>, AppError> {
+pub async fn add_node(
+    State(st): St,
+    AuthUser(user): AuthUser,
+    Json(input): Json<NewNode>,
+) -> Result<Json<serde_json::Value>, AppError> {
     admin(&st, &user)?;
-    let name = relay_common::clean_name(&input.name).ok_or(AppError::BadRequest("nome non valido"))?;
+    let name =
+        relay_common::clean_name(&input.name).ok_or(AppError::BadRequest("nome non valido"))?;
     let (node, key) = st.storage.add_node(&name);
-    Ok(Json(serde_json::json!({ "id": node.id, "name": node.name, "key": key })))
+    Ok(Json(
+        serde_json::json!({ "id": node.id, "name": node.name, "key": key }),
+    ))
 }
 
 #[derive(Deserialize)]
@@ -98,38 +110,65 @@ mod double_option {
     }
 }
 
-pub async fn update_node(State(st): St, AuthUser(user): AuthUser, Path(id): Path<String>, Json(p): Json<NodePatch>) -> Result<impl IntoResponse, AppError> {
+pub async fn update_node(
+    State(st): St,
+    AuthUser(user): AuthUser,
+    Path(id): Path<String>,
+    Json(p): Json<NodePatch>,
+) -> Result<impl IntoResponse, AppError> {
     admin(&st, &user)?;
     let name = match p.name {
-        Some(n) => Some(relay_common::clean_name(&n).ok_or(AppError::BadRequest("nome non valido"))?),
+        Some(n) => {
+            Some(relay_common::clean_name(&n).ok_or(AppError::BadRequest("nome non valido"))?)
+        }
         None => None,
     };
-    if !st.storage.update_node(&id, name.as_deref(), p.limit, p.draining) {
+    if !st
+        .storage
+        .update_node(&id, name.as_deref(), p.limit, p.draining)
+    {
         return Err(AppError::NotFound);
     }
     Ok(axum::http::StatusCode::NO_CONTENT)
 }
 
-pub async fn remove_node(State(st): St, AuthUser(user): AuthUser, Path(id): Path<String>) -> Result<impl IntoResponse, AppError> {
+pub async fn remove_node(
+    State(st): St,
+    AuthUser(user): AuthUser,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, AppError> {
     admin(&st, &user)?;
     st.storage.remove_node(&id)?;
     Ok(axum::http::StatusCode::NO_CONTENT)
 }
 
-pub async fn rotate_key(State(st): St, AuthUser(user): AuthUser, Path(id): Path<String>) -> Result<Json<serde_json::Value>, AppError> {
+pub async fn rotate_key(
+    State(st): St,
+    AuthUser(user): AuthUser,
+    Path(id): Path<String>,
+) -> Result<Json<serde_json::Value>, AppError> {
     admin(&st, &user)?;
     let key = st.storage.rotate_key(&id).ok_or(AppError::NotFound)?;
     Ok(Json(serde_json::json!({ "key": key })))
 }
 
-pub async fn migrate(State(st): St, AuthUser(user): AuthUser) -> Result<impl IntoResponse, AppError> {
+pub async fn migrate(
+    State(st): St,
+    AuthUser(user): AuthUser,
+) -> Result<impl IntoResponse, AppError> {
     admin(&st, &user)?;
     st.storage.rush();
     Ok(axum::http::StatusCode::ACCEPTED)
 }
 
 pub async fn install_script() -> impl IntoResponse {
-    ([(header::CONTENT_TYPE, "text/x-shellscript; charset=utf-8"), (header::CACHE_CONTROL, "no-cache")], INSTALL_SH)
+    (
+        [
+            (header::CONTENT_TYPE, "text/x-shellscript; charset=utf-8"),
+            (header::CACHE_CONTROL, "no-cache"),
+        ],
+        INSTALL_SH,
+    )
 }
 
 const INSTALL_SH: &str = include_str!("install.sh");

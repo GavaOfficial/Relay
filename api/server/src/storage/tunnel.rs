@@ -44,7 +44,9 @@ impl Conn {
         for (_, w) in self.waiters.lock().unwrap().drain() {
             match w {
                 Waiter::Reply(tx) => {
-                    let _ = tx.send(NodeResponse::Error { message: "connessione chiusa".into() });
+                    let _ = tx.send(NodeResponse::Error {
+                        message: "connessione chiusa".into(),
+                    });
                 }
                 Waiter::Stream(tx) => {
                     let _ = tx.try_send(Err("connessione chiusa".into()));
@@ -80,7 +82,12 @@ impl NodeLink {
     }
 
     pub fn connections(&self) -> usize {
-        self.conns.lock().unwrap().iter().filter(|c| !c.closed.load(Ordering::Relaxed)).count()
+        self.conns
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|c| !c.closed.load(Ordering::Relaxed))
+            .count()
     }
 
     pub fn online(&self) -> bool {
@@ -89,7 +96,10 @@ impl NodeLink {
 
     fn pick(&self) -> Option<Arc<Conn>> {
         let conns = self.conns.lock().unwrap();
-        let open: Vec<&Arc<Conn>> = conns.iter().filter(|c| !c.closed.load(Ordering::Relaxed)).collect();
+        let open: Vec<&Arc<Conn>> = conns
+            .iter()
+            .filter(|c| !c.closed.load(Ordering::Relaxed))
+            .collect();
         if open.is_empty() {
             return None;
         }
@@ -118,12 +128,21 @@ impl NodeLink {
         }
     }
 
-    pub async fn get(&self, blob: &str, offset: u64, len: u64) -> Result<mpsc::Receiver<Result<Bytes, String>>, String> {
+    pub async fn get(
+        &self,
+        blob: &str,
+        offset: u64,
+        len: u64,
+    ) -> Result<mpsc::Receiver<Result<Bytes, String>>, String> {
         let conn = self.pick().ok_or("server di archivio offline")?;
         let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
         let (tx, rx) = mpsc::channel(32);
         conn.waiters.lock().unwrap().insert(id, Waiter::Stream(tx));
-        let req = Request::Get { blob: blob.to_string(), offset, len };
+        let req = Request::Get {
+            blob: blob.to_string(),
+            offset,
+            len,
+        };
         let msg = Message::Binary(encode(KIND_REQUEST, id, &req, &[]).into());
         if conn.tx.send(msg).await.is_err() {
             conn.waiters.lock().unwrap().remove(&id);
@@ -138,7 +157,12 @@ pub struct Links(Mutex<HashMap<String, Arc<NodeLink>>>);
 
 impl Links {
     pub fn get(&self, node: &str) -> Option<Arc<NodeLink>> {
-        self.0.lock().unwrap().get(node).cloned().filter(|l| l.online())
+        self.0
+            .lock()
+            .unwrap()
+            .get(node)
+            .cloned()
+            .filter(|l| l.online())
     }
 
     pub fn any(&self, node: &str) -> Option<Arc<NodeLink>> {
@@ -146,25 +170,42 @@ impl Links {
     }
 
     fn entry(&self, node: &str) -> Arc<NodeLink> {
-        self.0.lock().unwrap().entry(node.to_string()).or_insert_with(|| Arc::new(NodeLink::new())).clone()
+        self.0
+            .lock()
+            .unwrap()
+            .entry(node.to_string())
+            .or_insert_with(|| Arc::new(NodeLink::new()))
+            .clone()
     }
 }
 
-pub async fn tunnel(State(st): State<Arc<AppState>>, headers: HeaderMap, ws: WebSocketUpgrade) -> Result<Response, AppError> {
+pub async fn tunnel(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    ws: WebSocketUpgrade,
+) -> Result<Response, AppError> {
     let key = headers
         .get(axum::http::header::AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.strip_prefix("Bearer "))
         .ok_or(AppError::Unauthorized)?;
     let storage = st.storage.clone();
-    let node = storage.node_for_key(key.trim()).ok_or(AppError::Unauthorized)?;
-    Ok(ws.max_message_size(64 << 20).on_upgrade(move |socket| run(storage, node, socket)))
+    let node = storage
+        .node_for_key(key.trim())
+        .ok_or(AppError::Unauthorized)?;
+    Ok(ws
+        .max_message_size(64 << 20)
+        .on_upgrade(move |socket| run(storage, node, socket)))
 }
 
 async fn run(storage: Arc<super::Storage>, node: String, socket: WebSocket) {
     let (mut sink, mut stream) = socket.split();
     let (tx, mut rx) = mpsc::channel::<Message>(64);
-    let conn = Arc::new(Conn { tx, waiters: Mutex::new(HashMap::new()), closed: AtomicBool::new(false) });
+    let conn = Arc::new(Conn {
+        tx,
+        waiters: Mutex::new(HashMap::new()),
+        closed: AtomicBool::new(false),
+    });
     let writer = tokio::spawn(async move {
         while let Some(m) = rx.recv().await {
             if sink.send(m).await.is_err() {
@@ -175,7 +216,9 @@ async fn run(storage: Arc<super::Storage>, node: String, socket: WebSocket) {
     });
 
     let hello = match tokio::time::timeout(Duration::from_secs(20), stream.next()).await {
-        Ok(Some(Ok(Message::Binary(b)))) => Frame::parse(&b).filter(|f| f.kind == KIND_HELLO).and_then(|f| f.header::<Hello>()),
+        Ok(Some(Ok(Message::Binary(b)))) => Frame::parse(&b)
+            .filter(|f| f.kind == KIND_HELLO)
+            .and_then(|f| f.header::<Hello>()),
         _ => None,
     };
     let Some(hello) = hello else {
@@ -199,10 +242,14 @@ async fn run(storage: Arc<super::Storage>, node: String, socket: WebSocket) {
             Message::Close(_) => break,
             _ => continue,
         };
-        let Some(f) = Frame::parse(&bytes) else { continue };
+        let Some(f) = Frame::parse(&bytes) else {
+            continue;
+        };
         match f.kind {
             KIND_RESPONSE => {
-                let resp = f.header::<NodeResponse>().unwrap_or(NodeResponse::Error { message: "risposta non valida".into() });
+                let resp = f.header::<NodeResponse>().unwrap_or(NodeResponse::Error {
+                    message: "risposta non valida".into(),
+                });
                 if let NodeResponse::Stats(s) = &resp {
                     *link.stats.lock().unwrap() = s.clone();
                 }
@@ -226,7 +273,11 @@ async fn run(storage: Arc<super::Storage>, node: String, socket: WebSocket) {
                     _ => None,
                 };
                 if let Some(tx) = tx {
-                    if tx.send(Ok(Bytes::copy_from_slice(f.payload))).await.is_err() {
+                    if tx
+                        .send(Ok(Bytes::copy_from_slice(f.payload)))
+                        .await
+                        .is_err()
+                    {
                         conn.waiters.lock().unwrap().remove(&f.id);
                     }
                 }
@@ -239,7 +290,10 @@ async fn run(storage: Arc<super::Storage>, node: String, socket: WebSocket) {
     }
     conn.fail_all();
     writer.abort();
-    link.conns.lock().unwrap().retain(|c| !Arc::ptr_eq(c, &conn));
+    link.conns
+        .lock()
+        .unwrap()
+        .retain(|c| !Arc::ptr_eq(c, &conn));
     if !link.online() {
         tracing::info!("archivio {node} scollegato");
     }

@@ -42,7 +42,7 @@ pub fn reset(chain: usize) {
         if chain == 0 || s.capture.as_ref().is_some_and(|c| c.chain == chain) {
             s.capture = None
         }
-        s.queues.retain(|(id,_)| chain!=0 && *id!=chain);
+        s.queues.retain(|(id, _)| chain != 0 && *id != chain);
     }
 }
 unsafe extern "system" fn execute(raw: *mut c_void, count: u32, lists: *const *mut c_void) {
@@ -52,9 +52,13 @@ unsafe extern "system" fn execute(raw: *mut c_void, count: u32, lists: *const *m
             if let Some(queue) = ID3D12CommandQueue::from_raw_borrowed(&raw) {
                 if queue.GetDesc().Type == D3D12_COMMAND_LIST_TYPE_DIRECT {
                     if let Ok(mut s) = STATE.try_lock() {
-                        if let Some((_,previous))=s.queues.iter_mut().find(|(c,_)|*c==chain){
-                            if previous.as_raw()!=queue.as_raw(){*previous=queue.clone();s.capture=None;}
-                        }else if s.queues.len() < 16 {
+                        if let Some((_, previous)) = s.queues.iter_mut().find(|(c, _)| *c == chain)
+                        {
+                            if previous.as_raw() != queue.as_raw() {
+                                *previous = queue.clone();
+                                s.capture = None;
+                            }
+                        } else if s.queues.len() < 16 {
                             s.queues.push((chain, queue.clone()))
                         }
                     }
@@ -98,9 +102,15 @@ pub unsafe fn capture(chain: &IDXGISwapChain, channel: &Channel, luid: u64) -> R
         return Ok(());
     };
     let id = chain.as_raw() as usize;
-    let desc=chain.GetDesc()?;
-    let format=relay_hook_gpu::wire_format(desc.BufferDesc.Format)?.0;
-    if s.capture.as_ref().is_none_or(|c| c.chain != id || c.native_device!=device12.as_raw()as usize || c.sender.desc.Width!=desc.BufferDesc.Width || c.sender.desc.Height!=desc.BufferDesc.Height || c.sender.desc.Format!=format) {
+    let desc = chain.GetDesc()?;
+    let format = relay_hook_gpu::wire_format(desc.BufferDesc.Format)?.0;
+    if s.capture.as_ref().is_none_or(|c| {
+        c.chain != id
+            || c.native_device != device12.as_raw() as usize
+            || c.sender.desc.Width != desc.BufferDesc.Width
+            || c.sender.desc.Height != desc.BufferDesc.Height
+            || c.sender.desc.Format != format
+    }) {
         let Some((_, queue)) = s.queues.iter().find(|(c, _)| *c == id) else {
             return Ok(());
         };
@@ -127,7 +137,7 @@ pub unsafe fn capture(chain: &IDXGISwapChain, channel: &Channel, luid: u64) -> R
         )?;
         s.capture = Some(Capture {
             chain: id,
-            native_device:device12.as_raw()as usize,
+            native_device: device12.as_raw() as usize,
             context: context.context("11on12 context")?,
             bridge: device.cast()?,
             device,

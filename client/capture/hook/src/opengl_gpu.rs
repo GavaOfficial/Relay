@@ -210,42 +210,54 @@ impl Slot {
             .as_ref()
             .is_some_and(|i| i.size == size && i.rc == unsafe { wglGetCurrentContext() } as usize)
     }
-    unsafe fn new(size: (u32, u32), luid: u64, reuse: Option<(ID3D11Device, ID3D11DeviceContext)>) -> Result<Self> {
+    unsafe fn new(
+        size: (u32, u32),
+        luid: u64,
+        reuse: Option<(ID3D11Device, ID3D11DeviceContext)>,
+    ) -> Result<Self> {
         let functions = Functions::load()?;
-        let (device, context) = if let Some(pair) = reuse { pair } else {
-        let factory: IDXGIFactory1 = CreateDXGIFactory1()?;
-        let mut adapter = None;
-        for index in 0.. {
-            let Ok(a) = factory.EnumAdapters1(index) else {
-                break;
-            };
-            let l = a.GetDesc1()?.AdapterLuid;
-            let bits = ((l.HighPart as u32 as u64) << 32) | l.LowPart as u64;
-            if bits == luid {
-                adapter = Some(a.cast::<IDXGIAdapter>()?);
-                break;
+        let (device, context) = if let Some(pair) = reuse {
+            pair
+        } else {
+            let factory: IDXGIFactory1 = CreateDXGIFactory1()?;
+            let mut adapter = None;
+            for index in 0.. {
+                let Ok(a) = factory.EnumAdapters1(index) else {
+                    break;
+                };
+                let l = a.GetDesc1()?.AdapterLuid;
+                let bits = ((l.HighPart as u32 as u64) << 32) | l.LowPart as u64;
+                if bits == luid {
+                    adapter = Some(a.cast::<IDXGIAdapter>()?);
+                    break;
+                }
             }
-        }
-        let adapter = adapter.context("scheda video del recorder non trovata")?;
-        let mut device = None;
-        let mut context = None;
-        D3D11CreateDevice(
-            &adapter,
-            D3D_DRIVER_TYPE_UNKNOWN,
-            HMODULE::default(),
-            D3D11_CREATE_DEVICE_BGRA_SUPPORT,
-            None,
-            D3D11_SDK_VERSION,
-            Some(&mut device),
-            None,
-            Some(&mut context),
-        )?;
-        let device = device.context("dispositivo hook")?;
-        let context = context.context("contesto hook")?;
-        (device, context)
+            let adapter = adapter.context("scheda video del recorder non trovata")?;
+            let mut device = None;
+            let mut context = None;
+            D3D11CreateDevice(
+                &adapter,
+                D3D_DRIVER_TYPE_UNKNOWN,
+                HMODULE::default(),
+                D3D11_CREATE_DEVICE_BGRA_SUPPORT,
+                None,
+                D3D11_SDK_VERSION,
+                Some(&mut device),
+                None,
+                Some(&mut context),
+            )?;
+            let device = device.context("dispositivo hook")?;
+            let context = context.context("contesto hook")?;
+            (device, context)
         };
         let mut query = None;
-        device.CreateQuery(&D3D11_QUERY_DESC { Query: D3D11_QUERY_EVENT, MiscFlags: 0 }, Some(&mut query))?;
+        device.CreateQuery(
+            &D3D11_QUERY_DESC {
+                Query: D3D11_QUERY_EVENT,
+                MiscFlags: 0,
+            },
+            Some(&mut query),
+        )?;
         let query = query.context("query OpenGL")?;
         let mut desc = D3D11_TEXTURE2D_DESC {
             Width: size.0,
@@ -320,10 +332,8 @@ impl Slot {
     unsafe fn enqueue(&mut self) -> Result<bool> {
         let i = self.0.as_mut().context("cattura GPU chiusa")?;
         let acquired = (i.mutex.vtable().AcquireSync)(i.mutex.as_raw(), 0, 0).0;
-        if acquired != 0 {
-            if (i.mutex.vtable().AcquireSync)(i.mutex.as_raw(), 1, 0).0 != 0 {
-                return Ok(false);
-            }
+        if acquired != 0 && (i.mutex.vtable().AcquireSync)(i.mutex.as_raw(), 1, 0).0 != 0 {
+            return Ok(false);
         }
         if (i.functions.lock)(i.gl_device, 1, &i.object) == 0 {
             let _ = i.mutex.ReleaseSync(0);
@@ -380,18 +390,35 @@ impl Capture {
         let pair = (i.device.clone(), i.context.clone());
         let b = Slot::new(size, luid, Some(pair.clone()))?;
         let c = Slot::new(size, luid, Some(pair))?;
-        Ok(Self { slots: [a,b,c], next: 0, published: None, pending: std::collections::VecDeque::with_capacity(3) })
+        Ok(Self {
+            slots: [a, b, c],
+            next: 0,
+            published: None,
+            pending: std::collections::VecDeque::with_capacity(3),
+        })
     }
-    pub fn context_is(&self, rc: usize) -> bool { self.slots[0].context_is(rc) }
-    pub fn matches(&self, size: (u32,u32)) -> bool { self.slots[0].matches(size) }
+    pub fn context_is(&self, rc: usize) -> bool {
+        self.slots[0].context_is(rc)
+    }
+    pub fn matches(&self, size: (u32, u32)) -> bool {
+        self.slots[0].matches(size)
+    }
     pub unsafe fn publish(&mut self, channel: &Channel) -> Result<bool> {
         let mut published = false;
         while let Some(&index) = self.pending.front() {
             let i = self.slots[index].0.as_mut().unwrap();
             let mut done = 0u32;
-            let status = (i.context.vtable().GetData)(i.context.as_raw(), i.query.as_raw(), (&mut done as *mut u32).cast(), 4, D3D11_ASYNC_GETDATA_DONOTFLUSH.0 as u32);
+            let status = (i.context.vtable().GetData)(
+                i.context.as_raw(),
+                i.query.as_raw(),
+                (&mut done as *mut u32).cast(),
+                4,
+                D3D11_ASYNC_GETDATA_DONOTFLUSH.0 as u32,
+            );
             status.ok()?;
-            if status.0 != 0 || done == 0 { break; }
+            if status.0 != 0 || done == 0 {
+                break;
+            }
             i.mutex.ReleaseSync(1)?;
             if !channel.publish_texture(i.size.0, i.size.1, i.handle.0 as u64, i.epoch) {
                 let status = (i.mutex.vtable().AcquireSync)(i.mutex.as_raw(), 1, 0);
@@ -405,7 +432,9 @@ impl Capture {
         }
         for offset in 0..3 {
             let index = (self.next + offset) % 3;
-            if self.published == Some(index) || self.slots[index].0.as_ref().unwrap().pending { continue; }
+            if self.published == Some(index) || self.slots[index].0.as_ref().unwrap().pending {
+                continue;
+            }
             if self.slots[index].enqueue()? {
                 self.pending.push_back(index);
                 self.next = (index + 1) % 3;

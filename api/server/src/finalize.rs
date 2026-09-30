@@ -10,8 +10,8 @@ use uuid::Uuid;
 use crate::state::AppState;
 
 pub use relay_common::media::{
-    duration_ok, parse_loudnorm, parse_probe, Loudness, Probe, INFO_FILE, THUMB_FILE, VIDEO_FILE, VOD_DIR,
-    VOD_INDEX, VOD_MEDIA, WEB_FILE,
+    duration_ok, parse_loudnorm, parse_probe, Loudness, Probe, INFO_FILE, THUMB_FILE, VIDEO_FILE,
+    VOD_DIR, VOD_INDEX, VOD_MEDIA, WEB_FILE,
 };
 
 const LOCAL_THREADS: u32 = 2;
@@ -21,15 +21,26 @@ fn archived(path: &Path) -> bool {
 }
 
 pub async fn has_video(dir: &Path) -> bool {
-    tokio::fs::metadata(dir.join(VIDEO_FILE)).await.map(|m| m.len() > 0).unwrap_or(false) || archived(&dir.join(VIDEO_FILE))
+    tokio::fs::metadata(dir.join(VIDEO_FILE))
+        .await
+        .map(|m| m.len() > 0)
+        .unwrap_or(false)
+        || archived(&dir.join(VIDEO_FILE))
 }
 
 pub async fn has_vod(dir: &Path) -> bool {
-    tokio::fs::metadata(dir.join(VOD_DIR).join(VOD_INDEX)).await.map(|m| m.len() > 0).unwrap_or(false)
+    tokio::fs::metadata(dir.join(VOD_DIR).join(VOD_INDEX))
+        .await
+        .map(|m| m.len() > 0)
+        .unwrap_or(false)
 }
 
 pub async fn has_web(dir: &Path) -> bool {
-    tokio::fs::metadata(dir.join(WEB_FILE)).await.map(|m| m.len() > 0).unwrap_or(false) || archived(&dir.join(WEB_FILE))
+    tokio::fs::metadata(dir.join(WEB_FILE))
+        .await
+        .map(|m| m.len() > 0)
+        .unwrap_or(false)
+        || archived(&dir.join(WEB_FILE))
 }
 
 pub async fn read_duration(dir: &Path) -> Option<u64> {
@@ -42,7 +53,10 @@ async fn file_input(dir: &Path, name: &str) -> Option<InputFile> {
         Ok(m) => m.len(),
         Err(_) => crate::storage::global()?.entry(&path)?.size,
     };
-    Some(InputFile { name: name.to_string(), size })
+    Some(InputFile {
+        name: name.to_string(),
+        size,
+    })
 }
 
 async fn match_inputs(dir: &Path) -> Option<Vec<InputFile>> {
@@ -57,7 +71,10 @@ async fn match_inputs(dir: &Path) -> Option<Vec<InputFile>> {
             let name = e.file_name().to_string_lossy().into_owned();
             if media::is_segment_file(&name) {
                 if let Ok(m) = e.metadata().await {
-                    inputs.push(InputFile { name, size: m.len() });
+                    inputs.push(InputFile {
+                        name,
+                        size: m.len(),
+                    });
                 }
             }
         }
@@ -77,13 +94,18 @@ async fn enqueue_match(st: &Arc<AppState>, id: Uuid) {
     };
     for p in players {
         let dir = st.player_dir(id, &p);
-        let kind = JobKind::Match { match_id: id, player: p.clone() };
+        let kind = JobKind::Match {
+            match_id: id,
+            player: p.clone(),
+        };
         match match_inputs(&dir).await {
             Some(inputs) => {
                 if st.ops.enqueue(kind, &dir, inputs) {
                     tracing::info!("partita {id}: video di {p} in coda per il server operazioni");
                 }
-                if media::segments(&dir).await.is_ok_and(|s| !s.is_empty()) && st.processing_of(id).get(&p).is_none() {
+                if media::segments(&dir).await.is_ok_and(|s| !s.is_empty())
+                    && !st.processing_of(id).contains_key(&p)
+                {
                     st.set_processing(id, &p, "queue", 0);
                 }
             }
@@ -179,9 +201,20 @@ pub async fn resume_all(st: Arc<AppState>) {
             tracing::warn!("nessun server operazioni e RELAY_FFMPEG non impostato: i segmenti restano sul disco");
             return;
         };
-        match Command::new(&ff).arg("-version").stdin(Stdio::null()).output().await {
+        match Command::new(&ff)
+            .arg("-version")
+            .stdin(Stdio::null())
+            .output()
+            .await
+        {
             Ok(o) if o.status.success() => {
-                tracing::info!("ffmpeg: {}", String::from_utf8_lossy(&o.stdout).lines().next().unwrap_or("?"));
+                tracing::info!(
+                    "ffmpeg: {}",
+                    String::from_utf8_lossy(&o.stdout)
+                        .lines()
+                        .next()
+                        .unwrap_or("?")
+                );
             }
             Ok(o) => tracing::error!("ffmpeg ({}) non funziona: {}", ff.display(), o.status),
             Err(e) => tracing::error!("ffmpeg ({}) non parte: {e}", ff.display()),

@@ -1147,13 +1147,26 @@ pub async fn capture_download(State(st): St) -> Result<axum::response::Response,
 }
 
 pub async fn ops_latest(State(st): St) -> Result<impl IntoResponse, AppError> {
-    let r = read_manifest(&st, "ops.json").await.ok_or(AppError::NotFound)?;
-    Ok(([(header::CACHE_CONTROL, "no-cache")], Json(release_json(&r, "/api/app/ops/download"))))
+    let r = read_manifest(&st, "ops.json")
+        .await
+        .ok_or(AppError::NotFound)?;
+    Ok((
+        [(header::CACHE_CONTROL, "no-cache")],
+        Json(release_json(&r, "/api/app/ops/download")),
+    ))
 }
 
 pub async fn ops_download(State(st): St) -> Result<axum::response::Response, AppError> {
-    let r = read_manifest(&st, "ops.json").await.ok_or(AppError::NotFound)?;
-    download_response(&st, "ops.json", "application/octet-stream", format!("relay-ops-{}", r.version)).await
+    let r = read_manifest(&st, "ops.json")
+        .await
+        .ok_or(AppError::NotFound)?;
+    download_response(
+        &st,
+        "ops.json",
+        "application/octet-stream",
+        format!("relay-ops-{}", r.version),
+    )
+    .await
 }
 
 pub async fn storage_latest(State(st): St) -> Result<impl IntoResponse, AppError> {

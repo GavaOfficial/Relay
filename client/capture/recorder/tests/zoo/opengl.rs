@@ -110,8 +110,10 @@ mod win {
         if vsync {
             type Set = unsafe extern "system" fn(i32) -> i32;
             type Get = unsafe extern "system" fn() -> i32;
-            let set = wglGetProcAddress(c"wglSwapIntervalEXT".as_ptr().cast()).context("wglSwapIntervalEXT assente")?;
-            let get = wglGetProcAddress(c"wglGetSwapIntervalEXT".as_ptr().cast()).context("wglGetSwapIntervalEXT assente")?;
+            let set = wglGetProcAddress(c"wglSwapIntervalEXT".as_ptr().cast())
+                .context("wglSwapIntervalEXT assente")?;
+            let get = wglGetProcAddress(c"wglGetSwapIntervalEXT".as_ptr().cast())
+                .context("wglGetSwapIntervalEXT assente")?;
             let set: Set = std::mem::transmute(set);
             let get: Get = std::mem::transmute(get);
             ensure!(set(1) != 0 && get() == 1, "v-sync OpenGL non attivo");
@@ -157,7 +159,9 @@ mod win {
             let mut row = 0;
             glGetIntegerv(GL_PACK_ROW_LENGTH, &mut row);
             ensure!(row == 31, "l'hook ha alterato lo stato GL_PACK_ROW_LENGTH");
-            if !vsync { std::thread::sleep(Duration::from_millis(10)); }
+            if !vsync {
+                std::thread::sleep(Duration::from_millis(10));
+            }
         }
         wglMakeCurrent(ptr::null_mut(), ptr::null_mut());
         wglDeleteContext(rc);

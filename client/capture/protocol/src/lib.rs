@@ -154,9 +154,23 @@ mod tests {
     }
     #[test]
     fn gpu_formats_do_not_change_cpu_layout() {
-        let mut h=Header{width:1280,height:720,texture_handle:42,texture_epoch:1,..Default::default()};
-        for format in [BGRA8,RGBA8,BGRX8]{h.format=format;assert!(h.gpu_valid());assert!(h.cpu_bytes().is_none());}
-        h.format=999;assert!(!h.gpu_valid());h.format=BGRA8;h.payload_bytes=4;assert!(!h.gpu_valid());
+        let mut h = Header {
+            width: 1280,
+            height: 720,
+            texture_handle: 42,
+            texture_epoch: 1,
+            ..Default::default()
+        };
+        for format in [BGRA8, RGBA8, BGRX8] {
+            h.format = format;
+            assert!(h.gpu_valid());
+            assert!(h.cpu_bytes().is_none());
+        }
+        h.format = 999;
+        assert!(!h.gpu_valid());
+        h.format = BGRA8;
+        h.payload_bytes = 4;
+        assert!(!h.gpu_valid());
     }
     #[test]
     fn anticheat_paths_and_case() {

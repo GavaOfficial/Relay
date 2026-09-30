@@ -17,10 +17,7 @@ use axum::{
 use relay_common::storage::{cipher_len, Request, Response as NodeResponse, PLAIN_CHUNK};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use tokio::{
-    io::AsyncReadExt,
-    sync::Notify,
-};
+use tokio::{io::AsyncReadExt, sync::Notify};
 
 use crate::{error::AppError, state::AppState};
 use crypto::{chunks, cipher_chunk_len, cipher_offset, BlobCipher};
@@ -98,11 +95,17 @@ pub fn global() -> Option<&'static Arc<Storage>> {
 }
 
 fn now_secs() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
 }
 
 fn read_json<T: for<'de> Deserialize<'de> + Default>(path: &Path) -> T {
-    std::fs::read(path).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default()
+    std::fs::read(path)
+        .ok()
+        .and_then(|b| serde_json::from_slice(&b).ok())
+        .unwrap_or_default()
 }
 
 fn write_json<T: Serialize>(path: &Path, value: &T) {
@@ -133,7 +136,9 @@ async fn fetch_chunk(link: &tunnel::NodeLink, e: &Entry, index: u64) -> Result<V
         }
         Ok(())
     };
-    tokio::time::timeout(CHUNK_TIMEOUT, read).await.map_err(|_| "il server di archivio non risponde".to_string())??;
+    tokio::time::timeout(CHUNK_TIMEOUT, read)
+        .await
+        .map_err(|_| "il server di archivio non risponde".to_string())??;
     buf.truncate(need);
     Ok(buf)
 }
@@ -185,7 +190,6 @@ impl Storage {
         self.wake();
     }
 
-
     pub fn has_nodes(&self) -> bool {
         !self.config.lock().unwrap().nodes.is_empty()
     }
@@ -198,14 +202,34 @@ impl Storage {
         BlobCipher::new(&self.master, blob)
     }
 
-    pub(crate) fn adopt(&self, path: &Path, node: &str, blob: &str, size: u64, sha256: &str) -> bool {
-        let Some(rel) = self.rel(path) else { return false };
+    pub(crate) fn adopt(
+        &self,
+        path: &Path,
+        node: &str,
+        blob: &str,
+        size: u64,
+        sha256: &str,
+    ) -> bool {
+        let Some(rel) = self.rel(path) else {
+            return false;
+        };
         let old = self.index.lock().unwrap().files.insert(
             rel,
-            Entry { node: node.to_string(), blob: blob.to_string(), size, sha256: sha256.to_string(), stored_at: now_secs(), last_access: now_secs() },
+            Entry {
+                node: node.to_string(),
+                blob: blob.to_string(),
+                size,
+                sha256: sha256.to_string(),
+                stored_at: now_secs(),
+                last_access: now_secs(),
+            },
         );
         if let Some(old) = old {
-            self.index.lock().unwrap().deletes.push((old.node, old.blob));
+            self.index
+                .lock()
+                .unwrap()
+                .deletes
+                .push((old.node, old.blob));
         }
         self.save_index();
         true
@@ -220,15 +244,30 @@ impl Storage {
         let mut secret = [0u8; 32];
         let _ = getrandom::getrandom(&mut secret);
         let key = format!("rsk_{}", hex::encode(secret));
-        let cfg = NodeCfg { id, name: name.to_string(), key_sha256: hash_key(&key), limit: None, created_at: now_secs(), draining: false };
+        let cfg = NodeCfg {
+            id,
+            name: name.to_string(),
+            key_sha256: hash_key(&key),
+            limit: None,
+            created_at: now_secs(),
+            draining: false,
+        };
         self.config.lock().unwrap().nodes.push(cfg.clone());
         self.save_config();
         (cfg, key)
     }
 
-    pub fn update_node(&self, id: &str, name: Option<&str>, limit: Option<Option<u64>>, draining: Option<bool>) -> bool {
+    pub fn update_node(
+        &self,
+        id: &str,
+        name: Option<&str>,
+        limit: Option<Option<u64>>,
+        draining: Option<bool>,
+    ) -> bool {
         let mut c = self.config.lock().unwrap();
-        let Some(n) = c.nodes.iter_mut().find(|n| n.id == id) else { return false };
+        let Some(n) = c.nodes.iter_mut().find(|n| n.id == id) else {
+            return false;
+        };
         if let Some(name) = name {
             n.name = name.to_string();
         }
@@ -246,7 +285,9 @@ impl Storage {
 
     pub fn remove_node(&self, id: &str) -> Result<(), AppError> {
         if self.used_by_node().get(id).is_some_and(|u| u.1 > 0) {
-            return Err(AppError::BadRequest("prima svuota il server: ci sono ancora video"));
+            return Err(AppError::BadRequest(
+                "prima svuota il server: ci sono ancora video",
+            ));
         }
         let mut c = self.config.lock().unwrap();
         let before = c.nodes.len();
@@ -274,7 +315,13 @@ impl Storage {
 
     pub fn node_for_key(&self, key: &str) -> Option<String> {
         let h = hash_key(key);
-        self.config.lock().unwrap().nodes.iter().find(|n| n.key_sha256 == h).map(|n| n.id.clone())
+        self.config
+            .lock()
+            .unwrap()
+            .nodes
+            .iter()
+            .find(|n| n.key_sha256 == h)
+            .map(|n| n.id.clone())
     }
 
     pub fn used_by_node(&self) -> BTreeMap<String, (u64, u64)> {
@@ -287,7 +334,11 @@ impl Storage {
         out
     }
 
-    fn pick_node(&self, size: u64, except: Option<&str>) -> Option<(String, Arc<tunnel::NodeLink>)> {
+    fn pick_node(
+        &self,
+        size: u64,
+        except: Option<&str>,
+    ) -> Option<(String, Arc<tunnel::NodeLink>)> {
         let need = cipher_len(size);
         let used = self.used_by_node();
         let mut best: Option<(u64, String, Arc<tunnel::NodeLink>)> = None;
@@ -295,10 +346,15 @@ impl Storage {
             if n.draining || except == Some(n.id.as_str()) {
                 continue;
             }
-            let Some(link) = self.links.get(&n.id) else { continue };
+            let Some(link) = self.links.get(&n.id) else {
+                continue;
+            };
             let stats = link.stats.lock().unwrap().clone();
             let by_disk = stats.free.saturating_sub(NODE_MARGIN);
-            let by_limit = n.limit.map(|l| l.saturating_sub(used.get(&n.id).map(|u| u.0).unwrap_or(0))).unwrap_or(u64::MAX);
+            let by_limit = n
+                .limit
+                .map(|l| l.saturating_sub(used.get(&n.id).map(|u| u.0).unwrap_or(0)))
+                .unwrap_or(u64::MAX);
             let room = by_disk.min(by_limit);
             if room > need && best.as_ref().is_none_or(|b| room > b.0) {
                 best = Some((room, n.id.clone(), link));
@@ -307,10 +363,14 @@ impl Storage {
         best.map(|(_, id, link)| (id, link))
     }
 
-
     fn rel(&self, path: &Path) -> Option<String> {
         let rel = path.strip_prefix(&self.data_dir).ok()?;
-        Some(rel.components().map(|c| c.as_os_str().to_string_lossy()).collect::<Vec<_>>().join("/"))
+        Some(
+            rel.components()
+                .map(|c| c.as_os_str().to_string_lossy())
+                .collect::<Vec<_>>()
+                .join("/"),
+        )
     }
 
     pub fn entry(&self, path: &Path) -> Option<Entry> {
@@ -334,7 +394,12 @@ impl Storage {
         let Some(prefix) = self.rel(dir) else { return };
         let prefix = format!("{prefix}/");
         let mut idx = self.index.lock().unwrap();
-        let gone: Vec<String> = idx.files.keys().filter(|k| k.starts_with(&prefix)).cloned().collect();
+        let gone: Vec<String> = idx
+            .files
+            .keys()
+            .filter(|k| k.starts_with(&prefix))
+            .cloned()
+            .collect();
         if gone.is_empty() {
             return;
         }
@@ -348,17 +413,28 @@ impl Storage {
         self.wake();
     }
 
-
-    pub async fn serve(self: &Arc<Self>, path: &Path, entry: Entry, headers: &HeaderMap, name: Option<String>) -> Result<Response, AppError> {
+    pub async fn serve(
+        self: &Arc<Self>,
+        path: &Path,
+        entry: Entry,
+        headers: &HeaderMap,
+        name: Option<String>,
+    ) -> Result<Response, AppError> {
         let total = entry.size;
         if total == 0 {
             return Err(AppError::NotFound);
         }
         let etag = format!("\"{}\"", entry.blob);
-        if headers.get(header::IF_NONE_MATCH).and_then(|v| v.to_str().ok()) == Some(etag.as_str()) {
+        if headers
+            .get(header::IF_NONE_MATCH)
+            .and_then(|v| v.to_str().ok())
+            == Some(etag.as_str())
+        {
             return Ok((StatusCode::NOT_MODIFIED, [(header::ETAG, etag)]).into_response());
         }
-        let link = self.links.get(&entry.node).ok_or(AppError::Unavailable("video non disponibile: il server di archivio e' offline"))?;
+        let link = self.links.get(&entry.node).ok_or(AppError::Unavailable(
+            "video non disponibile: il server di archivio e' offline",
+        ))?;
         let range = headers
             .get(header::RANGE)
             .and_then(|v| v.to_str().ok())
@@ -366,25 +442,41 @@ impl Storage {
         let (status, start, end) = match range {
             Some(Ok((s, e))) => (StatusCode::PARTIAL_CONTENT, s, e),
             Some(Err(())) => {
-                return Ok((StatusCode::RANGE_NOT_SATISFIABLE, [(header::CONTENT_RANGE, format!("bytes */{total}"))]).into_response())
+                return Ok((
+                    StatusCode::RANGE_NOT_SATISFIABLE,
+                    [(header::CONTENT_RANGE, format!("bytes */{total}"))],
+                )
+                    .into_response())
             }
             None => (StatusCode::OK, 0, total - 1),
         };
         self.touch(path);
-        let body = self.clone().read_range(link, entry.clone(), start, end).await?;
+        let body = self
+            .clone()
+            .read_range(link, entry.clone(), start, end)
+            .await?;
         let len = end - start + 1;
         let mut resp = (status, axum::body::Body::from_stream(body)).into_response();
         let h = resp.headers_mut();
         h.insert(header::CONTENT_TYPE, "video/mp4".parse().unwrap());
         h.insert(header::ACCEPT_RANGES, "bytes".parse().unwrap());
         h.insert(header::CONTENT_LENGTH, len.into());
-        h.insert(header::CACHE_CONTROL, "private, max-age=31536000, immutable".parse().unwrap());
+        h.insert(
+            header::CACHE_CONTROL,
+            "private, max-age=31536000, immutable".parse().unwrap(),
+        );
         h.insert(header::ETAG, etag.parse().unwrap());
         if status == StatusCode::PARTIAL_CONTENT {
-            h.insert(header::CONTENT_RANGE, format!("bytes {start}-{end}/{total}").parse().unwrap());
+            h.insert(
+                header::CONTENT_RANGE,
+                format!("bytes {start}-{end}/{total}").parse().unwrap(),
+            );
         }
         if let Some(name) = name {
-            h.insert(header::CONTENT_DISPOSITION, format!("attachment; filename=\"{name}\"").parse().unwrap());
+            h.insert(
+                header::CONTENT_DISPOSITION,
+                format!("attachment; filename=\"{name}\"").parse().unwrap(),
+            );
         }
         Ok(resp)
     }
@@ -400,9 +492,9 @@ impl Storage {
         let first = start / PLAIN_CHUNK;
         let last = end / PLAIN_CHUNK;
         let cipher = Arc::new(BlobCipher::new(&self.master, &e.blob));
-        let first_piece = fetch_chunk(&link, &e, first)
-            .await
-            .map_err(|_| AppError::Unavailable("video non disponibile: il server di archivio e' offline"))?;
+        let first_piece = fetch_chunk(&link, &e, first).await.map_err(|_| {
+            AppError::Unavailable("video non disponibile: il server di archivio e' offline")
+        })?;
         let began = Instant::now();
         let storage = self.clone();
         let node = e.node.clone();
@@ -412,10 +504,13 @@ impl Storage {
                 async move { (i, fetch_chunk(&link, &e, i).await) }
             })
             .buffered(READ_AHEAD);
-        let pieces = futures_util::stream::once(async move { (first, Ok(first_piece)) }).chain(rest);
+        let pieces =
+            futures_util::stream::once(async move { (first, Ok(first_piece)) }).chain(rest);
         Ok(pieces.map(move |(i, piece)| {
             let piece = piece.map_err(std::io::Error::other)?;
-            let plain = cipher.open(i, &piece).ok_or_else(|| std::io::Error::other("pezzo del video danneggiato"))?;
+            let plain = cipher
+                .open(i, &piece)
+                .ok_or_else(|| std::io::Error::other("pezzo del video danneggiato"))?;
             let base = i * PLAIN_CHUNK;
             let from = start.saturating_sub(base) as usize;
             let to = ((end - base) as usize + 1).min(plain.len());
@@ -429,18 +524,22 @@ impl Storage {
 
     fn note_down(&self, rate: f64, node: &str) {
         if let Some(l) = self.links.any(node) {
-            l.down_rate.store(rate as u64, std::sync::atomic::Ordering::Relaxed);
+            l.down_rate
+                .store(rate as u64, std::sync::atomic::Ordering::Relaxed);
         }
     }
-
 
     async fn offload(&self, path: &Path, rel: &str) -> Result<(), String> {
         let meta = tokio::fs::metadata(path).await.map_err(|e| e.to_string())?;
         let size = meta.len();
-        let (node, link) = self.pick_node(size, None).ok_or("nessun server di archivio con spazio collegato")?;
+        let (node, link) = self
+            .pick_node(size, None)
+            .ok_or("nessun server di archivio con spazio collegato")?;
         let blob = uuid::Uuid::new_v4().to_string();
         let cipher = BlobCipher::new(&self.master, &blob);
-        let mut file = tokio::fs::File::open(path).await.map_err(|e| e.to_string())?;
+        let mut file = tokio::fs::File::open(path)
+            .await
+            .map_err(|e| e.to_string())?;
         let mut hasher = Sha256::new();
         let sem = Arc::new(tokio::sync::Semaphore::new(PARALLEL_CHUNKS));
         let mut tasks = tokio::task::JoinSet::new();
@@ -455,10 +554,22 @@ impl Storage {
             }
             let sealed = cipher.seal(i, &buf);
             hasher.update(&sealed);
-            let permit = sem.clone().acquire_owned().await.map_err(|e| e.to_string())?;
+            let permit = sem
+                .clone()
+                .acquire_owned()
+                .await
+                .map_err(|e| e.to_string())?;
             let (link, blob) = (link.clone(), blob.clone());
             tasks.spawn(async move {
-                let r = link.request(&Request::Put { blob, offset: cipher_offset(i) }, &sealed).await;
+                let r = link
+                    .request(
+                        &Request::Put {
+                            blob,
+                            offset: cipher_offset(i),
+                        },
+                        &sealed,
+                    )
+                    .await;
                 drop(permit);
                 r
             });
@@ -476,7 +587,9 @@ impl Storage {
                 failed.get_or_insert(e);
             }
         }
-        let same = tokio::fs::metadata(path).await.is_ok_and(|m| m.len() == size && m.modified().ok() == meta.modified().ok());
+        let same = tokio::fs::metadata(path)
+            .await
+            .is_ok_and(|m| m.len() == size && m.modified().ok() == meta.modified().ok());
         if failed.is_none() && !same {
             failed = Some("il file e' cambiato durante il trasferimento".into());
         }
@@ -485,23 +598,49 @@ impl Storage {
             return Err(e);
         }
         let sha256 = hex::encode(hasher.finalize());
-        match link.request(&Request::Commit { blob: blob.clone(), size: cipher_len(size), sha256: sha256.clone() }, &[]).await {
+        match link
+            .request(
+                &Request::Commit {
+                    blob: blob.clone(),
+                    size: cipher_len(size),
+                    sha256: sha256.clone(),
+                },
+                &[],
+            )
+            .await
+        {
             Ok(NodeResponse::Ok) => {}
             Ok(other) => return Err(format!("risposta inattesa: {other:?}")),
             Err(e) => return Err(e),
         }
         let secs = began.elapsed().as_secs_f64().max(0.001);
-        link.up_rate.store((size as f64 / secs) as u64, std::sync::atomic::Ordering::Relaxed);
+        link.up_rate.store(
+            (size as f64 / secs) as u64,
+            std::sync::atomic::Ordering::Relaxed,
+        );
         self.index.lock().unwrap().files.insert(
             rel.to_string(),
-            Entry { node, blob, size, sha256, stored_at: now_secs(), last_access: now_secs() },
+            Entry {
+                node,
+                blob,
+                size,
+                sha256,
+                stored_at: now_secs(),
+                last_access: now_secs(),
+            },
         );
         self.save_index();
         Ok(())
     }
 
     fn candidates(&self, st: &AppState, rush: bool) -> Vec<(PathBuf, u64, SystemTime)> {
-        let age = |min: Duration, m: &std::fs::Metadata| rush || m.modified().ok().and_then(|t| t.elapsed().ok()).is_some_and(|e| e >= min);
+        let age = |min: Duration, m: &std::fs::Metadata| {
+            rush || m
+                .modified()
+                .ok()
+                .and_then(|t| t.elapsed().ok())
+                .is_some_and(|e| e >= min)
+        };
         let mut out = Vec::new();
         let mut add = |p: PathBuf, min: Duration| {
             if let Ok(m) = std::fs::metadata(&p) {
@@ -510,13 +649,25 @@ impl Storage {
                 }
             }
         };
-        for ext in std::fs::read_dir(&self.data_dir).into_iter().flatten().flatten() {
+        for ext in std::fs::read_dir(&self.data_dir)
+            .into_iter()
+            .flatten()
+            .flatten()
+        {
             let name = ext.file_name().to_string_lossy().into_owned();
             if matches!(name.as_str(), "matches" | "storage" | "app") || !ext.path().is_dir() {
                 continue;
             }
-            for user in std::fs::read_dir(ext.path()).into_iter().flatten().flatten() {
-                for f in std::fs::read_dir(user.path().join("clips")).into_iter().flatten().flatten() {
+            for user in std::fs::read_dir(ext.path())
+                .into_iter()
+                .flatten()
+                .flatten()
+            {
+                for f in std::fs::read_dir(user.path().join("clips"))
+                    .into_iter()
+                    .flatten()
+                    .flatten()
+                {
                     let n = f.file_name().to_string_lossy().into_owned();
                     if n.ends_with(".mp4") && !n.starts_with('.') {
                         add(f.path(), CLIP_AGE);
@@ -527,13 +678,22 @@ impl Storage {
         let ended: Vec<uuid::Uuid> = st
             .matches
             .try_read()
-            .map(|m| m.values().filter(|m| m.status == relay_common::MatchStatus::Ended).map(|m| m.id).collect())
+            .map(|m| {
+                m.values()
+                    .filter(|m| m.status == relay_common::MatchStatus::Ended)
+                    .map(|m| m.id)
+                    .collect()
+            })
             .unwrap_or_default();
         for id in ended {
             if !st.processing_of(id).is_empty() {
                 continue;
             }
-            for p in std::fs::read_dir(st.match_dir(id)).into_iter().flatten().flatten() {
+            for p in std::fs::read_dir(st.match_dir(id))
+                .into_iter()
+                .flatten()
+                .flatten()
+            {
                 let dir = p.path();
                 if !dir.is_dir() {
                     continue;
@@ -557,19 +717,29 @@ impl Storage {
         let mut freed = 0u64;
         for rel in archived {
             let path = self.data_dir.join(&rel);
-            let Ok(meta) = tokio::fs::metadata(&path).await else { continue };
+            let Ok(meta) = tokio::fs::metadata(&path).await else {
+                continue;
+            };
             if tokio::fs::remove_file(&path).await.is_ok() {
                 freed += meta.len();
             }
         }
         if freed > 0 {
-            tracing::info!("archivio: tolte le copie locali gia' archiviate ({} MB)", freed / 1_000_000);
+            tracing::info!(
+                "archivio: tolte le copie locali gia' archiviate ({} MB)",
+                freed / 1_000_000
+            );
         }
     }
 
     async fn move_entry(&self, rel: &str, e: &Entry) -> Result<String, String> {
-        let from = self.links.get(&e.node).ok_or("server di partenza offline")?;
-        let (to, link) = self.pick_node(e.size, Some(&e.node)).ok_or("nessun altro server con spazio collegato")?;
+        let from = self
+            .links
+            .get(&e.node)
+            .ok_or("server di partenza offline")?;
+        let (to, link) = self
+            .pick_node(e.size, Some(&e.node))
+            .ok_or("nessun altro server con spazio collegato")?;
         let mut rx = from.get(&e.blob, 0, cipher_len(e.size)).await?;
         let mut hasher = Sha256::new();
         let sem = Arc::new(tokio::sync::Semaphore::new(PARALLEL_CHUNKS));
@@ -594,10 +764,22 @@ impl Storage {
             }
             let piece: Vec<u8> = buf.drain(..need).collect();
             hasher.update(&piece);
-            let permit = sem.clone().acquire_owned().await.map_err(|e| e.to_string())?;
+            let permit = sem
+                .clone()
+                .acquire_owned()
+                .await
+                .map_err(|e| e.to_string())?;
             let (link, blob) = (link.clone(), e.blob.clone());
             tasks.spawn(async move {
-                let r = link.request(&Request::Put { blob, offset: cipher_offset(i) }, &piece).await;
+                let r = link
+                    .request(
+                        &Request::Put {
+                            blob,
+                            offset: cipher_offset(i),
+                        },
+                        &piece,
+                    )
+                    .await;
                 drop(permit);
                 r
             });
@@ -620,16 +802,36 @@ impl Storage {
             failed = Some("la copia sul server di partenza e' danneggiata".into());
         }
         if let Some(err) = failed {
-            let _ = link.request(&Request::Abort { blob: e.blob.clone() }, &[]).await;
+            let _ = link
+                .request(
+                    &Request::Abort {
+                        blob: e.blob.clone(),
+                    },
+                    &[],
+                )
+                .await;
             return Err(err);
         }
-        match link.request(&Request::Commit { blob: e.blob.clone(), size: cipher_len(e.size), sha256: e.sha256.clone() }, &[]).await {
+        match link
+            .request(
+                &Request::Commit {
+                    blob: e.blob.clone(),
+                    size: cipher_len(e.size),
+                    sha256: e.sha256.clone(),
+                },
+                &[],
+            )
+            .await
+        {
             Ok(NodeResponse::Ok) => {}
             Ok(other) => return Err(format!("risposta inattesa: {other:?}")),
             Err(err) => return Err(err),
         }
         let secs = began.elapsed().as_secs_f64().max(0.001);
-        link.up_rate.store((e.size as f64 / secs) as u64, std::sync::atomic::Ordering::Relaxed);
+        link.up_rate.store(
+            (e.size as f64 / secs) as u64,
+            std::sync::atomic::Ordering::Relaxed,
+        );
         let mut idx = self.index.lock().unwrap();
         match idx.files.get_mut(rel) {
             Some(cur) if cur.blob == e.blob && cur.node == e.node => {
@@ -651,7 +853,13 @@ impl Storage {
         if draining.is_empty() {
             return;
         }
-        let name = |id: &str| nodes.iter().find(|n| n.id == id).map(|n| n.name.clone()).unwrap_or_default();
+        let name = |id: &str| {
+            nodes
+                .iter()
+                .find(|n| n.id == id)
+                .map(|n| n.name.clone())
+                .unwrap_or_default()
+        };
         let todo: Vec<(String, Entry)> = self
             .index
             .lock()
@@ -668,7 +876,12 @@ impl Storage {
             self.activity.lock().unwrap().current = Some(rel.clone());
             match self.move_entry(&rel, &e).await {
                 Ok(to) => {
-                    tracing::info!("archivio: {rel} spostato da {} a {} ({} MB)", name(&e.node), name(&to), e.size / 1_000_000);
+                    tracing::info!(
+                        "archivio: {rel} spostato da {} a {} ({} MB)",
+                        name(&e.node),
+                        name(&to),
+                        e.size / 1_000_000
+                    );
                     self.activity.lock().unwrap().last_error = None;
                 }
                 Err(err) => {
@@ -690,13 +903,21 @@ impl Storage {
         let mut done = Vec::new();
         for (node, blob) in pending {
             if let Some(link) = self.links.get(&node) {
-                if link.request(&Request::Delete { blob: blob.clone() }, &[]).await.is_ok() {
+                if link
+                    .request(&Request::Delete { blob: blob.clone() }, &[])
+                    .await
+                    .is_ok()
+                {
                     done.push((node, blob));
                 }
             }
         }
         if !done.is_empty() {
-            self.index.lock().unwrap().deletes.retain(|d| !done.contains(d));
+            self.index
+                .lock()
+                .unwrap()
+                .deletes
+                .retain(|d| !done.contains(d));
             self.save_index();
         }
     }
@@ -710,7 +931,9 @@ impl Storage {
             let rush = self.rush.swap(false, std::sync::atomic::Ordering::Relaxed);
             let this = self.clone();
             let st2 = st.clone();
-            let mut todo = tokio::task::spawn_blocking(move || this.candidates(&st2, rush)).await.unwrap_or_default();
+            let mut todo = tokio::task::spawn_blocking(move || this.candidates(&st2, rush))
+                .await
+                .unwrap_or_default();
             todo.sort_by_key(|c| c.2);
             let pending: Vec<(PathBuf, u64)> = todo
                 .into_iter()
@@ -780,12 +1003,22 @@ mod tests {
         let (node, _) = s.add_node("casa");
         s.index.lock().unwrap().files.insert(
             "matches/a/p/video.mp4".into(),
-            Entry { node: node.id.clone(), blob: "1".into(), size: 1, sha256: String::new(), stored_at: 0, last_access: 0 },
+            Entry {
+                node: node.id.clone(),
+                blob: "1".into(),
+                size: 1,
+                sha256: String::new(),
+                stored_at: 0,
+                last_access: 0,
+            },
         );
         assert!(s.remove_node(&node.id).is_err(), "ha ancora video");
         assert!(s.update_node(&node.id, Some("nas"), None, Some(true)));
         assert!(s.nodes()[0].draining);
-        assert!(s.pick_node(1, None).is_none(), "un server da svuotare non riceve video nuovi");
+        assert!(
+            s.pick_node(1, None).is_none(),
+            "un server da svuotare non riceve video nuovi"
+        );
         s.forget_dir(&dir.path().join("matches/a"));
         s.remove_node(&node.id).unwrap();
         assert!(s.nodes().is_empty());
@@ -796,7 +1029,14 @@ mod tests {
     fn forgetting_a_match_queues_the_deletes() {
         let dir = tempfile::tempdir().unwrap();
         let s = Storage::open(dir.path()).unwrap();
-        let e = |b: &str| Entry { node: "n".into(), blob: b.into(), size: 1, sha256: String::new(), stored_at: 0, last_access: 0 };
+        let e = |b: &str| Entry {
+            node: "n".into(),
+            blob: b.into(),
+            size: 1,
+            sha256: String::new(),
+            stored_at: 0,
+            last_access: 0,
+        };
         {
             let mut i = s.index.lock().unwrap();
             i.files.insert("matches/a/p/video.mp4".into(), e("1"));
@@ -805,7 +1045,13 @@ mod tests {
         assert!(s.present(&dir.path().join("matches/a/p/video.mp4")));
         s.forget_dir(&dir.path().join("matches/a"));
         assert!(!s.present(&dir.path().join("matches/a/p/video.mp4")));
-        assert!(s.present(&dir.path().join("matches/ab/p/video.mp4")), "solo la partita cancellata");
-        assert_eq!(s.index.lock().unwrap().deletes, vec![("n".to_string(), "1".to_string())]);
+        assert!(
+            s.present(&dir.path().join("matches/ab/p/video.mp4")),
+            "solo la partita cancellata"
+        );
+        assert_eq!(
+            s.index.lock().unwrap().deletes,
+            vec![("n".to_string(), "1".to_string())]
+        );
     }
 }

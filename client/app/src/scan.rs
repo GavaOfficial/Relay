@@ -9,10 +9,33 @@ use crate::{core::Core, psych::Kind};
 
 const MAX_DEPTH: usize = 8;
 const SKIP: &[&str] = &[
-    "windows", "$recycle.bin", "system volume information", "programdata", "node_modules", ".git",
-    "target", ".cargo", ".rustup", "temp", "tmp", "cache", "caches", "microsoft", "packages",
-    "windowsapps", "winsxs", "driverstore", ".vscode", ".npm", ".nuget", "site-packages",
-    "__pycache__", "recovery", "perflogs", "msocache", "config.msi",
+    "windows",
+    "$recycle.bin",
+    "system volume information",
+    "programdata",
+    "node_modules",
+    ".git",
+    "target",
+    ".cargo",
+    ".rustup",
+    "temp",
+    "tmp",
+    "cache",
+    "caches",
+    "microsoft",
+    "packages",
+    "windowsapps",
+    "winsxs",
+    "driverstore",
+    ".vscode",
+    ".npm",
+    ".nuget",
+    "site-packages",
+    "__pycache__",
+    "recovery",
+    "perflogs",
+    "msocache",
+    "config.msi",
 ];
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -62,10 +85,18 @@ pub fn classify(dir: &Path) -> Option<Engine> {
     if crate::gd::is_game_dir(dir) {
         return Some(Engine::Gd);
     }
-    let exes = std::fs::read_dir(dir).ok()?.flatten().map(|e| e.path()).filter(|p| {
-        let n = p.file_name().unwrap_or_default().to_string_lossy().to_lowercase();
-        n.ends_with(".exe") && !n.contains("crash") && !n.starts_with("unins")
-    });
+    let exes = std::fs::read_dir(dir)
+        .ok()?
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| {
+            let n = p
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_lowercase();
+            n.ends_with(".exe") && !n.contains("crash") && !n.starts_with("unins")
+        });
     let mut psych = false;
     let mut kade = false;
     for exe in exes {
@@ -81,7 +112,9 @@ pub fn classify(dir: &Path) -> Option<Engine> {
         if contains(&data, b"funkin.states.PlayState") {
             return Some(Engine::Nmv);
         }
-        psych |= [&b"FunkinLua"[..], b"psychEngineVersion", b"PsychEngine"].iter().any(|m| contains(&data, m));
+        psych |= [&b"FunkinLua"[..], b"psychEngineVersion", b"PsychEngine"]
+            .iter()
+            .any(|m| contains(&data, m));
         kade |= crate::kade::is_kade_exe(&data);
     }
     if psych {
@@ -104,7 +137,8 @@ fn game_dirs() -> Vec<PathBuf> {
         };
         let entries: Vec<_> = entries.flatten().collect();
         if entries.iter().any(|e| {
-            e.file_name().eq_ignore_ascii_case("lime.ndll") || e.file_name().eq_ignore_ascii_case("GeometryDash.exe")
+            e.file_name().eq_ignore_ascii_case("lime.ndll")
+                || e.file_name().eq_ignore_ascii_case("GeometryDash.exe")
         }) {
             out.push(dir);
             continue;
@@ -147,7 +181,9 @@ fn connect(core: &Arc<Core>, engine: Engine, folder: &str) -> Result<(), String>
     match engine {
         Engine::Funkin => crate::funkin::add_folder(core, folder.to_string()).map(|_| ()),
         Engine::Codename => crate::fnf::add_folder(&base, folder.to_string()).map(|_| ()),
-        Engine::Psych => crate::psych::add_folder(core, Kind::Psych, folder.to_string()).map(|_| ()),
+        Engine::Psych => {
+            crate::psych::add_folder(core, Kind::Psych, folder.to_string()).map(|_| ())
+        }
         Engine::Nmv => crate::psych::add_folder(core, Kind::Nmv, folder.to_string()).map(|_| ()),
         Engine::Kade => crate::kade::add_folder(core, folder.to_string()).map(|_| ()),
         Engine::Gd => crate::gd::add_folder(core, folder.to_string()).map(|_| ()),
@@ -176,7 +212,8 @@ pub async fn scan_and_connect(core: Arc<Core>) -> Result<ScanResult, String> {
         let folder = dir.to_string_lossy().into_owned();
         let name = crate::modname::folder_name(&folder);
         let already = connected(&core, engine).iter().any(|f| {
-            f.trim_end_matches(['\\', '/']).eq_ignore_ascii_case(folder.trim_end_matches(['\\', '/']))
+            f.trim_end_matches(['\\', '/'])
+                .eq_ignore_ascii_case(folder.trim_end_matches(['\\', '/']))
         });
         let (status, error) = if already {
             ("gia'", None)
@@ -187,9 +224,18 @@ pub async fn scan_and_connect(core: Arc<Core>) -> Result<ScanResult, String> {
             }
         };
         tracing::info!("ricerca mod: {folder} ({}) -> {status}", engine.key());
-        out.push(Found { engine: engine.key(), folder, name, status, error });
+        out.push(Found {
+            engine: engine.key(),
+            folder,
+            name,
+            status,
+            error,
+        });
     }
-    Ok(ScanResult { found: out, other_engines: other })
+    Ok(ScanResult {
+        found: out,
+        other_engines: other,
+    })
 }
 
 #[cfg(test)]
@@ -205,11 +251,25 @@ mod tests {
             std::fs::write(d.join("Game.exe"), content).unwrap();
             d
         };
-        assert_eq!(classify(&game("cne", b"..funkin.backend.system.Main..Psych Engine..")), Some(Engine::Codename));
-        assert_eq!(classify(&game("base", b"..funkin.play.PlayState..")), Some(Engine::Funkin));
-        assert_eq!(classify(&game("nmv", b"..funkin.states.PlayState..FunkinLua..")), Some(Engine::Nmv));
-        assert_eq!(classify(&game("psych", b"..states.PlayState..FunkinLua..")), Some(Engine::Psych));
+        assert_eq!(
+            classify(&game(
+                "cne",
+                b"..funkin.backend.system.Main..Psych Engine.."
+            )),
+            Some(Engine::Codename)
+        );
+        assert_eq!(
+            classify(&game("base", b"..funkin.play.PlayState..")),
+            Some(Engine::Funkin)
+        );
+        assert_eq!(
+            classify(&game("nmv", b"..funkin.states.PlayState..FunkinLua..")),
+            Some(Engine::Nmv)
+        );
+        assert_eq!(
+            classify(&game("psych", b"..states.PlayState..FunkinLua..")),
+            Some(Engine::Psych)
+        );
         assert_eq!(classify(&game("kade", b"..KadeEngineData..")), None);
     }
 }
-

@@ -1,4 +1,5 @@
 #![cfg(windows)]
+#![allow(clippy::missing_safety_doc)]
 use anyhow::{ensure, Context, Result};
 use relay_hook_protocol::{
     ipc::{Channel, Handle},

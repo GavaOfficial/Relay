@@ -68,8 +68,16 @@ pub struct Live {
 }
 
 pub enum Sink {
-    Local { tmp: PathBuf, file: tokio::fs::File },
-    Stored { node: String, link: Arc<crate::storage::tunnel::NodeLink>, blob: String, hasher: Sha256 },
+    Local {
+        tmp: PathBuf,
+        file: tokio::fs::File,
+    },
+    Stored {
+        node: String,
+        link: Arc<crate::storage::tunnel::NodeLink>,
+        blob: String,
+        hasher: Sha256,
+    },
 }
 
 pub struct BigUpload {
@@ -90,16 +98,24 @@ pub struct Ops {
 }
 
 pub fn now_secs() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
 }
 
 fn read_json<T: for<'de> Deserialize<'de> + Default>(path: &Path) -> T {
-    std::fs::read(path).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default()
+    std::fs::read(path)
+        .ok()
+        .and_then(|b| serde_json::from_slice(&b).ok())
+        .unwrap_or_default()
 }
 
 fn write_json<T: Serialize>(path: &Path, value: &T) {
     let tmp = path.with_extension("json.tmp");
-    let ok = serde_json::to_vec_pretty(value).ok().map(|b| std::fs::write(&tmp, b).and_then(|_| std::fs::rename(&tmp, path)));
+    let ok = serde_json::to_vec_pretty(value)
+        .ok()
+        .map(|b| std::fs::write(&tmp, b).and_then(|_| std::fs::rename(&tmp, path)));
     if !matches!(ok, Some(Ok(()))) {
         tracing::error!("operazioni: non riesco a salvare {}", path.display());
     }
@@ -107,7 +123,16 @@ fn write_json<T: Serialize>(path: &Path, value: &T) {
 
 fn same_work(a: &JobKind, b: &JobKind) -> bool {
     match (a, b) {
-        (JobKind::Match { match_id: m1, player: p1 }, JobKind::Match { match_id: m2, player: p2 }) => m1 == m2 && p1 == p2,
+        (
+            JobKind::Match {
+                match_id: m1,
+                player: p1,
+            },
+            JobKind::Match {
+                match_id: m2,
+                player: p2,
+            },
+        ) => m1 == m2 && p1 == p2,
         (JobKind::Clip { clip: c1, .. }, JobKind::Clip { clip: c2, .. }) => c1 == c2,
         _ => false,
     }
@@ -159,7 +184,13 @@ impl Ops {
         let mut secret = [0u8; 32];
         let _ = getrandom::getrandom(&mut secret);
         let key = format!("rok_{}", hex::encode(secret));
-        let node = OpsNode { id: Uuid::new_v4().to_string(), name: name.to_string(), key_sha256: hash_key(&key), created_at: now_secs(), parallel: None };
+        let node = OpsNode {
+            id: Uuid::new_v4().to_string(),
+            name: name.to_string(),
+            key_sha256: hash_key(&key),
+            created_at: now_secs(),
+            parallel: None,
+        };
         self.config.lock().unwrap().nodes.push(node.clone());
         self.save_config();
         (node, key)
@@ -167,7 +198,9 @@ impl Ops {
 
     pub fn rename_node(&self, id: &str, name: &str) -> bool {
         let mut c = self.config.lock().unwrap();
-        let Some(n) = c.nodes.iter_mut().find(|n| n.id == id) else { return false };
+        let Some(n) = c.nodes.iter_mut().find(|n| n.id == id) else {
+            return false;
+        };
         n.name = name.to_string();
         drop(c);
         self.save_config();
@@ -176,7 +209,9 @@ impl Ops {
 
     pub fn set_parallel(&self, id: &str, parallel: Option<u32>) -> bool {
         let mut c = self.config.lock().unwrap();
-        let Some(n) = c.nodes.iter_mut().find(|n| n.id == id) else { return false };
+        let Some(n) = c.nodes.iter_mut().find(|n| n.id == id) else {
+            return false;
+        };
         n.parallel = parallel.map(|p| p.clamp(1, 16));
         drop(c);
         self.save_config();
@@ -185,8 +220,21 @@ impl Ops {
     }
 
     pub fn limit(&self, id: &str) -> u32 {
-        let fixed = self.config.lock().unwrap().nodes.iter().find(|n| n.id == id).and_then(|n| n.parallel);
-        let live = self.live.lock().unwrap().get(id).map(|l| (l.poll.threads, l.poll.slots)).unwrap_or((1, 1));
+        let fixed = self
+            .config
+            .lock()
+            .unwrap()
+            .nodes
+            .iter()
+            .find(|n| n.id == id)
+            .and_then(|n| n.parallel);
+        let live = self
+            .live
+            .lock()
+            .unwrap()
+            .get(id)
+            .map(|l| (l.poll.threads, l.poll.slots))
+            .unwrap_or((1, 1));
         let want = fixed.unwrap_or_else(|| relay_common::ops::auto_parallel(live.0));
         want.min(live.1.max(1))
     }
@@ -212,7 +260,11 @@ impl Ops {
             self.save_config();
             self.live.lock().unwrap().remove(id);
             let mut q = self.queue.lock().unwrap();
-            for j in q.jobs.iter_mut().filter(|j| j.assigned.as_deref() == Some(id)) {
+            for j in q
+                .jobs
+                .iter_mut()
+                .filter(|j| j.assigned.as_deref() == Some(id))
+            {
                 j.assigned = None;
             }
             drop(q);
@@ -224,16 +276,32 @@ impl Ops {
 
     pub fn node_for_key(&self, key: &str) -> Option<String> {
         let h = hash_key(key);
-        self.config.lock().unwrap().nodes.iter().find(|n| n.key_sha256 == h).map(|n| n.id.clone())
+        self.config
+            .lock()
+            .unwrap()
+            .nodes
+            .iter()
+            .find(|n| n.key_sha256 == h)
+            .map(|n| n.id.clone())
     }
 
     pub fn online(&self, id: &str) -> bool {
-        self.live.lock().unwrap().get(id).and_then(|l| l.last_seen).is_some_and(|t| t.elapsed() < ONLINE)
+        self.live
+            .lock()
+            .unwrap()
+            .get(id)
+            .and_then(|l| l.last_seen)
+            .is_some_and(|t| t.elapsed() < ONLINE)
     }
 
     pub fn rel(&self, path: &Path) -> Option<String> {
         let rel = path.strip_prefix(&self.data_dir).ok()?;
-        Some(rel.components().map(|c| c.as_os_str().to_string_lossy()).collect::<Vec<_>>().join("/"))
+        Some(
+            rel.components()
+                .map(|c| c.as_os_str().to_string_lossy())
+                .collect::<Vec<_>>()
+                .join("/"),
+        )
     }
 
     pub fn abs(&self, rel: &str) -> PathBuf {
@@ -241,7 +309,9 @@ impl Ops {
     }
 
     pub fn enqueue(&self, kind: JobKind, dir: &Path, inputs: Vec<InputFile>) -> bool {
-        let Some(dir) = self.rel(dir) else { return false };
+        let Some(dir) = self.rel(dir) else {
+            return false;
+        };
         let mut q = self.queue.lock().unwrap();
         if let Some(existing) = q.jobs.iter_mut().find(|j| same_work(&j.job.kind, &kind)) {
             if existing.assigned.is_none() {
@@ -254,7 +324,12 @@ impl Ops {
             return false;
         }
         q.jobs.push(Queued {
-            job: Job { id: Uuid::new_v4(), kind, inputs, threads: 0 },
+            job: Job {
+                id: Uuid::new_v4(),
+                kind,
+                inputs,
+                threads: 0,
+            },
             dir,
             created_at: now_secs(),
             attempts: 0,
@@ -275,7 +350,12 @@ impl Ops {
     }
 
     pub fn is_queued(&self, kind: &JobKind) -> bool {
-        self.queue.lock().unwrap().jobs.iter().any(|j| same_work(&j.job.kind, kind))
+        self.queue
+            .lock()
+            .unwrap()
+            .jobs
+            .iter()
+            .any(|j| same_work(&j.job.kind, kind))
     }
 
     pub fn see(&self, node: &str, poll: Option<Poll>) {
@@ -290,26 +370,47 @@ impl Ops {
     pub fn take(&self, node: &str, running: Option<&[Uuid]>) -> Option<Job> {
         let now = now_secs();
         let limit = self.limit(node);
-        let threads = self.live.lock().unwrap().get(node).map(|l| l.poll.threads).unwrap_or(1).max(1);
+        let threads = self
+            .live
+            .lock()
+            .unwrap()
+            .get(node)
+            .map(|l| l.poll.threads)
+            .unwrap_or(1)
+            .max(1);
         let mut q = self.queue.lock().unwrap();
         let mut changed = false;
         for j in q.jobs.iter_mut() {
-            let lost = running.is_some_and(|r| j.assigned.as_deref() == Some(node) && !r.contains(&j.job.id) && j.assigned_at + 60 < now);
+            let lost = running.is_some_and(|r| {
+                j.assigned.as_deref() == Some(node)
+                    && !r.contains(&j.job.id)
+                    && j.assigned_at + 60 < now
+            });
             if j.assigned.is_some() && (j.lease_until < now || lost) {
-                tracing::warn!("operazioni: {} interrotto, torna in coda", label(&j.job.kind));
+                tracing::warn!(
+                    "operazioni: {} interrotto, torna in coda",
+                    label(&j.job.kind)
+                );
                 j.assigned = None;
                 changed = true;
             }
         }
-        let busy = q.jobs.iter().filter(|j| j.assigned.as_deref() == Some(node)).count() as u32;
+        let busy = q
+            .jobs
+            .iter()
+            .filter(|j| j.assigned.as_deref() == Some(node))
+            .count() as u32;
         let job = if busy < limit {
-            q.jobs.iter_mut().find(|j| j.assigned.is_none() && j.not_before <= now).map(|j| {
-                j.assigned = Some(node.to_string());
-                j.assigned_at = now;
-                j.lease_until = now + LEASE.as_secs();
-                j.job.threads = (threads / limit).max(1);
-                j.job.clone()
-            })
+            q.jobs
+                .iter_mut()
+                .find(|j| j.assigned.is_none() && j.not_before <= now)
+                .map(|j| {
+                    j.assigned = Some(node.to_string());
+                    j.assigned_at = now;
+                    j.lease_until = now + LEASE.as_secs();
+                    j.job.threads = (threads / limit).max(1);
+                    j.job.clone()
+                })
         } else {
             None
         };
@@ -318,14 +419,23 @@ impl Ops {
             self.save_queue();
         }
         let job = job?;
-        self.live.lock().unwrap().entry(node.to_string()).or_default().jobs.insert(job.id, ("download".into(), 0));
+        self.live
+            .lock()
+            .unwrap()
+            .entry(node.to_string())
+            .or_default()
+            .jobs
+            .insert(job.id, ("download".into(), 0));
         Some(job)
     }
 
     pub fn leased(&self, node: &str, id: Uuid) -> Option<Queued> {
         let now = now_secs();
         let mut q = self.queue.lock().unwrap();
-        let j = q.jobs.iter_mut().find(|j| j.job.id == id && j.assigned.as_deref() == Some(node))?;
+        let j = q
+            .jobs
+            .iter_mut()
+            .find(|j| j.job.id == id && j.assigned.as_deref() == Some(node))?;
         j.lease_until = now + LEASE.as_secs();
         Some(j.clone())
     }
@@ -340,12 +450,20 @@ impl Ops {
     pub fn failed(&self, node: &str, id: Uuid, error: &str) {
         let now = now_secs();
         let mut q = self.queue.lock().unwrap();
-        if let Some(j) = q.jobs.iter_mut().find(|j| j.job.id == id && j.assigned.as_deref() == Some(node)) {
+        if let Some(j) = q
+            .jobs
+            .iter_mut()
+            .find(|j| j.job.id == id && j.assigned.as_deref() == Some(node))
+        {
             j.attempts += 1;
             j.last_error = Some(error.chars().take(300).collect());
             j.assigned = None;
             j.not_before = now + (60 * 2u64.pow(j.attempts.min(5))).min(MAX_BACKOFF_SECS);
-            tracing::warn!("operazioni: {} non riuscito (tentativo {}): {error}", label(&j.job.kind), j.attempts);
+            tracing::warn!(
+                "operazioni: {} non riuscito (tentativo {}): {error}",
+                label(&j.job.kind),
+                j.attempts
+            );
         }
         drop(q);
         self.save_queue();
@@ -377,7 +495,11 @@ impl Ops {
     }
 
     pub fn forget(&self, kind: &JobKind) {
-        self.queue.lock().unwrap().jobs.retain(|j| !same_work(&j.job.kind, kind));
+        self.queue
+            .lock()
+            .unwrap()
+            .jobs
+            .retain(|j| !same_work(&j.job.kind, kind));
         self.save_queue();
     }
 }
@@ -387,7 +509,10 @@ mod tests {
     use super::*;
 
     fn kind(p: &str) -> JobKind {
-        JobKind::Match { match_id: Uuid::nil(), player: p.into() }
+        JobKind::Match {
+            match_id: Uuid::nil(),
+            player: p.into(),
+        }
     }
 
     #[test]
@@ -400,8 +525,18 @@ mod tests {
         assert_eq!(ops.node_for_key(&key).as_deref(), Some(node.id.as_str()));
         let d = dir.path().join("matches/x/players/a");
         assert!(ops.enqueue(kind("a"), &d, vec![]));
-        assert!(!ops.enqueue(kind("a"), &d, vec![]), "stesso lavoro una volta sola");
-        ops.see(&node.id, Some(Poll { threads: 12, slots: 4, ..Default::default() }));
+        assert!(
+            !ops.enqueue(kind("a"), &d, vec![]),
+            "stesso lavoro una volta sola"
+        );
+        ops.see(
+            &node.id,
+            Some(Poll {
+                threads: 12,
+                slots: 4,
+                ..Default::default()
+            }),
+        );
         assert_eq!(ops.limit(&node.id), 2, "12 thread: due lavori insieme");
         assert!(ops.enqueue(kind("b"), &d, vec![]));
         assert!(ops.enqueue(kind("c"), &d, vec![]));
@@ -409,11 +544,17 @@ mod tests {
         assert_eq!(job.threads, 6);
         let second = ops.take(&node.id, Some(&[job.id])).unwrap();
         assert_ne!(job.id, second.id);
-        assert!(ops.take(&node.id, Some(&[job.id, second.id])).is_none(), "limite raggiunto");
+        assert!(
+            ops.take(&node.id, Some(&[job.id, second.id])).is_none(),
+            "limite raggiunto"
+        );
         ops.failed(&node.id, job.id, "errore");
         ops.done(&node.id, second.id);
         let third = ops.take(&node.id, Some(&[])).unwrap();
-        assert_ne!(third.id, job.id, "quello fallito aspetta prima di riprovare");
+        assert_ne!(
+            third.id, job.id,
+            "quello fallito aspetta prima di riprovare"
+        );
         ops.done(&node.id, third.id);
         assert!(ops.take(&node.id, Some(&[])).is_none());
         ops.retry_now();

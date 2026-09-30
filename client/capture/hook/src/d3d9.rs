@@ -59,8 +59,10 @@ unsafe fn capture(device: &IDirect3DDevice9, source: &IDirect3DSurface9, hwnd: H
     let Some(s) = guard.as_mut() else {
         return Ok(());
     };
-    let now=Instant::now();
-    if now<s.due{return Ok(())}
+    let now = Instant::now();
+    if now < s.due {
+        return Ok(());
+    }
     if !s.channel.alive() {
         s.capture = None;
         return Ok(());
@@ -407,7 +409,9 @@ pub fn run(channel: Channel) {
     let Some(config) = channel.snapshot() else {
         return;
     };
-    if config.reserved==relay_hook_protocol::CPU_ONLY{return}
+    if config.reserved == relay_hook_protocol::CPU_ONLY {
+        return;
+    }
     let targets = TARGETS.get_or_init(|| unsafe { discover().unwrap_or_default() });
     if targets.is_empty() {
         return;

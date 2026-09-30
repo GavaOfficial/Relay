@@ -542,7 +542,11 @@ impl H264 {
             self.force_keyframe(keyframe);
             let mut tries = 0;
             loop {
-                match { let _measure = timing::span(Stage::Input); unsafe { self.mft.ProcessInput(self.input_id, &sample, 0) } } {
+                let sent = {
+                    let _measure = timing::span(Stage::Input);
+                    unsafe { self.mft.ProcessInput(self.input_id, &sample, 0) }
+                };
+                match sent {
                     Ok(()) => break,
                     Err(e) if e.code() == MF_E_NOTACCEPTING && tries < 4 => {
                         tries += 1;
@@ -602,8 +606,11 @@ impl H264 {
                 break;
             };
             self.force_keyframe(keyframe);
-            { let _measure = timing::span(Stage::Input); unsafe { self.mft.ProcessInput(self.input_id, &sample, 0) } }
-                .context("invio del fotogramma all'encoder")?;
+            {
+                let _measure = timing::span(Stage::Input);
+                unsafe { self.mft.ProcessInput(self.input_id, &sample, 0) }
+            }
+            .context("invio del fotogramma all'encoder")?;
             self.need_input -= 1;
         }
         Ok(())
@@ -625,7 +632,10 @@ impl H264 {
             pEvents: ManuallyDrop::new(None),
         }];
         let mut status = 0u32;
-        let result = { let _measure = timing::span(Stage::Output); unsafe { self.mft.ProcessOutput(0, &mut buffers, &mut status) } };
+        let result = {
+            let _measure = timing::span(Stage::Output);
+            unsafe { self.mft.ProcessOutput(0, &mut buffers, &mut status) }
+        };
         let sample = unsafe { ManuallyDrop::take(&mut buffers[0].pSample) };
         drop(unsafe { ManuallyDrop::take(&mut buffers[0].pEvents) });
         match result {
@@ -663,13 +673,16 @@ impl H264 {
         if let Some(events) = &self.events {
             loop {
                 match unsafe { events.GetEvent(MF_EVENT_FLAG_NO_WAIT) } {
-                    Ok(_) => {},
+                    Ok(_) => {}
                     Err(e) if e.code() == MF_E_NO_EVENTS_AVAILABLE => break,
                     Err(e) => return Err(e.into()),
                 }
             }
         }
-        unsafe { self.mft.ProcessMessage(MFT_MESSAGE_NOTIFY_START_OF_STREAM, 0) }?;
+        unsafe {
+            self.mft
+                .ProcessMessage(MFT_MESSAGE_NOTIFY_START_OF_STREAM, 0)
+        }?;
         Ok(())
     }
 

@@ -28,7 +28,11 @@ impl Store {
         std::fs::create_dir_all(root.join("tmp"))?;
         let (mut used, mut blobs) = (0, 0);
         for dir in std::fs::read_dir(root.join("blobs"))?.flatten() {
-            for f in std::fs::read_dir(dir.path()).into_iter().flatten().flatten() {
+            for f in std::fs::read_dir(dir.path())
+                .into_iter()
+                .flatten()
+                .flatten()
+            {
                 if let Ok(m) = f.metadata() {
                     used += m.len();
                     blobs += 1;
@@ -36,12 +40,21 @@ impl Store {
             }
         }
         for f in std::fs::read_dir(root.join("tmp"))?.flatten() {
-            let old = f.metadata().and_then(|m| m.modified()).ok().and_then(|t| t.elapsed().ok()).is_some_and(|e| e.as_secs() > 86_400);
+            let old = f
+                .metadata()
+                .and_then(|m| m.modified())
+                .ok()
+                .and_then(|t| t.elapsed().ok())
+                .is_some_and(|e| e.as_secs() > 86_400);
             if old {
                 let _ = std::fs::remove_file(f.path());
             }
         }
-        Ok(Self { root: root.to_path_buf(), used: AtomicU64::new(used), blobs: AtomicU64::new(blobs) })
+        Ok(Self {
+            root: root.to_path_buf(),
+            used: AtomicU64::new(used),
+            blobs: AtomicU64::new(blobs),
+        })
     }
 
     fn blob_path(&self, blob: &str) -> PathBuf {
@@ -70,7 +83,9 @@ impl Store {
             .open(self.part_path(blob))
             .await
             .map_err(|e| e.to_string())?;
-        f.seek(SeekFrom::Start(offset)).await.map_err(|e| e.to_string())?;
+        f.seek(SeekFrom::Start(offset))
+            .await
+            .map_err(|e| e.to_string())?;
         f.write_all(data).await.map_err(|e| e.to_string())?;
         f.flush().await.map_err(|e| e.to_string())
     }
@@ -78,7 +93,10 @@ impl Store {
     pub async fn commit(&self, blob: &str, size: u64, sha256: &str) -> Result<(), String> {
         check(blob)?;
         let part = self.part_path(blob);
-        let len = tokio::fs::metadata(&part).await.map_err(|_| "file non ricevuto".to_string())?.len();
+        let len = tokio::fs::metadata(&part)
+            .await
+            .map_err(|_| "file non ricevuto".to_string())?
+            .len();
         if len != size {
             return Err(format!("dimensione sbagliata: {len} invece di {size}"));
         }
@@ -98,9 +116,13 @@ impl Store {
             return Err("hash diverso: file danneggiato durante il trasferimento".into());
         }
         let dst = self.blob_path(blob);
-        tokio::fs::create_dir_all(dst.parent().unwrap()).await.map_err(|e| e.to_string())?;
+        tokio::fs::create_dir_all(dst.parent().unwrap())
+            .await
+            .map_err(|e| e.to_string())?;
         let replaced = tokio::fs::metadata(&dst).await.map(|m| m.len()).ok();
-        tokio::fs::rename(&part, &dst).await.map_err(|e| e.to_string())?;
+        tokio::fs::rename(&part, &dst)
+            .await
+            .map_err(|e| e.to_string())?;
         match replaced {
             Some(old) => {
                 self.used.fetch_sub(old, Ordering::Relaxed);
@@ -113,14 +135,23 @@ impl Store {
         Ok(())
     }
 
-    pub async fn open_range(&self, blob: &str, offset: u64, len: u64) -> Result<tokio::io::Take<tokio::fs::File>, String> {
+    pub async fn open_range(
+        &self,
+        blob: &str,
+        offset: u64,
+        len: u64,
+    ) -> Result<tokio::io::Take<tokio::fs::File>, String> {
         check(blob)?;
-        let mut f = tokio::fs::File::open(self.blob_path(blob)).await.map_err(|_| "blob inesistente".to_string())?;
+        let mut f = tokio::fs::File::open(self.blob_path(blob))
+            .await
+            .map_err(|_| "blob inesistente".to_string())?;
         let size = f.metadata().await.map_err(|e| e.to_string())?.len();
         if offset.checked_add(len).is_none_or(|end| end > size) {
             return Err("richiesta oltre la fine del file".into());
         }
-        f.seek(SeekFrom::Start(offset)).await.map_err(|e| e.to_string())?;
+        f.seek(SeekFrom::Start(offset))
+            .await
+            .map_err(|e| e.to_string())?;
         Ok(f.take(len))
     }
 
@@ -128,7 +159,9 @@ impl Store {
         check(blob)?;
         let p = self.blob_path(blob);
         if let Ok(m) = tokio::fs::metadata(&p).await {
-            tokio::fs::remove_file(&p).await.map_err(|e| e.to_string())?;
+            tokio::fs::remove_file(&p)
+                .await
+                .map_err(|e| e.to_string())?;
             self.used.fetch_sub(m.len(), Ordering::Relaxed);
             self.blobs.fetch_sub(1, Ordering::Relaxed);
         }
@@ -161,7 +194,12 @@ mod tests {
         assert_eq!(s.stats().blobs, 1);
         assert_eq!(s.stats().used, 10);
         let mut buf = String::new();
-        s.open_range(B, 2, 6).await.unwrap().read_to_string(&mut buf).await.unwrap();
+        s.open_range(B, 2, 6)
+            .await
+            .unwrap()
+            .read_to_string(&mut buf)
+            .await
+            .unwrap();
         assert_eq!(buf, "llowor");
         assert!(s.open_range(B, 8, 5).await.is_err());
         s.delete(B).await.unwrap();

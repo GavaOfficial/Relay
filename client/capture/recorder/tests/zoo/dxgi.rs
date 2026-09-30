@@ -109,8 +109,8 @@ unsafe fn run() -> anyhow::Result<()> {
     let start = Instant::now();
     let mut msg: MSG = std::mem::zeroed();
     let vsync = std::env::args().any(|s| s == "--vsync");
-    let resize_test=std::env::var_os("RELAY_ZOO_RESIZE").is_some();
-    let mut size=(768,480);
+    let resize_test = std::env::var_os("RELAY_ZOO_RESIZE").is_some();
+    let mut size = (768, 480);
     'draw: while start.elapsed() < Duration::from_secs(if vsync { 90 } else { 30 }) {
         while PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, PM_REMOVE) != 0 {
             if msg.message == WM_QUIT {
@@ -119,12 +119,40 @@ unsafe fn run() -> anyhow::Result<()> {
             TranslateMessage(&msg);
             DispatchMessageW(&msg);
         }
-        let desired=if resize_test && start.elapsed()>=Duration::from_secs(6){(640,400)}else if resize_test && start.elapsed()>=Duration::from_secs(3){(960,600)}else{(768,480)};
-        if size!=desired{
-            context.ClearState();context.Flush();
-            swap.ResizeBuffers(2,desired.0 as u32,desired.1 as u32,DXGI_FORMAT_UNKNOWN,DXGI_SWAP_CHAIN_FLAG(0))?;
-            let mut r=windows_sys::Win32::Foundation::RECT{left:0,top:0,right:desired.0,bottom:desired.1};AdjustWindowRect(&mut r,WS_OVERLAPPEDWINDOW,0);
-            SetWindowPos(hwnd,ptr::null_mut(),0,0,r.right-r.left,r.bottom-r.top,SWP_NOMOVE|SWP_NOZORDER);size=desired;
+        let desired = if resize_test && start.elapsed() >= Duration::from_secs(6) {
+            (640, 400)
+        } else if resize_test && start.elapsed() >= Duration::from_secs(3) {
+            (960, 600)
+        } else {
+            (768, 480)
+        };
+        if size != desired {
+            context.ClearState();
+            context.Flush();
+            swap.ResizeBuffers(
+                2,
+                desired.0 as u32,
+                desired.1 as u32,
+                DXGI_FORMAT_UNKNOWN,
+                DXGI_SWAP_CHAIN_FLAG(0),
+            )?;
+            let mut r = windows_sys::Win32::Foundation::RECT {
+                left: 0,
+                top: 0,
+                right: desired.0,
+                bottom: desired.1,
+            };
+            AdjustWindowRect(&mut r, WS_OVERLAPPEDWINDOW, 0);
+            SetWindowPos(
+                hwnd,
+                ptr::null_mut(),
+                0,
+                0,
+                r.right - r.left,
+                r.bottom - r.top,
+                SWP_NOMOVE | SWP_NOZORDER,
+            );
+            size = desired;
         }
         let tex: ID3D11Texture2D = swap.GetBuffer(0)?;
         let mut view = None;
@@ -158,12 +186,14 @@ unsafe fn run() -> anyhow::Result<()> {
                 bottom: 16,
             }]),
         );
-        if vsync { swap.Present(1, DXGI_PRESENT(0)).ok()?; } else {
-        let swap1: IDXGISwapChain1 = swap.cast()?;
-        swap1
-            .Present1(1, DXGI_PRESENT(0), &DXGI_PRESENT_PARAMETERS::default())
-            .ok()?;
-        std::thread::sleep(Duration::from_millis(2));
+        if vsync {
+            swap.Present(1, DXGI_PRESENT(0)).ok()?;
+        } else {
+            let swap1: IDXGISwapChain1 = swap.cast()?;
+            swap1
+                .Present1(1, DXGI_PRESENT(0), &DXGI_PRESENT_PARAMETERS::default())
+                .ok()?;
+            std::thread::sleep(Duration::from_millis(2));
         }
     }
     swap.SetFullscreenState(false, None)?;

@@ -210,7 +210,13 @@ fn variation_of(v: Option<&str>) -> &str {
     }
 }
 
-fn same_chart(c: &SongClip, key: &str, song: &str, difficulty: &str, variation: Option<&str>) -> bool {
+fn same_chart(
+    c: &SongClip,
+    key: &str,
+    song: &str,
+    difficulty: &str,
+    variation: Option<&str>,
+) -> bool {
     c.mod_key == key
         && c.song.eq_ignore_ascii_case(song)
         && c.difficulty.eq_ignore_ascii_case(difficulty)
@@ -291,7 +297,11 @@ fn merge_aliases(lib: &mut Library, key: &str, name: &str, aliases: &[String]) -
             continue;
         };
         let gone = lib.mods.remove(pos);
-        let target = lib.mods.iter_mut().find(|m| m.key == key).expect("appena aggiunta");
+        let target = lib
+            .mods
+            .iter_mut()
+            .find(|m| m.key == key)
+            .expect("appena aggiunta");
         if target.gamebanana_url.is_none() && gone.gamebanana_url.is_some() {
             target.gamebanana_url = gone.gamebanana_url;
             target.gb_name = gone.gb_name;
@@ -318,7 +328,11 @@ fn merge_aliases(lib: &mut Library, key: &str, name: &str, aliases: &[String]) -
         }
     }
     let keep: std::collections::HashSet<Uuid> = best.values().map(|(_, id)| *id).collect();
-    for c in lib.clips.iter_mut().filter(|c| c.mod_key == key && !c.archived) {
+    for c in lib
+        .clips
+        .iter_mut()
+        .filter(|c| c.mod_key == key && !c.archived)
+    {
         if !keep.contains(&c.id) {
             c.archived = true;
         }
@@ -335,7 +349,12 @@ pub async fn best(
     let dir = user_dir(&st, engine, &user)?;
     let mut lib = load(&dir).await;
     let key = mod_key(&q.mod_name);
-    merge_aliases(&mut lib, &key, &q.mod_name, &split_aliases(q.aliases.as_deref()));
+    merge_aliases(
+        &mut lib,
+        &key,
+        &q.mod_name,
+        &split_aliases(q.aliases.as_deref()),
+    );
     let score = lib
         .clips
         .iter()
@@ -480,8 +499,14 @@ async fn finish_inner(
         let _ = tokio::fs::remove_file(&tmp).await;
         return Err(AppError::BadRequest("dimensione della clip diversa"));
     }
-    let raw = input.raw.filter(|r| r.offset_secs.is_finite() && r.duration_secs.is_finite() && r.duration_secs > 0.0);
-    let dst = if raw.is_some() { src_path(dir, id) } else { clip_path(dir, id) };
+    let raw = input.raw.filter(|r| {
+        r.offset_secs.is_finite() && r.duration_secs.is_finite() && r.duration_secs > 0.0
+    });
+    let dst = if raw.is_some() {
+        src_path(dir, id)
+    } else {
+        clip_path(dir, id)
+    };
     tokio::fs::rename(&tmp, dst).await?;
 
     for c in lib.clips.iter_mut() {
@@ -523,13 +548,23 @@ fn src_path(dir: &FsPath, id: Uuid) -> PathBuf {
 }
 
 fn engine_of(dir: &FsPath) -> String {
-    dir.parent().and_then(|p| p.file_name()).map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()
+    dir.parent()
+        .and_then(|p| p.file_name())
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default()
 }
 
 async fn schedule_clip(st: &Arc<AppState>, dir: &FsPath, clip: &SongClip) {
     let id = clip.id;
-    let (offset_secs, duration_secs) = clip.cut.map(|c| (c.offset_secs, c.duration_secs)).unwrap_or((0.0, 0.0));
-    let input_name = if clip.processing { format!("{id}.src.ts") } else { format!("{id}.mp4") };
+    let (offset_secs, duration_secs) = clip
+        .cut
+        .map(|c| (c.offset_secs, c.duration_secs))
+        .unwrap_or((0.0, 0.0));
+    let input_name = if clip.processing {
+        format!("{id}.src.ts")
+    } else {
+        format!("{id}.mp4")
+    };
     if st.ops.enabled() {
         let path = dir.join("clips").join(&input_name);
         let size = match tokio::fs::metadata(&path).await {
@@ -539,16 +574,38 @@ async fn schedule_clip(st: &Arc<AppState>, dir: &FsPath, clip: &SongClip) {
                 None => return,
             },
         };
-        let kind = JobKind::Clip { engine: engine_of(dir), clip: id, offset_secs, duration_secs };
-        st.ops.enqueue(kind, &dir.join("clips"), vec![InputFile { name: input_name, size }]);
+        let kind = JobKind::Clip {
+            engine: engine_of(dir),
+            clip: id,
+            offset_secs,
+            duration_secs,
+        };
+        st.ops.enqueue(
+            kind,
+            &dir.join("clips"),
+            vec![InputFile {
+                name: input_name,
+                size,
+            }],
+        );
         return;
     }
-    let Some(ffmpeg) = st.ffmpeg.clone() else { return };
+    let Some(ffmpeg) = st.ffmpeg.clone() else {
+        return;
+    };
     let (dir, processing, dur_ms) = (dir.to_path_buf(), clip.processing, clip.duration_ms);
     tokio::spawn(async move {
         if processing {
             let src = src_path(&dir, id);
-            match media::cut_clip(&ffmpeg, &src, offset_secs, duration_secs, &clip_path(&dir, id)).await {
+            match media::cut_clip(
+                &ffmpeg,
+                &src,
+                offset_secs,
+                duration_secs,
+                &clip_path(&dir, id),
+            )
+            .await
+            {
                 Ok(()) => {
                     let _ = tokio::fs::remove_file(&src).await;
                 }
@@ -559,7 +616,14 @@ async fn schedule_clip(st: &Arc<AppState>, dir: &FsPath, clip: &SongClip) {
             }
         }
         let at = (dur_ms as f64 / 1000.0 * 0.4).min(60.0);
-        let thumb = media::make_thumb(&ffmpeg, &clip_path(&dir, id), &thumb_path(&dir, id), at, 640).await;
+        let thumb = media::make_thumb(
+            &ffmpeg,
+            &clip_path(&dir, id),
+            &thumb_path(&dir, id),
+            at,
+            640,
+        )
+        .await;
         clip_processed(&dir, id, thumb).await;
     });
 }
@@ -577,7 +641,9 @@ pub async fn clip_processed(dir: &FsPath, id: Uuid, has_thumb: bool) {
 
 pub async fn resume_clips(st: Arc<AppState>) {
     for engine in ENGINES {
-        let Ok(mut users) = tokio::fs::read_dir(st.data_dir.join(engine)).await else { continue };
+        let Ok(mut users) = tokio::fs::read_dir(st.data_dir.join(engine)).await else {
+            continue;
+        };
         while let Ok(Some(u)) = users.next_entry().await {
             let dir = u.path();
             let lib = load(&dir).await;
@@ -594,7 +660,10 @@ pub async fn resume_clips(st: Arc<AppState>) {
 const ENGINES: [&str; 6] = ["codename", "funkin", "psych", "nmv", "kade", "gd"];
 
 fn short(s: &str, max: usize) -> String {
-    let s: String = s.chars().filter(|c| !c.is_control() || *c == '\n').collect();
+    let s: String = s
+        .chars()
+        .filter(|c| !c.is_control() || *c == '\n')
+        .collect();
     let s = s.trim();
     if s.chars().count() <= max {
         s.to_string()
@@ -611,7 +680,11 @@ fn clean_url(u: Option<&str>) -> Option<String> {
 }
 
 fn sanitize_catalog(mut c: Catalog) -> Catalog {
-    c.title = c.title.as_deref().map(|t| short(t, 120)).filter(|t| !t.is_empty());
+    c.title = c
+        .title
+        .as_deref()
+        .map(|t| short(t, 120))
+        .filter(|t| !t.is_empty());
     c.extra = small_object(c.extra.take());
     c.description = c
         .description
@@ -639,9 +712,15 @@ fn sanitize_catalog(mut c: Catalog) -> Catalog {
         t.name = short(&t.name, 120);
         t.artist = t.artist.as_deref().map(|x| short(x, 120));
         t.album = t.album.as_deref().map(|x| short(x, 80));
-        t.variation = Some(variation_of(t.variation.as_deref()).to_string()).filter(|v| !v.is_empty());
+        t.variation =
+            Some(variation_of(t.variation.as_deref()).to_string()).filter(|v| !v.is_empty());
         t.bpm = t.bpm.filter(|b| b.is_finite() && *b > 0.0 && *b < 2000.0);
-        t.difficulties = t.difficulties.iter().take(12).map(|d| short(d, 40)).collect();
+        t.difficulties = t
+            .difficulties
+            .iter()
+            .take(12)
+            .map(|d| short(d, 40))
+            .collect();
         t.ratings = std::mem::take(&mut t.ratings)
             .into_iter()
             .take(12)
@@ -714,7 +793,9 @@ pub async fn get_profile(
     AuthUser(user): AuthUser,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let dir = user_dir(&st, engine, &user)?;
-    Ok(Json(load(&dir).await.profile.unwrap_or(serde_json::Value::Null)))
+    Ok(Json(
+        load(&dir).await.profile.unwrap_or(serde_json::Value::Null),
+    ))
 }
 
 fn asset_name_ok(name: &str) -> bool {
@@ -827,7 +908,13 @@ pub async fn list_mods(
             })
         })
         .collect();
-    out.sort_by_key(|m| (m.songs == 0, std::cmp::Reverse(m.last_at), m.info.name.to_lowercase()));
+    out.sort_by_key(|m| {
+        (
+            m.songs == 0,
+            std::cmp::Reverse(m.last_at),
+            m.info.name.to_lowercase(),
+        )
+    });
     Ok(Json(out))
 }
 
@@ -878,7 +965,11 @@ pub async fn show_mod(
     let mut songs: Vec<SongEntry> = charts
         .into_values()
         .filter_map(|mut clips| {
-            clips.sort_by(|a, b| b.score.cmp(&a.score).then(b.recorded_at.cmp(&a.recorded_at)));
+            clips.sort_by(|a, b| {
+                b.score
+                    .cmp(&a.score)
+                    .then(b.recorded_at.cmp(&a.recorded_at))
+            });
             let pos = clips.iter().position(|c| !c.archived)?;
             let best = clips.remove(pos);
             Some(SongEntry {
@@ -924,7 +1015,11 @@ pub fn parse_gamejolt(url: &str) -> Option<(String, u64)> {
     let mut parts = rest.split(['/', '?', '#']);
     let slug = parts.next()?.to_string();
     let id: u64 = parts.next()?.parse().ok()?;
-    (!slug.is_empty() && slug.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')).then_some((slug, id))
+    (!slug.is_empty()
+        && slug
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_'))
+    .then_some((slug, id))
 }
 
 #[derive(Deserialize)]
@@ -966,7 +1061,9 @@ async fn fetch_gamejolt(slug: &str, id: u64) -> Result<Fetched, AppError> {
         .await
         .ok()
         .filter(|r| r.status().is_success())
-        .ok_or(AppError::BadRequest("Game Jolt non risponde o il gioco non esiste"))?
+        .ok_or(AppError::BadRequest(
+            "Game Jolt non risponde o il gioco non esiste",
+        ))?
         .json::<GjResponse>()
         .await
         .map_err(|_| AppError::BadRequest("risposta di Game Jolt non valida"))?
@@ -980,7 +1077,10 @@ async fn fetch_gamejolt(slug: &str, id: u64) -> Result<Fetched, AppError> {
     Ok((
         format!("https://gamejolt.com/games/{slug}/{id}"),
         game.title.as_deref().and_then(clean_name),
-        game.developer.and_then(|d| d.display_name).as_deref().and_then(clean_name),
+        game.developer
+            .and_then(|d| d.display_name)
+            .as_deref()
+            .and_then(clean_name),
         cover,
     ))
 }
@@ -1035,8 +1135,9 @@ pub async fn set_gamebanana(
     } else if let Some((slug, id)) = parse_gamejolt(&input.url) {
         Some(fetch_gamejolt(&slug, id).await?)
     } else {
-        let (section, model, id) = parse_gamebanana(&input.url)
-            .ok_or(AppError::BadRequest("link non valido: serve una pagina di GameBanana o di Game Jolt"))?;
+        let (section, model, id) = parse_gamebanana(&input.url).ok_or(AppError::BadRequest(
+            "link non valido: serve una pagina di GameBanana o di Game Jolt",
+        ))?;
         let api = format!("https://gamebanana.com/apiv11/{model}/{id}/ProfilePage");
         let profile: GbProfile = reqwest::Client::new()
             .get(&api)
@@ -1093,7 +1194,12 @@ pub async fn set_gamebanana(
     Ok(Json(out))
 }
 
-async fn find_clip(st: &AppState, engine: Engine, user: &str, id: Uuid) -> Result<PathBuf, AppError> {
+async fn find_clip(
+    st: &AppState,
+    engine: Engine,
+    user: &str,
+    id: Uuid,
+) -> Result<PathBuf, AppError> {
     let dir = user_dir(st, engine, user)?;
     let lib = load(&dir).await;
     if !lib.clips.iter().any(|c| c.id == id) {
