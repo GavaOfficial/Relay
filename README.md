@@ -14,6 +14,7 @@ Ogni giocatore registra la propria finestra di gioco (video e audio del gioco, m
 | `client/agent` | Libreria e riga di comando che registrano e caricano (Rust, ffmpeg) |
 | `client/capture/recorder` | Motore di registrazione nostro: cattura di Windows (WGC), codifica con Media Foundation, audio WASAPI, pezzi MPEG-TS/HLS (Rust) |
 | `client/capture/relay-capture` | `relay-capture.exe`: riga di comando che registra con `client/capture/recorder` |
+| `client/capture/hook`, `hook-gpu`, `protocol`, `inject`, `vk-layer` | Aggancio nei giochi per lo schermo intero esclusivo: DLL per OpenGL e DirectX, layer Vulkan, iniettore e protocollo condiviso. Vengono pubblicati insieme a `relay-capture.exe` nel pacchetto `relay-recorder.zip` (`deploy/build-capture.ps1 -Zip`), che l'app scarica e scompatta da sola |
 | `client/app` | App desktop per Windows (Tauri): creare una partita, entrare, scegliere la finestra, aggiornarsi da sola |
 | `deploy` | Esempi di configurazione (systemd, nginx, docker) e script di pubblicazione dell'app |
 

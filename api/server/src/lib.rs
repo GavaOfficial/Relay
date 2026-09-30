@@ -71,6 +71,8 @@ pub fn app(state: Arc<AppState>) -> Router {
             get(ops::routes::big_state).put(ops::routes::put_output),
         )
         .route("/api/ops/jobs/{id}/finish", post(ops::routes::finish))
+        .route("/api/app/recorder/latest", get(routes::recorder_latest))
+        .route("/api/app/recorder/download", get(routes::recorder_download))
         .route("/api/app/ops/latest", get(routes::ops_latest))
         .route("/api/app/ops/download", get(routes::ops_download))
         .route(

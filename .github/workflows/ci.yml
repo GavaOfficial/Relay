@@ -36,28 +36,15 @@ jobs:
         run: cargo test --workspace
       - name: Build release
         run: cargo build --workspace --release
-      - name: Aggancio a 32 bit (DLL, iniettore, layer Vulkan)
-        run: |
-          cargo build --release --target i686-pc-windows-msvc -p relay-hook -p relay-inject -p relay-vk-layer
-          cargo test --release --target i686-pc-windows-msvc -p relay-hook-protocol --lib
-      - name: Pacchetto di registrazione
+      - name: Pacchetto di registrazione (x64 e x86)
         shell: pwsh
-        run: |
-          $out = 'dist/capture-runtime'
-          New-Item -ItemType Directory -Force -Path "$out/hooks/x64", "$out/hooks/x86" | Out-Null
-          Copy-Item target/release/relay-capture.exe $out
-          foreach ($f in 'relay_hook.dll', 'relay-inject.exe', 'relay_vk_layer.dll') {
-            Copy-Item "target/release/$f" "$out/hooks/x64"
-            Copy-Item "target/i686-pc-windows-msvc/release/$f" "$out/hooks/x86"
-          }
-          Copy-Item client/capture/vk-layer/relay-vk-layer.json "$out/hooks/x64"
-          Copy-Item client/capture/vk-layer/relay-vk-layer.json "$out/hooks/x86"
+        run: ./deploy/build-capture.ps1 -Zip -BuildDir target
       - uses: actions/upload-artifact@v4
         with:
           name: relay-windows
           path: |
             target/release/relay-app.exe
-            dist/capture-runtime
+            dist/relay-recorder.zip
           retention-days: 14
 
   rust-linux:

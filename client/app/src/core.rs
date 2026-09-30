@@ -446,16 +446,24 @@ impl Core {
                             self.capture.lock().unwrap().percent =
                                 (done as f64 / total as f64) as f32;
                         };
-                        crate::capture::install_exe(&self.http, &server, &rel, &base, &progress)
-                            .await?;
+                        crate::capture::install_package(
+                            &self.http, &server, &rel, &base, &progress,
+                        )
+                        .await?;
                     }
                 }
                 Ok(None) if installed.is_none() => {
-                    return Err("il server non ha ancora relay-capture da scaricare".into())
+                    return Err(
+                        "il server non ha ancora il programma di registrazione da scaricare".into(),
+                    )
                 }
                 Ok(None) => {}
                 Err(e) if installed.is_none() => return Err(e),
                 Err(_) => {}
+            }
+            crate::capture::remove_obs_leftovers(&base);
+            if let Err(e) = crate::vulkan::register(&relay_capture::install::runtime_dir(&base)) {
+                tracing::warn!("layer Vulkan non registrato: {e}");
             }
             let compat = self.check_capture(&base).await?;
             let ok = compat.ok;
@@ -684,7 +692,7 @@ impl Core {
         }
         if plays && !self.capture_ready() {
             return Err(
-                "Sto preparando il motore OBS per registrare: attendi il controllo del PC o saltalo.".into(),
+                "Sto preparando il programma di registrazione: attendi il controllo del PC o saltalo.".into(),
             );
         }
         let s = self.settings();

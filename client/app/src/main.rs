@@ -13,6 +13,7 @@ mod psych;
 mod scan;
 mod songclip;
 mod updater;
+mod vulkan;
 
 use std::{sync::Arc, time::Duration};
 
@@ -399,6 +400,15 @@ async fn set_window_wide(app: &AppHandle, wide: bool) {
 
 fn main() {
     init_logging();
+
+    if std::env::args().any(|a| a == "--remove-recorder") {
+        let base = Core::new(Settings::default_path()).data_dir();
+        match capture::remove_all(&base) {
+            Ok(()) => tracing::info!("programma di registrazione rimosso"),
+            Err(e) => tracing::warn!("rimozione non riuscita: {e}"),
+        }
+        return;
+    }
 
     updater::cleanup_old();
     let started = std::time::Instant::now();

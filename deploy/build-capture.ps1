@@ -1,6 +1,7 @@
 param(
     [switch]$SkipX86,
     [switch]$Zoo,
+    [switch]$Zip,
     [string]$BuildDir = 'target/capture-build',
     [string]$CertificateThumbprint,
     [string]$TimestampUrl = 'http://timestamp.digicert.com'
@@ -19,6 +20,7 @@ try {
     $oldZooRuntime = $env:RELAY_ZOO_RUNTIME
     if (-not $SkipX86) { $targets.x86 = 'i686-pc-windows-msvc' }
     $runtime = Join-Path $root 'dist/capture-runtime'
+    if (Test-Path -LiteralPath $runtime) { Remove-Item -LiteralPath $runtime -Recurse -Force }
     New-Item -ItemType Directory -Force -Path $runtime | Out-Null
     foreach ($arch in $targets.Keys) {
         $target = $targets[$arch]
@@ -36,7 +38,6 @@ try {
     }
     Cargo-Step @('build', '--release', '--target-dir', $build, '-p', 'relay-capture')
     Copy-Item -LiteralPath (Join-Path $build 'release/relay-capture.exe') -Destination $runtime -Force
-    Copy-Item -LiteralPath (Join-Path $root 'deploy/register-vulkan-layer.ps1') -Destination $runtime -Force
     if ($CertificateThumbprint) {
         $signtool = (Get-Command signtool.exe -ErrorAction Stop).Source
         $artifacts = @((Join-Path $runtime 'relay-capture.exe'))
@@ -51,6 +52,19 @@ try {
             & $signtool verify /pa $artifact
             if ($LASTEXITCODE -ne 0) { throw "Verifica firma fallita: $artifact" }
         }
+    }
+    if ($Zip) {
+        Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem
+        $zipPath = Join-Path $root 'dist/relay-recorder.zip'
+        if (Test-Path -LiteralPath $zipPath) { Remove-Item -LiteralPath $zipPath -Force }
+        $archive = [IO.Compression.ZipFile]::Open($zipPath, 'Create')
+        try {
+            Get-ChildItem -LiteralPath $runtime -Recurse -File | Sort-Object FullName | ForEach-Object {
+                $entry = $_.FullName.Substring($runtime.Length).TrimStart([char]92, [char]47).Replace([string][char]92, '/')
+                [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $_.FullName, $entry, 'Optimal')
+            }
+        } finally { $archive.Dispose() }
+        Write-Output "Pacchetto: $zipPath"
     }
     if ($Zoo) {
         # Explicitly requested visible test applications; no background windows.
@@ -73,7 +87,6 @@ try {
         }
     }
     Write-Output "Runtime locale: $runtime"
-    Write-Output 'La pubblicazione del solo relay-capture.exe non distribuisce gli hook: usare il runtime completo per le prove.'
 } finally {
     $env:RELAY_ZOO_RUNTIME = $oldZooRuntime
     Pop-Location

@@ -25,12 +25,9 @@ Il protocollo è ora versione **3**, mantiene il layout di 104 byte e distingue 
 
 ```powershell
 ./deploy/build-capture.ps1 -BuildDir target/dxvk
-./deploy/register-vulkan-layer.ps1
-# Rimozione delle sole registrazioni del runtime indicato:
-./deploy/register-vulkan-layer.ps1 -Uninstall
 ```
 
-Il pacchetto è in `dist/capture-runtime`, con DLL/iniettori/manifest in `hooks/x64` e `hooks/x86`. Lo script registra i manifest nelle rispettive chiavi HKCU Khronos, con DWORD 0. Supporta `-Runtime`, `-SkipX86` e `-WhatIf`. Non modificare il percorso del runtime dopo la registrazione: rimuovere prima la registrazione dal vecchio percorso.
+Il pacchetto è in `dist/capture-runtime`, con DLL/iniettori/manifest in `hooks/x64` e `hooks/x86`. La registrazione del layer nelle chiavi HKCU Khronos (DWORD 0) e la sua rimozione le farà l'app all'installazione e alla disinstallazione; fino ad allora si prova senza toccare il registro, come qui sotto.
 
 Per una prova senza modificare il registro:
 

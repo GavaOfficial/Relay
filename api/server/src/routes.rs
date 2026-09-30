@@ -1146,6 +1146,29 @@ pub async fn capture_download(State(st): St) -> Result<axum::response::Response,
     .await
 }
 
+pub async fn recorder_latest(State(st): St) -> Result<impl IntoResponse, AppError> {
+    let r = read_manifest(&st, "recorder.json")
+        .await
+        .ok_or(AppError::NotFound)?;
+    Ok((
+        [(header::CACHE_CONTROL, "no-cache")],
+        Json(release_json(&r, "/api/app/recorder/download")),
+    ))
+}
+
+pub async fn recorder_download(State(st): St) -> Result<axum::response::Response, AppError> {
+    let r = read_manifest(&st, "recorder.json")
+        .await
+        .ok_or(AppError::NotFound)?;
+    download_response(
+        &st,
+        "recorder.json",
+        "application/zip",
+        format!("relay-recorder-{}.zip", r.version),
+    )
+    .await
+}
+
 pub async fn ops_latest(State(st): St) -> Result<impl IntoResponse, AppError> {
     let r = read_manifest(&st, "ops.json")
         .await

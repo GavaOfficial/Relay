@@ -5,10 +5,20 @@ use serde::Serialize;
 
 use crate::updater::{self, Release};
 
-pub const KIND_CAPTURE: &str = "relay-capture";
-pub const MAX_CAPTURE_BYTES: u64 = 80 * 1024 * 1024;
-const API_LATEST: &str = "/api/app/capture/latest";
-const API_DOWNLOAD: &str = "/api/app/capture/download";
+pub const KIND_RECORDER: &str = "relay-recorder";
+pub const MAX_PACKAGE_BYTES: u64 = 120 * 1024 * 1024;
+const MAX_FILE_BYTES: u64 = 100 * 1024 * 1024;
+const API_LATEST: &str = "/api/app/recorder/latest";
+const API_DOWNLOAD: &str = "/api/app/recorder/download";
+const VERSION_FILE: &str = "relay-recorder-version.txt";
+const ALLOWED_EXTENSIONS: [&str; 4] = ["exe", "dll", "json", "txt"];
+pub const REQUIRED_FILES: [&str; 5] = [
+    "relay-capture.exe",
+    "hooks/x64/relay_hook.dll",
+    "hooks/x64/relay-inject.exe",
+    "hooks/x64/relay_vk_layer.dll",
+    "hooks/x64/relay-vk-layer.json",
+];
 
 fn runtime_dir(base: &Path) -> PathBuf {
     install::runtime_dir(base)
@@ -19,11 +29,12 @@ fn exe_path(base: &Path) -> PathBuf {
 }
 
 fn exe_version_file(base: &Path) -> PathBuf {
-    runtime_dir(base).join("relay-capture-version.txt")
+    runtime_dir(base).join(VERSION_FILE)
 }
 
 pub fn exe_ready(base: &Path) -> bool {
-    exe_path(base).exists() && exe_version_file(base).exists()
+    let dir = runtime_dir(base);
+    exe_version_file(base).is_file() && REQUIRED_FILES.iter().all(|f| dir.join(f).is_file())
 }
 
 pub fn ready(base: &Path) -> bool {
@@ -41,29 +52,118 @@ pub async fn fetch_latest(http: &reqwest::Client, server: &str) -> Result<Option
     updater::fetch_latest(http, server, API_LATEST).await
 }
 
-pub async fn install_exe(
+pub async fn install_package(
     http: &reqwest::Client,
     server: &str,
     rel: &Release,
     base: &Path,
     progress: &(dyn Fn(u64, u64) + Sync),
 ) -> Result<(), String> {
-    let dir = runtime_dir(base);
-    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    let target = exe_path(base);
-    let _ = std::fs::remove_file(exe_version_file(base));
+    let archive = base.join("relay-recorder.zip");
     updater::download(
         http,
         server,
         API_DOWNLOAD,
-        KIND_CAPTURE,
+        KIND_RECORDER,
         rel,
-        MAX_CAPTURE_BYTES,
-        &target,
+        MAX_PACKAGE_BYTES,
+        &archive,
         progress,
     )
     .await?;
-    std::fs::write(exe_version_file(base), &rel.version).map_err(|e| e.to_string())
+    let (base, version) = (base.to_path_buf(), rel.version.clone());
+    let zip = archive.clone();
+    let result = tokio::task::spawn_blocking(move || swap_in(&zip, &base, &version))
+        .await
+        .map_err(|e| e.to_string())?;
+    let _ = std::fs::remove_file(&archive);
+    result
+}
+
+fn swap_in(archive: &Path, base: &Path, version: &str) -> Result<(), String> {
+    let staging = base.join("relay-capture.new");
+    extract_package(archive, &staging).inspect_err(|_| {
+        let _ = std::fs::remove_dir_all(&staging);
+    })?;
+    let dir = runtime_dir(base);
+    if dir.exists() {
+        std::fs::remove_dir_all(&dir).map_err(|e| {
+            let _ = std::fs::remove_dir_all(&staging);
+            format!("non riesco a sostituire il programma di registrazione (e' in uso?): {e}")
+        })?;
+    }
+    std::fs::rename(&staging, &dir).map_err(|e| e.to_string())?;
+    std::fs::write(dir.join(VERSION_FILE), version).map_err(|e| e.to_string())?;
+    remove_obs_leftovers(base);
+    Ok(())
+}
+
+pub fn remove_all(base: &Path) -> Result<(), String> {
+    crate::vulkan::unregister()?;
+    let dir = runtime_dir(base);
+    if dir.exists() {
+        std::fs::remove_dir_all(&dir).map_err(|e| e.to_string())?;
+    }
+    remove_obs_leftovers(base);
+    Ok(())
+}
+
+pub fn remove_obs_leftovers(base: &Path) {
+    let obs = base.join("obs");
+    if obs.is_dir() {
+        match std::fs::remove_dir_all(&obs) {
+            Ok(()) => tracing::info!("cancellata la vecchia cartella di OBS"),
+            Err(e) => tracing::warn!("non riesco a cancellare {}: {e}", obs.display()),
+        }
+    }
+}
+
+pub fn extract_package(archive: &Path, dest: &Path) -> Result<(), String> {
+    let file = std::fs::File::open(archive).map_err(|e| e.to_string())?;
+    let mut zip = zip::ZipArchive::new(file).map_err(|e| format!("pacchetto non valido: {e}"))?;
+    let _ = std::fs::remove_dir_all(dest);
+    std::fs::create_dir_all(dest).map_err(|e| e.to_string())?;
+    for i in 0..zip.len() {
+        let mut entry = zip.by_index(i).map_err(|e| e.to_string())?;
+        if entry.is_dir() {
+            continue;
+        }
+        let rel = entry
+            .enclosed_name()
+            .ok_or_else(|| format!("percorso non valido nel pacchetto: {}", entry.name()))?;
+        let allowed = rel
+            .extension()
+            .and_then(|e| e.to_str())
+            .is_some_and(|e| ALLOWED_EXTENSIONS.contains(&e.to_ascii_lowercase().as_str()));
+        if !allowed {
+            return Err(format!(
+                "file non previsto nel pacchetto: {}",
+                rel.display()
+            ));
+        }
+        let out = dest.join(&rel);
+        if let Some(parent) = out.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        let mut target = std::fs::File::create(&out).map_err(|e| e.to_string())?;
+        let copied = std::io::copy(
+            &mut std::io::Read::take(&mut entry, MAX_FILE_BYTES + 1),
+            &mut target,
+        )
+        .map_err(|e| e.to_string())?;
+        if copied > MAX_FILE_BYTES {
+            return Err(format!(
+                "file troppo grande nel pacchetto: {}",
+                rel.display()
+            ));
+        }
+    }
+    for required in REQUIRED_FILES {
+        if !dest.join(required).is_file() {
+            return Err(format!("nel pacchetto manca {required}"));
+        }
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -276,5 +376,101 @@ mod tests {
         let c = read_probe(r#"{"Probed":{"encoders":[],"monitors":[],"windows":[]}}"#);
         assert!(!c.ok);
         assert!(c.error.is_some());
+    }
+
+    fn package(dir: &Path, name: &str, files: &[(&str, &[u8])]) -> PathBuf {
+        use std::io::Write;
+        let path = dir.join(name);
+        let mut z = zip::ZipWriter::new(std::fs::File::create(&path).unwrap());
+        let opts = zip::write::SimpleFileOptions::default();
+        for (n, data) in files {
+            z.start_file(*n, opts).unwrap();
+            z.write_all(data).unwrap();
+        }
+        z.finish().unwrap();
+        path
+    }
+
+    fn full() -> Vec<(&'static str, &'static [u8])> {
+        REQUIRED_FILES
+            .iter()
+            .map(|f| (*f, b"x".as_slice()))
+            .collect()
+    }
+
+    #[test]
+    fn the_package_is_unpacked_with_its_hooks() {
+        let d = tempfile::tempdir().unwrap();
+        let mut files = full();
+        files.push(("hooks/x86/relay_hook.dll", b"y"));
+        let zip = package(d.path(), "ok.zip", &files);
+        let dest = d.path().join("out");
+        extract_package(&zip, &dest).unwrap();
+        assert!(dest.join("relay-capture.exe").is_file());
+        assert!(dest.join("hooks/x86/relay_hook.dll").is_file());
+    }
+
+    #[test]
+    fn a_package_missing_a_hook_is_refused() {
+        let d = tempfile::tempdir().unwrap();
+        let files: Vec<_> = full()
+            .into_iter()
+            .filter(|f| !f.0.ends_with("relay-inject.exe"))
+            .collect();
+        let zip = package(d.path(), "manca.zip", &files);
+        let e = extract_package(&zip, &d.path().join("out")).unwrap_err();
+        assert!(e.contains("relay-inject.exe"), "{e}");
+    }
+
+    #[test]
+    fn paths_outside_the_folder_and_odd_files_are_refused() {
+        let d = tempfile::tempdir().unwrap();
+        let mut files = full();
+        files.push(("../fuori.dll", b"z"));
+        let zip = package(d.path(), "slip.zip", &files);
+        assert!(extract_package(&zip, &d.path().join("a")).is_err());
+        assert!(!d.path().join("fuori.dll").exists());
+        let mut files = full();
+        files.push(("script.bat", b"z"));
+        let zip = package(d.path(), "bat.zip", &files);
+        assert!(extract_package(&zip, &d.path().join("b"))
+            .unwrap_err()
+            .contains("script.bat"));
+        assert!(extract_package(
+            d.path().join("non-esiste.zip").as_path(),
+            &d.path().join("c")
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn the_new_folder_replaces_the_old_one_and_old_obs_goes_away() {
+        let d = tempfile::tempdir().unwrap();
+        let base = d.path();
+        let old = runtime_dir(base);
+        std::fs::create_dir_all(old.join("bin/64bit")).unwrap();
+        std::fs::write(old.join("bin/64bit/obs.dll"), b"vecchio").unwrap();
+        std::fs::create_dir_all(base.join("obs/bin")).unwrap();
+        std::fs::write(base.join("obs/bin/obs.dll"), b"vecchio").unwrap();
+        let zip = package(base, "relay-recorder.zip", &full());
+        swap_in(&zip, base, "0.4.0").unwrap();
+        assert!(exe_ready(base));
+        assert_eq!(exe_installed_version(base).as_deref(), Some("0.4.0"));
+        assert!(!old.join("bin").exists());
+        assert!(!base.join("obs").exists());
+        assert!(!base.join("relay-capture.new").exists());
+    }
+
+    #[test]
+    fn a_broken_package_leaves_the_working_install_alone() {
+        let d = tempfile::tempdir().unwrap();
+        let base = d.path();
+        let zip = package(base, "uno.zip", &full());
+        swap_in(&zip, base, "0.4.0").unwrap();
+        let bad = package(base, "due.zip", &[("relay-capture.exe", b"x")]);
+        assert!(swap_in(&bad, base, "0.4.1").is_err());
+        assert_eq!(exe_installed_version(base).as_deref(), Some("0.4.0"));
+        assert!(exe_ready(base));
+        assert!(!base.join("relay-capture.new").exists());
     }
 }

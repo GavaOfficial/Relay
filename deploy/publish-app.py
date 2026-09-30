@@ -8,6 +8,7 @@ aggiorna da sola.
     python deploy/publish-app.py --no-app --ffmpeg ffmpeg.exe      # solo ffmpeg
     python deploy/publish-app.py --no-app --storage dist/relay-storage   # solo relay-storage (Linux)
     python deploy/publish-app.py --no-app --ops dist/relay-ops           # solo relay-ops (Linux)
+    python deploy/publish-app.py --no-app --recorder dist/relay-recorder.zip   # solo il pacchetto di registrazione
     python deploy/publish-app.py --local ./dati        # prova: scrive in ./dati/app invece che sulla VPS
 
 Sulla VPS (SFTP del server API) servono le variabili SFTP_USER e SFTP_PASS; SFTP_HOST e SFTP_PORT
@@ -138,6 +139,8 @@ def main() -> int:
     ap.add_argument("--ffmpeg-version", default=None)
     ap.add_argument("--capture", default=None, help="relay-capture.exe (cargo build --release -p relay-capture) da pubblicare")
     ap.add_argument("--capture-version", default=None)
+    ap.add_argument("--recorder", default=None, help="relay-recorder.zip (deploy/build-capture.ps1 -Zip): relay-capture con hooks/x64 e hooks/x86")
+    ap.add_argument("--recorder-version", default=None)
     ap.add_argument("--storage", default=None, help="relay-storage per Linux x86_64 (deploy/build-storage.ps1) da pubblicare")
     ap.add_argument("--storage-version", default=None)
     ap.add_argument("--ops", default=None, help="relay-ops per Linux x86_64 (deploy/build-storage.ps1) da pubblicare")
@@ -153,6 +156,9 @@ def main() -> int:
             with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
                 z.write(a.ffmpeg, "ffmpeg.exe")
             publish(target, "relay-ffmpeg", "ffmpeg", "zip", "ffmpeg.json", v, buf.getvalue(), "")
+        if a.recorder:
+            v = a.recorder_version or workspace_version()
+            publish(target, "relay-recorder", "relay-recorder", "zip", "recorder.json", v, open(a.recorder, "rb").read(), "")
         if a.capture:
             v = a.capture_version or workspace_version()
             publish(target, "relay-capture", "relay-capture", "exe", "capture.json", v, open(a.capture, "rb").read(), "")
