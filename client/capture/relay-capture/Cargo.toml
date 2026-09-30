@@ -1,0 +1,19 @@
+[package]
+name = "relay-capture"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Registrazione a segmenti con il motore di Relay"
+
+[[bin]]
+name = "relay-capture"
+path = "src/bin/relay-capture/main.rs"
+
+[dependencies]
+relay-recorder = { path = "../recorder" }
+anyhow = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

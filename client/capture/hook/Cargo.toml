@@ -1,0 +1,16 @@
+[package]
+name = "relay-hook"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[target.'cfg(windows)'.dependencies]
+anyhow = "1"
+relay-hook-gpu = { path = "../hook-gpu" }
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_Security", "Win32_Graphics_Direct3D", "Win32_Graphics_Direct3D11", "Win32_Graphics_Direct3D10", "Win32_Graphics_Direct3D9", "Win32_Graphics_Direct3D12", "Win32_Graphics_Direct3D11on12", "Win32_Graphics_Dxgi", "Win32_Graphics_Dxgi_Common"] }
+relay-hook-protocol = { path = "../protocol" }
+minhook = "0.9"
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_Graphics_OpenGL", "Win32_System_LibraryLoader", "Win32_System_Threading", "Win32_UI_WindowsAndMessaging"] }

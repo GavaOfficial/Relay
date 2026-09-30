@@ -35,25 +35,19 @@
     auth: { logged_in: false, name: null, user: null }, connection: 'connected', error: null, match: null,
     capture: { state: 'ready', stage: 'check', percent: 1, groups: [], error: null, compat: { ok: true, best_encoder: 'nvenc' } },
   };
-  if (new URLSearchParams(location.search).get('install')) {
-    st.capture = { state: 'installing', stage: 'obs', percent: 0, groups: [
-      { id: 'engine', label: 'Motore di cattura', percent: 0, done: false },
-      { id: 'encoders', label: 'Codifica video e audio', percent: 0, done: false },
-      { id: 'games', label: 'Aggancio ai giochi', percent: 0, done: false },
-    ], error: null, compat: null };
+  const install = new URLSearchParams(location.search).get('install');
+  if (install) {
+    st.capture = { state: 'installing', stage: 'exe', percent: 0, groups: [], error: null, compat: null };
     let step = 0;
     const tick = setInterval(() => {
       step += 5;
-      st.capture.percent = Math.min(100, step) / 100;
-      st.capture.groups.forEach((g, i) => { g.percent = Math.max(0, Math.min(100, step - i * 20)); g.done = g.percent >= 100; });
-      if (step >= 90 && st.capture.stage === 'obs') st.capture.stage = 'exe';
-      if (step >= 130) {
+      if (step <= 60) {
+        st.capture.percent = step / 60;
+      } else if (step <= 80) {
         st.capture.stage = 'check';
-        st.capture.percent = 1;
-      }
-      if (step >= 160) {
+      } else {
         clearInterval(tick);
-        st.capture = { state: 'ready', stage: 'check', percent: 1, groups: [], error: null, compat: { ok: true, best_encoder: 'nvenc' } };
+        st.capture = { state: 'ready', stage: 'check', percent: 1, groups: [], error: null, compat: { ok: true, best_encoder: 'nvenc', yellow_border: false } };
       }
       push();
     }, 400);

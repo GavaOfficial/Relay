@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use relay_capture::install::{self, Canceller, InstallProgress};
+use relay_capture::install::{self};
 use serde::Serialize;
 
 use crate::updater::{self, Release};
@@ -22,16 +22,12 @@ fn exe_version_file(base: &Path) -> PathBuf {
     runtime_dir(base).join("relay-capture-version.txt")
 }
 
-pub fn obs_ready(base: &Path) -> bool {
-    install::is_ready(&runtime_dir(base))
-}
-
 pub fn exe_ready(base: &Path) -> bool {
     exe_path(base).exists() && exe_version_file(base).exists()
 }
 
 pub fn ready(base: &Path) -> bool {
-    obs_ready(base) && exe_ready(base)
+    exe_ready(base)
 }
 
 pub fn exe_installed_version(base: &Path) -> Option<String> {
@@ -70,18 +66,10 @@ pub async fn install_exe(
     std::fs::write(exe_version_file(base), &rel.version).map_err(|e| e.to_string())
 }
 
-pub fn install_obs(
-    base: &Path,
-    cancel: &Canceller,
-    progress: &mut dyn FnMut(&InstallProgress),
-) -> Result<(), String> {
-    install::install(&runtime_dir(base), cancel, progress).map_err(|e| format!("{e:#}"))
-}
-
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct Compat {
     pub ok: bool,
-    pub obs_version: Option<String>,
+    pub yellow_border: bool,
 
     pub best_encoder: Option<String>,
     pub hardware_encoder: bool,
@@ -92,6 +80,7 @@ pub struct Compat {
 pub async fn check_compat(base: &Path) -> Compat {
     let exe = exe_path(base);
     let cwd = install::spawn_dir(&runtime_dir(base));
+    let _ = std::fs::create_dir_all(&cwd);
     let run = tokio::task::spawn_blocking(move || {
         use std::process::{Command, Stdio};
         #[cfg(windows)]
@@ -133,7 +122,7 @@ pub async fn check_compat(base: &Path) -> Compat {
         let stdout = child
             .stdout
             .take()
-            .ok_or("relay-capture.exe senza uscita")?;
+            .ok_or_else(|| "relay-capture.exe senza uscita".to_string())?;
         let mut stderr_pipe = child.stderr.take();
         let out = std::io::Read::bytes(stdout)
             .filter_map(|b| b.ok())
@@ -191,73 +180,101 @@ pub async fn check_compat(base: &Path) -> Compat {
     })
     .await;
 
+    let failed = |error: String| Compat {
+        ok: false,
+        yellow_border: false,
+        best_encoder: None,
+        hardware_encoder: false,
+        monitors: 0,
+        error: Some(error),
+    };
     let text = match run {
         Ok(Ok(t)) => t,
-        Ok(Err(e)) => {
-            return Compat {
-                ok: false,
-                obs_version: None,
-                best_encoder: None,
-                hardware_encoder: false,
-                monitors: 0,
-                error: Some(e),
-            }
-        }
-        Err(e) => {
-            return Compat {
-                ok: false,
-                obs_version: None,
-                best_encoder: None,
-                hardware_encoder: false,
-                monitors: 0,
-                error: Some(e.to_string()),
-            }
-        }
+        Ok(Err(e)) => return failed(e),
+        Err(e) => return failed(e.to_string()),
     };
+    read_probe(&text)
+}
 
-    let mut obs_version = None;
+fn read_probe(text: &str) -> Compat {
+    use relay_capture::ipc::{encoder_name, Event};
     let mut encoders: Vec<String> = Vec::new();
+    let mut best = None;
+    let mut yellow_border = false;
     let mut monitors = 0usize;
     for line in text.lines() {
-        match relay_capture::ipc::decode::<relay_capture::ipc::Event>(line) {
-            Ok(relay_capture::ipc::Event::Ready { obs_version: v }) => obs_version = Some(v),
-            Ok(relay_capture::ipc::Event::Probed {
-                encoders: e,
-                monitors: m,
-                ..
-            }) => {
-                encoders = e;
-                monitors = m.len();
-            }
-            _ => {}
+        if let Ok(Event::Probed {
+            encoders: e,
+            monitors: m,
+            best: b,
+            yellow_border: y,
+            ..
+        }) = relay_capture::ipc::decode::<Event>(line)
+        {
+            encoders = e;
+            monitors = m.len();
+            best = b;
+            yellow_border = y;
         }
     }
-    let pick = [
-        ("obs_nvenc_h264_tex", "nvenc"),
-        ("h264_texture_amf", "amf"),
-        ("obs_qsv11", "qsv"),
-        ("obs_x264", "x264"),
-    ]
-    .into_iter()
-    .find(|(id, _)| encoders.iter().any(|e| e == id))
-    .map(|(_, name)| name.to_string());
-    let hardware = pick.as_deref().is_some_and(|n| n != "x264");
-    if pick.is_none() {
-        return Compat {
-            ok: false,
-            obs_version,
-            best_encoder: None,
-            hardware_encoder: false,
-            monitors,
-            error: Some("nessun encoder video funzionante su questo PC".into()),
-        };
-    }
+    let pick = best
+        .as_deref()
+        .and_then(encoder_name)
+        .or_else(|| {
+            ["nvenc", "amf", "qsv", "software", "x264"]
+                .into_iter()
+                .find(|n| encoders.iter().any(|e| encoder_name(e) == Some(*n)))
+        })
+        .map(String::from);
+    let hardware = pick
+        .as_deref()
+        .is_some_and(|n| n != "x264" && n != "software");
     Compat {
-        ok: true,
-        obs_version,
+        ok: pick.is_some(),
+        yellow_border,
+        error: pick
+            .is_none()
+            .then(|| "nessun encoder video funzionante su questo PC".into()),
         best_encoder: pick,
         hardware_encoder: hardware,
         monitors,
-        error: None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_best_encoder_is_read_from_the_probe() {
+        let text = concat!(
+            r#"{"Ready":{"obs_version":"","engine":"relay"}}"#,
+            "\n",
+            r#"{"Probed":{"encoders":["nvenc","software"],"monitors":[{"index":0,"width":1920,"height":1080}],"windows":[],"best":"nvenc","yellow_border":true}}"#,
+            "\n"
+        );
+        let c = read_probe(text);
+        assert!(c.ok);
+        assert_eq!(c.best_encoder.as_deref(), Some("nvenc"));
+        assert!(c.hardware_encoder);
+        assert!(c.yellow_border);
+        assert_eq!(c.monitors, 1);
+    }
+
+    #[test]
+    fn software_only_is_compatible_but_not_hardware() {
+        let text =
+            r#"{"Probed":{"encoders":["software"],"monitors":[],"windows":[],"best":"software"}}"#;
+        let c = read_probe(text);
+        assert!(c.ok);
+        assert_eq!(c.best_encoder.as_deref(), Some("software"));
+        assert!(!c.hardware_encoder);
+    }
+
+    #[test]
+    fn no_encoder_means_not_compatible() {
+        let c = read_probe(r#"{"Probed":{"encoders":[],"monitors":[],"windows":[]}}"#);
+        assert!(!c.ok);
+        assert!(c.error.is_some());
     }
 }

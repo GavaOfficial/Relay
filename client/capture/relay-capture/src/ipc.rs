@@ -4,6 +4,13 @@ use serde::{Deserialize, Serialize};
 
 pub const HOST_ARG: &str = "--capture-host";
 
+pub const ENGINE_RELAY: &str = "relay";
+pub const ENGINE_OBS: &str = "obs";
+
+fn engine_obs() -> String {
+    ENGINE_OBS.into()
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Source {
     Window { exe: String },
@@ -79,11 +86,17 @@ pub enum Command {
 pub enum Event {
     Ready {
         obs_version: String,
+        #[serde(default = "engine_obs")]
+        engine: String,
     },
     Probed {
         encoders: Vec<String>,
         monitors: Vec<MonitorInfo>,
         windows: Vec<WindowInfo>,
+        #[serde(default)]
+        best: Option<String>,
+        #[serde(default)]
+        yellow_border: bool,
     },
     Started {
         encoder: String,
@@ -91,6 +104,8 @@ pub enum Event {
         first_frame_unix_secs: f64,
         #[serde(default)]
         generation: u32,
+        #[serde(default = "engine_obs")]
+        engine: String,
     },
     Resized {
         generation: u32,
@@ -102,7 +117,38 @@ pub enum Event {
     },
     Warning(String),
     Error(String),
+    Fallback {
+        reason: String,
+    },
     Stopped,
+}
+
+pub fn playlist_generation(name: &str) -> u32 {
+    name.strip_prefix("out_")
+        .and_then(|s| s.strip_suffix(".m3u8"))
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0)
+}
+
+pub fn legacy_encoder_id(name: &str) -> Option<&'static str> {
+    match name {
+        "nvenc" => Some("obs_nvenc_h264_tex"),
+        "amf" => Some("h264_texture_amf"),
+        "qsv" => Some("obs_qsv11"),
+        "software" | "x264" => Some("obs_x264"),
+        _ => None,
+    }
+}
+
+pub fn encoder_name(id: &str) -> Option<&'static str> {
+    match id {
+        "nvenc" | "obs_nvenc_h264_tex" => Some("nvenc"),
+        "amf" | "h264_texture_amf" => Some("amf"),
+        "qsv" | "obs_qsv11" => Some("qsv"),
+        "software" => Some("software"),
+        "x264" | "obs_x264" => Some("x264"),
+        _ => None,
+    }
 }
 
 pub fn encode<T: Serialize>(v: &T) -> String {
@@ -148,9 +194,60 @@ mod tests {
             encoder: "nvenc".into(),
             source: "game".into(),
             first_frame_unix_secs: 1.5,
+            generation: 2,
+            engine: ENGINE_RELAY.into(),
         };
         assert_eq!(decode::<Event>(&encode(&ev)).unwrap(), ev);
+        let fallback = Event::Fallback {
+            reason: "nessuna immagine".into(),
+        };
+        assert_eq!(decode::<Event>(&encode(&fallback)).unwrap(), fallback);
         assert!(decode::<Command>("non e' json").is_err());
+    }
+
+    #[test]
+    fn messages_from_the_obs_version_are_still_understood() {
+        let old = r#"{"Started":{"encoder":"nvenc","source":"game","first_frame_unix_secs":2.5}}"#;
+        match decode::<Event>(old).unwrap() {
+            Event::Started {
+                generation, engine, ..
+            } => {
+                assert_eq!(generation, 0);
+                assert_eq!(engine, ENGINE_OBS);
+            }
+            other => panic!("{other:?}"),
+        }
+        let ready = r#"{"Ready":{"obs_version":"32.2.2"}}"#;
+        assert_eq!(
+            decode::<Event>(ready).unwrap(),
+            Event::Ready {
+                obs_version: "32.2.2".into(),
+                engine: ENGINE_OBS.into()
+            }
+        );
+        let probed = r#"{"Probed":{"encoders":["obs_x264"],"monitors":[],"windows":[]}}"#;
+        assert!(matches!(
+            decode::<Event>(probed).unwrap(),
+            Event::Probed { best: None, .. }
+        ));
+    }
+
+    #[test]
+    fn playlist_names_give_their_generation() {
+        assert_eq!(playlist_generation("out.m3u8"), 0);
+        assert_eq!(playlist_generation("out_7.m3u8"), 7);
+        assert_eq!(playlist_generation("altro"), 0);
+    }
+
+    #[test]
+    fn encoder_names_map_both_ways() {
+        for name in ["nvenc", "amf", "qsv", "software"] {
+            let legacy = legacy_encoder_id(name).unwrap();
+            let back = encoder_name(legacy).unwrap();
+            assert_eq!(back, if name == "software" { "x264" } else { name });
+            assert_eq!(encoder_name(name), Some(name));
+        }
+        assert_eq!(encoder_name("boh"), None);
     }
 
     #[test]

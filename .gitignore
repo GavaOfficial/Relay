@@ -40,3 +40,7 @@ docs/
 client/app/gen/
 
 client/gd-mod/build/
+
+__pycache__/
+*.pyc
+*.h264
