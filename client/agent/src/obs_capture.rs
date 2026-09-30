@@ -9,7 +9,7 @@ use anyhow::{bail, Context, Result};
 use relay_capture::ipc::{self, EncoderChoice, Event, RecordConfig, Source};
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
-    process::{Child, Command},
+    process::{Child, ChildStdin, Command},
     task::JoinHandle,
 };
 
@@ -45,6 +45,7 @@ struct Shared {
 
 pub struct ObsCapture {
     child: Child,
+    stdin: Option<ChildStdin>,
     reader: JoinHandle<()>,
     shared: Arc<Mutex<Shared>>,
 }
@@ -99,6 +100,7 @@ impl ObsCapture {
             .spawn()
             .with_context(|| format!("avvio di {}", cfg.exe.display()))?;
         let stdout = child.stdout.take().context("relay-capture senza uscita")?;
+        let stdin = child.stdin.take();
         let shared = Arc::new(Mutex::new(Shared::default()));
         let shared_w = shared.clone();
         let reader = tokio::spawn(async move {
@@ -153,6 +155,7 @@ impl ObsCapture {
         });
         Ok(Self {
             child,
+            stdin,
             reader,
             shared,
         })
@@ -172,7 +175,7 @@ impl ObsCapture {
 
     pub async fn fit_window(&mut self) -> Option<(u32, f64)> {
         let before = self.shared.lock().unwrap().resized;
-        let stdin = self.child.stdin.as_mut()?;
+        let stdin = self.stdin.as_mut()?;
         stdin.write_all(b"r\n").await.ok()?;
         stdin.flush().await.ok()?;
         let deadline = tokio::time::Instant::now() + Duration::from_secs(4);
@@ -190,7 +193,7 @@ impl ObsCapture {
     }
 
     pub async fn stop(&mut self) -> Result<()> {
-        if let Some(stdin) = &mut self.child.stdin {
+        if let Some(stdin) = &mut self.stdin {
             let _ = stdin.write_all(b"q\n").await;
             let _ = stdin.flush().await;
         }
@@ -208,5 +211,48 @@ impl ObsCapture {
 
     pub fn kill(&mut self) {
         let _ = self.child.start_kill();
+    }
+}
+
+#[cfg(all(test, windows))]
+mod tests {
+    use super::*;
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn waiting_for_the_process_does_not_close_its_input() {
+        let d = tempfile::tempdir().unwrap();
+        let script = d.path().join("finto.cmd");
+        std::fs::write(
+            &script,
+            "@echo off\r\nset /p line=\r\nif not defined line exit /b 7\r\nexit /b 0\r\n",
+        )
+        .unwrap();
+        let mut cap = ObsCapture::spawn(&ObsCaptureConfig {
+            exe: script,
+            cwd: d.path().to_path_buf(),
+            window: WindowSel::Exe("gioco.exe".into()),
+            fallback_monitor: None,
+            fallback_monitor_name: None,
+            fps: 60,
+            bitrate_kbps: 6000,
+            dir: d.path().join("dati"),
+            encoder: EncoderChoice::Auto,
+            origin_unix_secs: None,
+            start_segment: 0,
+            generation: 0,
+            audio: AudioChoice {
+                game: false,
+                mic: false,
+                mic_gain: 1.0,
+            },
+            segment_secs: 4,
+        })
+        .unwrap();
+        let waited = tokio::time::timeout(Duration::from_millis(1500), cap.wait()).await;
+        assert!(
+            waited.is_err(),
+            "il programma si e' chiuso da solo: {waited:?}"
+        );
+        cap.stop().await.unwrap();
     }
 }
